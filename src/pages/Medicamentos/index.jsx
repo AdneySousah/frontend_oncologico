@@ -7,8 +7,8 @@ import {
   FilterInput, FilterButton 
 } from './styles';
 
-import MedicamentosList from './components/MedicamentosList';
-import MedicamentosForm from './components/MedicamentosForm';
+import MedicamentosList from './Components/MedicamentosList';
+import MedicamentosForm from './Components/MedicamentosForm';
 
 export default function MedicamentosPage() {
   const [activeTab, setActiveTab] = useState('list');
