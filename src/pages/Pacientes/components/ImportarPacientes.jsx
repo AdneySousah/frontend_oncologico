@@ -25,7 +25,7 @@ export default function ImportarPacientes({ onSuccess }) {
   useEffect(() => {
     async function loadOperadoras() {
       try {
-        const response = await api.get('/pacientes/operadoras-filtro'); 
+        const response = await api.get('/operadoras/filtro');
         setOperadoras(response.data);
         if (response.data.length === 1) {
             setOperadoraId(response.data[0].id);
