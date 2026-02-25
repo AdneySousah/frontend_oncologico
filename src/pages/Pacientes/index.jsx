@@ -11,7 +11,7 @@ import {
 } from "react-icons/lu";
 
 import api from '../../services/api';
-import { colors } from '../../themes/theme';
+import { colors } from '../../themes/theme'; // Importação das cores do seu tema
 import { 
   Container, 
   Header, 
@@ -39,6 +39,7 @@ export default function PacientesPage() {
   const [filterNome, setFilterNome] = useState('');
   const [filterCpf, setFilterCpf] = useState('');
   const [filterOperadora, setFilterOperadora] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ambos'); // NOVO: Estado do Status
 
   // Estado para Edição e Visualização
   const [editingPaciente, setEditingPaciente] = useState(null);
@@ -60,7 +61,8 @@ export default function PacientesPage() {
         params: {
           nome: filterNome,
           cpf: filterCpf,
-          operadora_id: filterOperadora
+          operadora_id: filterOperadora,
+          status_active: filterStatus // NOVO: Enviando o status para o backend
         }
       });
       setPacientes(response.data);
@@ -76,7 +78,8 @@ export default function PacientesPage() {
     if (activeTab === 'list') {
       loadPacientes();
     }
-  }, [activeTab, filterOperadora]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, filterOperadora, filterStatus]); // Atualiza ao trocar o status também
 
   // Gatilho de busca por teclado (Enter)
   const handleKeyDown = (e) => {
@@ -90,6 +93,7 @@ export default function PacientesPage() {
     setFilterNome('');
     setFilterCpf('');
     setFilterOperadora('');
+    setFilterStatus('ambos'); // Resetando o novo filtro
     loadPacientes();
   };
 
@@ -110,6 +114,24 @@ export default function PacientesPage() {
   const handleViewAnexos = (paciente) => {
     setPacienteSelecionado(paciente);
     setShowModal(true);
+  };
+
+  // --- NOVA FUNÇÃO DE INATIVAR/ATIVAR ---
+  const handleToggleActive = async (paciente) => {
+    const statusAtual = paciente.is_active !== false; 
+    const acao = statusAtual ? 'inativar' : 'reativar';
+    
+    const confirmar = window.confirm(`Tem certeza que deseja ${acao} o paciente ${paciente.nome}?`);
+    if (!confirmar) return;
+
+    try {
+      await api.patch(`/pacientes/${paciente.id}/status`);
+      toast.success(`Paciente ${statusAtual ? 'inativado' : 'reativado'} com sucesso!`);
+      loadPacientes(); 
+    } catch (error) {
+      console.error("Erro ao alterar status:", error);
+      toast.error(`Falha ao ${acao} o paciente.`);
+    }
   };
 
   return (
@@ -149,12 +171,13 @@ export default function PacientesPage() {
             paddingBottom: '20px', borderBottom: `1px solid ${colors.border}`,
             alignItems: 'flex-end', flexWrap: 'wrap'
           }}>
-            <div style={{ flex: 2, minWidth: '200px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+            {/* CORREÇÃO DAS CORES: colors.text para a letra, colors.inputBg para o fundo */}
+            <div style={{ flex: 2, minWidth: '180px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
                 Nome ou Sobrenome
               </label>
               <input 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}` }}
+                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterNome}
                 onChange={e => setFilterNome(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -163,24 +186,24 @@ export default function PacientesPage() {
             </div>
 
             <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                CPF (Apenas números)
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
+                CPF
               </label>
               <input 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}` }}
+                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterCpf}
                 onChange={e => setFilterCpf(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="00000000000"
+                placeholder="Apenas números"
               />
             </div>
 
             <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
                 Operadora
               </label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}` }}
+                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterOperadora}
                 onChange={e => setFilterOperadora(e.target.value)}
               >
@@ -191,11 +214,27 @@ export default function PacientesPage() {
               </select>
             </div>
 
+            {/* --- NOVO FILTRO: STATUS --- */}
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
+                Status
+              </label>
+              <select 
+                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+              >
+                <option value="ambos">Todos</option>
+                <option value="true">Apenas Ativos</option>
+                <option value="false">Apenas Inativos</option>
+              </select>
+            </div>
+
             <div style={{ display: 'flex', gap: '8px' }}>
-              <Button onClick={loadPacientes} title="Pesquisar">
+              <Button onClick={loadPacientes} title="Pesquisar" style={{ height: '42px', display: 'flex', alignItems: 'center' }}>
                 <LuSearch size={20} />
               </Button>
-              <Button onClick={clearFilters} style={{ background: '#6c757d' }} title="Limpar Filtros">
+              <Button onClick={clearFilters} style={{ background: '#6c757d', height: '42px', display: 'flex', alignItems: 'center' }} title="Limpar Filtros">
                 <LuFilterX size={20} />
               </Button>
             </div>
@@ -208,7 +247,8 @@ export default function PacientesPage() {
             data={pacientes} 
             loading={loading} 
             onEdit={handleEditRequest} 
-            onViewAnexos={handleViewAnexos} // Passando a prop para a listagem
+            onViewAnexos={handleViewAnexos}
+            onToggleActive={handleToggleActive} // Passando a nova função para a tabela
           />
         )}
 

@@ -157,3 +157,38 @@ export const Button = styled.button`
     cursor: not-allowed; 
   }
 `;
+
+
+export const SelectGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 20px;
+
+  label {
+    font-weight: 500;
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+export const Select = styled.select`
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background-color: ${({ theme }) => theme.colors.inputBg || 'transparent'};
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 1rem;
+  outline: none;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+

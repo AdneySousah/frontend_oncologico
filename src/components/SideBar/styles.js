@@ -201,3 +201,71 @@ export const Divider = styled.div`
   background-color: ${({ theme }) => theme.colors.border};
   margin: 10px 15px;
 `;
+
+
+export const AlertOverlay = styled.div`
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); z-index: 1000;
+  display: flex; justify-content: flex-end; /* Fica alinhado à direita para não tampar a sidebar */
+`;
+
+export const AlertModalContent = styled.div`
+  background: ${props => props.theme.colors.surface || '#fff'};
+  width: 450px;
+  height: 100%;
+  box-shadow: -5px 0 25px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.3s ease-out;
+
+  @keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  .modal-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid ${props => props.theme.colors.border || '#eee'};
+    display: flex; justify-content: space-between; align-items: center;
+    h3 { margin: 0; color: ${props => props.theme.colors.text || '#333'}; }
+    .close-btn { background: none; border: none; cursor: pointer; color: #888; }
+  }
+
+  .modal-body {
+    padding: 20px 25px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+`;
+
+export const AlertCard = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-radius: 8px;
+  background: ${props => props.theme.colors.inputBg || '#fafafa'};
+  border-left: 5px solid ${props => props.diffDays <= 1 ? '#ff4d4f' : props.diffDays <= 3 ? '#faad14' : '#52c41a'};
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+
+  .alert-info {
+    flex: 1;
+    .badge {
+      display: inline-block; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; 
+      background: #e6f7ff; color: #1890ff; border-radius: 4px; margin-bottom: 5px;
+    }
+    h4 { margin: 0 0 5px 0; color: ${props => props.theme.colors.text || '#333'}; font-size: 1rem; }
+    p { margin: 0 0 5px 0; font-size: 0.85rem; color: #666; }
+    .time { font-size: 0.8rem; font-weight: bold; color: ${props => props.diffDays <= 1 ? '#ff4d4f' : '#888'}; }
+  }
+
+  .action-btn {
+    background: ${props => props.theme.colors.primary || '#007D99'};
+    color: white; border: none; padding: 8px 16px; border-radius: 6px;
+    cursor: pointer; font-weight: bold; transition: filter 0.2s;
+    &:hover { filter: brightness(1.1); }
+  }
+`;

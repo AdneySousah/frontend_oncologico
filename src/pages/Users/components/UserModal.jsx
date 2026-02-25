@@ -4,45 +4,46 @@ import { Overlay, ModalContainer, Form, FormGroup, ButtonGroup, Button, Checkbox
 import api from '../../../services/api';
 
 const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
-  // Estados do Usuário (Adicionado array de operadoras)
   const [userData, setUserData] = useState({
     name: '',
     email: '',
     password: '',
     is_admin: false,
     is_profissional: false,
-    operadoras: [], // Guardará os IDs selecionados [1, 2, 4]
+    perfil_id: '', // Adicionado
+    operadoras: [],
   });
 
-  // Estados do Profissional
   const [proData, setProData] = useState({
     registry_type: 'CRM',
     registry_number: '',
     especiality_id: '',
   });
 
-  // Estados para popular os Selects e Checkboxes
   const [specialties, setSpecialties] = useState([]);
   const [operadorasList, setOperadorasList] = useState([]);
+  const [perfisList, setPerfisList] = useState([]); // Adicionado
 
-  // Carregar Dados Iniciais (Especialidades e Operadoras)
   useEffect(() => {
     async function loadData() {
       try {
-        const [specsRes, opsRes] = await Promise.all([
+        const [specsRes, opsRes, perfisRes] = await Promise.all([
           api.get('/specialities'),
-          api.get('/operadoras')
+          api.get('/operadoras'),
+          api.get('/perfis') // Busca os perfis
         ]);
+
+     
         setSpecialties(specsRes.data);
         setOperadorasList(opsRes.data);
+        setPerfisList(perfisRes.data);
       } catch (err) {
-        console.error("Falha ao carregar dados auxiliares");
+        console.error("Falha ao carregar dados auxiliares", err);
       }
     }
     if (isOpen) loadData();
   }, [isOpen]);
 
-  // Preencher dados na Edição
   useEffect(() => {
     if (userToEdit) {
       setUserData({
@@ -51,18 +52,29 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
         password: '',
         is_admin: userToEdit.is_admin || false,
         is_profissional: userToEdit.is_profissional || false,
-        // Pega os IDs das operadoras que vieram do backend e coloca no array
+        perfil_id: userToEdit.perfil_id || '', // Preenche o perfil
         operadoras: userToEdit.operadoras ? userToEdit.operadoras.map(op => op.id) : []
       });
+
+      // Se ele for profissional, preenche os dados. userToEdit.professional vem do backend agora
+      if (userToEdit.is_profissional && userToEdit.professional) {
+        setProData({
+          registry_type: userToEdit.professional.registry_type || 'CRM',
+          registry_number: userToEdit.professional.registry_number || '',
+          especiality_id: userToEdit.professional.especiality_id || '',
+        });
+      } else {
+        setProData({ registry_type: 'CRM', registry_number: '', especiality_id: '' });
+      }
+
     } else {
-      setUserData({ name: '', email: '', password: '', is_admin: false, is_profissional: false, operadoras: [] });
+      setUserData({ name: '', email: '', password: '', is_admin: false, is_profissional: false, perfil_id: '', operadoras: [] });
       setProData({ registry_type: 'CRM', registry_number: '', especiality_id: '' });
     }
   }, [userToEdit, isOpen]);
 
   if (!isOpen) return null;
 
-  // Handler padrão de inputs e checkboxes únicos
   const handleUserChange = (e) => {
     const { name, value, type, checked } = e.target;
     setUserData(prev => ({
@@ -71,15 +83,12 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
     }));
   };
 
-  // Handler específico para o array de checkboxes de operadoras
   const handleOperadoraToggle = (operadoraId) => {
     setUserData(prev => {
       const isSelected = prev.operadoras.includes(operadoraId);
       if (isSelected) {
-        // Se já estava selecionado, remove do array
         return { ...prev, operadoras: prev.operadoras.filter(id => id !== operadoraId) };
       } else {
-        // Se não estava selecionado, adiciona ao array
         return { ...prev, operadoras: [...prev.operadoras, operadoraId] };
       }
     });
@@ -92,49 +101,32 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      let userId;
+    if (!userData.perfil_id) {
+      return toast.warning("Por favor, selecione um Perfil de Acesso.");
+    }
 
-      // 1. Salvar/Atualizar Usuário (Agora enviando userData completo, que inclui o array de operadoras)
+    try {
+      // Monta o payload único para enviar pro backend
+      const payload = {
+        ...userData,
+        professional_data: userData.is_profissional ? {
+          registry_type: proData.registry_type,
+          registry_number: proData.registry_number,
+          especiality_id: Number(proData.especiality_id)
+        } : null
+      };
+
       if (userToEdit) {
-        await api.put(`/users/${userToEdit.id}`, {
-          name: userData.name,
-          email: userData.email,
-          is_admin: userData.is_admin,
-          is_profissional: userData.is_profissional,
-          operadoras: userData.operadoras // Array de IDs vai para o backend
-        });
-        userId = userToEdit.id;
-        toast.success('Usuário atualizado!');
+        await api.put(`/users/${userToEdit.id}`, payload);
+        toast.success('Usuário atualizado com sucesso!');
       } else {
         if (!userData.password || userData.password.length < 6) {
           return toast.error("Senha deve ter no mínimo 6 caracteres.");
         }
-
-        const response = await api.post('/users', userData); // Vai com senha e operadoras
-        userId = response.data.user?.id || response.data.id;
-        toast.success('Usuário criado!');
+        await api.post('/users', payload);
+        toast.success('Usuário criado com sucesso!');
       }
 
-      // 2. Lógica de Profissional (Mantida como você fez)
-      if (userData.is_profissional && !userToEdit) {
-        if (!proData.registry_number || !proData.especiality_id) {
-          toast.warning('Usuário criado, mas faltou dados do profissional (CRM/Especialidade).');
-        } else {
-          try {
-            await api.post('/professionals', {
-              user_id: userId,
-              registry_type: proData.registry_type,
-              registry_number: proData.registry_number,
-              especiality_id: Number(proData.especiality_id)
-            });
-            toast.success('Dados profissionais vinculados com sucesso!');
-          } catch (proError) {
-            console.error(proError);
-          }
-        }
-      }
-      
       onSuccess();
       onClose();
     } catch (err) {
@@ -145,10 +137,21 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
 
   return (
     <Overlay>
-      <ModalContainer>
+      <ModalContainer style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <h2>{userToEdit ? 'Editar Usuário' : 'Novo Usuário'}</h2>
         
         <Form onSubmit={handleSubmit}>
+          {/* PERFIL DE ACESSO */}
+          <FormGroup>
+            <label style={{ fontWeight: 'bold' }}>Perfil de Acesso (Grupo)</label>
+            <Select name="perfil_id" value={userData.perfil_id} onChange={handleUserChange} required>
+              <option value="">Selecione um perfil...</option>
+              {perfisList.map(perfil => (
+                <option key={perfil.id} value={perfil.id}>{perfil.nome}</option>
+              ))}
+            </Select>
+          </FormGroup>
+
           {/* Dados Básicos */}
           <FormGroup>
             <label>Nome Completo</label>
@@ -189,7 +192,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
           {/* Permissões */}
           <FormGroup>
              <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>
-              Permissões do Sistema
+              Status / Tipo
             </label>
             <CheckboxGroup>
               <label>
@@ -209,15 +212,15 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
                   checked={userData.is_profissional} 
                   onChange={handleUserChange} 
                 />
-                Profissional de Saúde
+                É um Profissional de Saúde?
               </label>
             </CheckboxGroup>
           </FormGroup>
 
           {/* Área Condicional: Dados Profissionais */}
           {userData.is_profissional && (
-            <ProfessionalSection>
-              <h4>Dados do Profissional</h4>
+            <ProfessionalSection style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginTop: '10px' }}>
+              <h4>Dados do Registro Profissional</h4>
               
               <FormGroup>
                 <label>Tipo de Registro</label>
@@ -235,7 +238,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
                   value={proData.registry_number} 
                   onChange={handleProChange} 
                   placeholder="Ex: 12345-MG"
-                  required={!userToEdit} 
+                  required={userData.is_profissional} 
                 />
               </FormGroup>
 
@@ -245,7 +248,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
                   name="especiality_id" 
                   value={proData.especiality_id} 
                   onChange={handleProChange}
-                  required={!userToEdit}
+                  required={userData.is_profissional}
                 >
                   <option value="">Selecione uma especialidade</option>
                   {specialties.map(spec => (
@@ -256,7 +259,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
             </ProfessionalSection>
           )}
 
-          <ButtonGroup>
+          <ButtonGroup style={{ marginTop: '20px' }}>
             <Button type="button" className="cancel" onClick={onClose}>Cancelar</Button>
             <Button type="submit" className="save">Salvar</Button>
           </ButtonGroup>
@@ -265,6 +268,5 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
     </Overlay>
   );
 }
-
 
 export default UserModal;

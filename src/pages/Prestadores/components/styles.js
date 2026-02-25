@@ -2,7 +2,7 @@ import styled from 'styled-components';
 
 export const FormContainer = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
-  padding: 2rem; /* Aumentei um pouco para respirar melhor o formulário */
+  padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -22,7 +22,7 @@ export const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  position: relative; /* Adicionado para caso você use ícones absolutos dentro (ex: MapPin) */
+  position: relative;
 
   &.full-width {
     grid-column: 1 / -1;
@@ -35,12 +35,14 @@ export const FormGroup = styled.div`
   }
 
   input, select {
+    width: 100%;
+    box-sizing: border-box;
     padding: 0.9rem 1rem;
     border: 1px solid ${({ theme }) => theme.colors.border};
     border-radius: 6px;
     font-size: 1rem;
     color: ${({ theme }) => theme.colors.text};
-    background-color: ${({ theme }) => theme.colors.inputBg}; /* Fundo dinâmico escuro/claro */
+    background-color: ${({ theme }) => theme.colors.inputBg};
     transition: all 0.2s;
 
     &:focus {
@@ -52,6 +54,20 @@ export const FormGroup = styled.div`
     &::placeholder {
       color: ${({ theme }) => theme.colors.textLight};
       opacity: 0.7;
+    }
+
+    /* NOVO: Estilização nativa para campos bloqueados respeitando o tema */
+    &:disabled, &[readOnly] {
+      background-color: ${({ theme }) => theme.colors.surface};
+      color: ${({ theme }) => theme.colors.textLight};
+      border-color: ${({ theme }) => theme.colors.border};
+      cursor: not-allowed;
+      opacity: 0.7;
+
+      &:focus {
+        box-shadow: none;
+        border-color: ${({ theme }) => theme.colors.border};
+      }
     }
   }
 `;

@@ -1,9 +1,8 @@
 import React from 'react';
 import { Table, ActionButton } from '../styles';
-import { LuPencil, LuPaperclip, LuBan } from "react-icons/lu";
+import { LuPencil, LuPaperclip, LuBan, LuPower } from "react-icons/lu"; // Importei o LuPower
 
-// Agora recebe onViewAnexos para lidar com o clique do botão de anexo
-export default function PacientesList({ data, loading, onEdit, onViewAnexos }) {
+export default function PacientesList({ data, loading, onEdit, onViewAnexos, onToggleActive }) {
   
   if (loading) return <div style={{padding: '20px', textAlign: 'center'}}>Buscando pacientes...</div>;
 
@@ -28,11 +27,12 @@ export default function PacientesList({ data, loading, onEdit, onViewAnexos }) {
            </tr>
         ) : (
           data.map(p => {
-            // Verifica se o paciente tem anexos retornados pelo backend
             const temAnexo = p.anexos && p.anexos.length > 0;
+            // Se is_active for estritamente false, ele está inativo. Se for null/true, está ativo.
+            const inativo = p.is_active === false; 
 
             return (
-              <tr key={p.id}>
+              <tr key={p.id} style={{ backgroundColor: inativo ? 'rgba(255, 60, 60, 0.12)' : 'transparent' }}>
                 <td><strong>{p.nome} {p.sobrenome}</strong></td>
                 <td>{p.cpf}</td>
                 <td>{p.celular}</td>
@@ -48,12 +48,21 @@ export default function PacientesList({ data, loading, onEdit, onViewAnexos }) {
                     <LuPencil size={18} />
                   </ActionButton>
 
+                  {/* Botão de Inativar / Ativar */}
+                  <ActionButton 
+                    onClick={() => onToggleActive(p)}
+                    title={inativo ? "Reativar Paciente" : "Inativar Paciente"}
+                    style={{ background: inativo ? '#28a745' : '#dc3545', color: '#fff' }}
+                  >
+                    <LuPower size={18} />
+                  </ActionButton>
+
                   {/* Botão de Anexo Condicional */}
                   {temAnexo ? (
                     <ActionButton 
                       onClick={() => onViewAnexos(p)}
                       title="Ver Anexos"
-                      style={{ background: '#17a2b8', color: '#fff' }} // Cor diferente para destacar
+                      style={{ background: '#17a2b8', color: '#fff' }}
                     >
                       <LuPaperclip size={18} />
                     </ActionButton>

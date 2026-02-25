@@ -19,13 +19,10 @@ import TimelinePacientes from '../pages/LinhaDoTempo';
 import TelaAceiteTermo from '../pages/AceiteTermo';
 import PerfisPage from '../pages/Permissoes';
 import FirstAccess from '../pages/FirstAccess';
-// Componente temporário para páginas em construção
-const EmConstrucao = ({ title }) => (
-    <div style={{ padding: '2rem' }}>
-        <h1>{title}</h1>
-        <p>Página em desenvolvimento...</p>
-    </div>
-);
+import Telemonitoramento from '../pages/Telemonitoramento';
+import ReacoesAdversasPage from '../pages/ReacaoAdversa';
+import Dashboard from '../pages/Dashboard';
+
 
 export default function Routes() {
     return (
@@ -36,13 +33,13 @@ export default function Routes() {
             <Route path='/primeiro-acesso' element={<FirstAccess />} />
             {/* Rotas Privadas (Com Sidebar/Layout) */}
             <Route path='/' element={<UserLayout />}>
-
+            
+                <Route index element={<Dashboard />} />
                 {/* Menu Principal */}
-                <Route index element={<HomePage />} /> {/* Caminho '/' */}
-                <Route path='/dados-navegacao' element={<EmConstrucao title="Dados Pacientes" />} />
+                
                 <Route path='/necessidade-navegacao' element={<DetalhesEntrevista />} />
                 <Route path="/avaliacao/new" element={<NovaAvaliacao />} />
-                <Route path='/telemonitoramento' element={<EmConstrucao title="Telemonitoramento" />} />
+          
 
                 {/* Menu de Cadastros */}
                 <Route path='/users' element={<UsersPage />} />
@@ -58,6 +55,9 @@ export default function Routes() {
                 <Route path='/medicamentos' element={<MedicamentosPage />} />
                 <Route path='/linha-do-tempo' element={<TimelinePacientes />} />
                 <Route path='/permissoes' element={<PerfisPage />} />
+                <Route path='/telemonitoramento' element={<Telemonitoramento />} />
+                <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
+                
                 
 
             </Route>

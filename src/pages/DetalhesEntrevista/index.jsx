@@ -1,25 +1,35 @@
+// src/pages/ListaEntrevistas/index.jsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import * as S from './styles';
-import EvaluationModal from './components/EvaluationModal';
+
+import EvaluationModal from './components/EvaluationModal'; 
 import TermoModal from './components/TermoModal';
-import { LuArrowUpDown } from "react-icons/lu";
+import { LuArrowUpDown, LuEye } from "react-icons/lu"; 
 
 export default function ListaEntrevistas() {
   const [entrevistas, setEntrevistas] = useState([]);
   const [sortOrder, setSortOrder] = useState('asc');
+  
+  // Estados do Modal de Avaliação 
   const [selectedEntrevista, setSelectedEntrevista] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  
+  // Estados do Modal de Termo
   const [termoModalOpen, setTermoModalOpen] = useState(false);
   const [entrevistaParaTermo, setEntrevistaParaTermo] = useState(null);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight');
 
   const load = async () => {
     try {
       const res = await api.get('/evaluations/responses');
+      console.log(res.data)
       setEntrevistas(res.data);
+
       console.log(res.data)
     } catch (error) {
       console.error("Erro ao buscar entrevistas", error);
@@ -27,6 +37,18 @@ export default function ListaEntrevistas() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Efeito de Scroll e Destaque da linha (Vindo do Alerta da Sidebar)
+  useEffect(() => {
+    if (highlightId && entrevistas.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`row-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500); 
+    }
+  }, [highlightId, entrevistas]);
 
   const handleSort = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
 
@@ -75,7 +97,8 @@ export default function ListaEntrevistas() {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Paciente / Médico</th>
+            <th>Paciente</th>
+            <th>Médico da entrevista</th>
             <th>Contato</th>
             <th>Operadora</th>
             <th className="sortable" onClick={handleSort}>
@@ -84,25 +107,44 @@ export default function ListaEntrevistas() {
             <th>Data Entrevista</th>
             <th>Termo</th>
             <th>Status</th>
-            <th>Ações</th>
+            <th style={{ textAlign: 'center' }}>Ações</th>
           </tr>
         </thead>
         <tbody>
           {sortedEntrevistas.map(item => {
             const alert = getAlertConfig(item);
             const statusTermo = item.paciente?.status_termo || 'Pendente';
+            
+            const isHighlighted = highlightId === String(item.id); 
+            
+            // Garantia de busca da operadora independente do plural/singular retornado pela API
+            const nomeOperadora = item.paciente?.operadoras?.nome || item.paciente?.operadora?.nome || '-';
 
             return (
-              <tr key={item.id}>
+              <tr 
+                key={item.id}
+                id={`row-${item.id}`} 
+                style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.2)', transition: 'background-color 2s' } : {}}
+              >
                 <td>#{item.id}</td>
                 <td>
                   <div style={{ lineHeight: '1.4' }}>
                     <strong>{item.paciente?.nome} {item.paciente?.sobrenome}</strong><br />
+                   
+                  </div>
+                </td>
+
+                <td>
+                  <div style={{ lineHeight: '1.4' }}>
+                     <strong>{item.medico?.nome} {item.medico?.sobrenome}</strong><br />
                     <small style={{ opacity: 0.5 }}>CRM: {item.medico?.crm || '---'}</small>
                   </div>
                 </td>
                 <td>{item.paciente?.celular || item.paciente?.telefone || '-'}</td>
-                <td>{item.paciente?.operadoras?.nome || '-'}</td>
+                
+                {/* Operadora Corrigida */}
+                <td>{nomeOperadora}</td>
+                
                 <td>
                   <div style={{ color: alert?.color, fontWeight: alert ? '800' : 'normal' }}>
                     {formatDate(item.data_proximo_contato)}
@@ -132,20 +174,34 @@ export default function ListaEntrevistas() {
                 </td>
 
                 <td>
-                  <S.ActionButton
-                    mode="create"
-                    onClick={() => {
-                      // Correção: Verifica se o termo está pendente antes de navegar
-                      if (statusTermo !== 'Aceito') {
-                        setEntrevistaParaTermo(item);
-                        setTermoModalOpen(true);
-                      } else {
-                        navigate(`/avaliacao/new?entrevista_id=${item.id}&paciente_id=${item.paciente_id}`);
-                      }
-                    }}
-                  >
-                    {item.status_avaliacao === 'Parcial' ? 'Continuar' : 'Avaliar'}
-                  </S.ActionButton>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                    {/* Botão Principal de Avaliação */}
+                    <S.ActionButton
+                      mode="create"
+                      onClick={() => {
+                        if (statusTermo !== 'Aceito') {
+                          setEntrevistaParaTermo(item);
+                          setTermoModalOpen(true);
+                        } else {
+                          navigate(`/avaliacao/new?entrevista_id=${item.id}&paciente_id=${item.paciente_id}`);
+                        }
+                      }}
+                    >
+                      {item.status_avaliacao === 'Parcial' ? 'Continuar' : 'Avaliar'}
+                    </S.ActionButton>
+
+                    {/* Botão Secundário para abrir o Modal de Detalhes (Visualizar) */}
+                    <S.ActionButton
+                      style={{ backgroundColor: '#17a2b8', color: '#fff', padding: '8px 12px' }}
+                      onClick={() => {
+                        setSelectedEntrevista(item);
+                        setModalOpen(true);
+                      }}
+                      title="Ver Detalhes"
+                    >
+                      <LuEye size={18} />
+                    </S.ActionButton>
+                  </div>
                 </td>
               </tr>
             );
@@ -153,22 +209,30 @@ export default function ListaEntrevistas() {
         </tbody>
       </S.Table>
 
+      {/* Modal de Termo */}
       <TermoModal
         isOpen={termoModalOpen}
         onClose={() => setTermoModalOpen(false)}
         entrevista={entrevistaParaTermo}
         onSuccess={(entrevistaAtualizada) => {
-          // 1. Opcional: recarrega a tabela por baixo dos panos
           load();
-
-          // 2. Fecha o modal
           setTermoModalOpen(false);
-
-          // 3. FAZ A NAVEGAÇÃO para a tela de avaliação passando os IDs corretos!
+          // O disparo de evento ('updateAlerts') vai recarregar a Sidebar
+          window.dispatchEvent(new Event('updateAlerts')); 
           navigate(`/avaliacao/new?entrevista_id=${entrevistaAtualizada.id}&paciente_id=${entrevistaAtualizada.paciente_id}`);
         }}
       />
+
+      {/* Modal de Detalhes (Restaurado) */}
+      <EvaluationModal
+        isOpen={modalOpen}
+        data={selectedEntrevista}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedEntrevista(null);
+        }}
+      />
+
     </S.Container>
   );
 }
-

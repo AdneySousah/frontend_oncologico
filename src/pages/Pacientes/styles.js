@@ -13,7 +13,7 @@ export const Header = styled.div`
   margin-bottom: 2rem;
 
   h1 {
-    color: ${({ theme }) => theme.colors.text}; /* Trocado de sidebarMiddle para text */
+    color: ${({ theme }) => theme.colors.text}; 
     font-size: 1.8rem;
   }
 `;
@@ -46,7 +46,64 @@ export const ContentBox = styled.div`
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  border: 1px solid ${({ theme }) => theme.colors.border}; /* Borda sutil adicionada para o dark mode */
+  border: 1px solid ${({ theme }) => theme.colors.border}; 
+`;
+
+// -- NOVO: ESTILOS DO FILTRO SUPERIOR --
+export const FilterContainer = styled.div`
+  display: flex;
+  gap: 15px;
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  align-items: flex-end;
+  flex-wrap: wrap;
+
+  .filter-group {
+    flex: 1;
+    min-width: 150px;
+
+    &.large {
+      flex: 2;
+      min-width: 200px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: ${({ theme }) => theme.colors.text}; /* Garante o contraste no claro e no escuro */
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 4px;
+      /* Aplica borda visível e cor de fundo usando o tema */
+      border: 1px solid ${({ theme }) => theme.colors.border};
+      background-color: ${({ theme }) => theme.colors.inputBg || 'transparent'};
+      color: ${({ theme }) => theme.colors.text};
+      outline: none;
+      transition: all 0.2s;
+
+      /* Garante que o placeholder seja legível no tema escuro */
+      &::placeholder {
+        color: ${({ theme }) => theme.colors.textLight || '#888'};
+        opacity: 0.8;
+      }
+
+      &:focus {
+        border-color: ${({ theme }) => theme.colors.primary};
+        box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33;
+      }
+    }
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 8px;
+  }
 `;
 
 // -- FORM STYLES --
@@ -68,22 +125,22 @@ export const FormGroup = styled.div`
 
   label { 
     font-size: 0.9rem; 
-    color: ${({ theme }) => theme.colors.text}; /* Aumentado o contraste do label */
+    color: ${({ theme }) => theme.colors.text}; 
     font-weight: 600; 
   }
   
   input, select {
-    padding: 0.9rem 1rem; /* Aumentei levemente o padding para igualar ao de Prestadores */
+    padding: 0.9rem 1rem; 
     border: 1px solid ${({ theme }) => theme.colors.border}; 
     border-radius: 4px;
-    background-color: ${({ theme }) => theme.colors.inputBg}; /* Adaptação pro dark mode */
+    background-color: ${({ theme }) => theme.colors.inputBg}; 
     color: ${({ theme }) => theme.colors.text};
     transition: all 0.2s;
 
     &:focus { 
       border-color: ${({ theme }) => theme.colors.primary}; 
       outline: none; 
-      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33; /* Glow suave */
+      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33; 
     }
   }
 `;
@@ -120,7 +177,7 @@ export const Table = styled.table`
   width: 100%; border-collapse: collapse;
   
   thead {
-    background-color: ${({ theme }) => theme.colors.primary}; /* Padronizado */
+    background-color: ${({ theme }) => theme.colors.primary}; 
     th { color: #ffffff; padding: 1rem; text-align: left; }
   }
   
@@ -129,7 +186,7 @@ export const Table = styled.table`
     transition: background-color 0.1s;
 
     &:hover { 
-      background-color: ${({ theme }) => theme.colors.inputBg}; /* Hover suave pro dark mode */
+      background-color: ${({ theme }) => theme.colors.inputBg}; 
     }
     
     td { padding: 1rem; color: ${({ theme }) => theme.colors.text}; }

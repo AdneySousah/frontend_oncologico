@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import { toast } from 'react-toastify';
-// ÍCONE ATUALIZADO AQUI: LuXCircle virou LuCircleX
 import { LuSave, LuCircleX, LuMapPin } from "react-icons/lu"; 
+import axios from 'axios'; // Importando o axios para buscar o CEP direto no front
 import { 
   Form, 
   FormGroup, 
@@ -19,12 +19,43 @@ export default function PrestadoresForm({ prestadorToEdit, onSuccess, onCancel }
     cep: '', 
     tipo: 'clinica', 
     numero: '', 
-    complemento: ''
+    complemento: '',
+    // Adicionando os campos de endereço ao estado
+    logradouro: '',
+    bairro: '',
+    cidade: '',
+    estado: ''
   });
 
   useEffect(() => {
     if (prestadorToEdit) setFormData(prestadorToEdit);
   }, [prestadorToEdit]);
+
+  // Função disparada ao sair do campo de CEP
+  const handleCepBlur = async (e) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length !== 8) return; // Só busca se tiver 8 dígitos
+
+    try {
+      const { data } = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
+      
+      if (data.erro) {
+        toast.error("CEP não encontrado!");
+        return;
+      }
+
+      // Atualiza o estado com os dados recebidos para visualização
+      setFormData(prev => ({
+        ...prev,
+        logradouro: data.logradouro,
+        bairro: data.bairro,
+        cidade: data.localidade,
+        estado: data.uf
+      }));
+    } catch (error) {
+      toast.error("Erro ao buscar informações do CEP.");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,6 +118,7 @@ export default function PrestadoresForm({ prestadorToEdit, onSuccess, onCancel }
               placeholder="00000-000"
               value={formData.cep} 
               onChange={e => setFormData({...formData, cep: e.target.value})} 
+              onBlur={handleCepBlur} /* EVENTO ADICIONADO AQUI */
               required
             />
             <LuMapPin 
@@ -95,6 +127,40 @@ export default function PrestadoresForm({ prestadorToEdit, onSuccess, onCancel }
             />
           </div>
         </FormGroup>
+
+        {/* CAMPOS VISUAIS (Apenas Leitura) PARA CONFIRMAÇÃO DO ENDEREÇO */}
+        <FormGroup className="full-width">
+          <label>Logradouro Confirmado</label>
+          <input 
+            value={formData.logradouro} 
+            readOnly 
+            disabled 
+            placeholder="Preenchido automaticamente pelo CEP"
+           
+          />
+        </FormGroup>
+
+        <div style={{ display: 'flex', gap: '15px', width: '100%', gridColumn: '1 / -1' }}>
+          <FormGroup style={{ flex: 1 }}>
+            <label>Bairro</label>
+            <input 
+              value={formData.bairro} 
+              readOnly 
+              disabled 
+             
+            />
+          </FormGroup>
+          <FormGroup style={{ flex: 1 }}>
+            <label>Cidade / UF</label>
+            <input 
+              value={formData.cidade ? `${formData.cidade} - ${formData.estado}` : ''} 
+              readOnly 
+              disabled 
+             
+            />
+          </FormGroup>
+        </div>
+        {/* FIM DOS CAMPOS VISUAIS */}
 
         <FormGroup>
           <label>Número</label>
@@ -105,7 +171,7 @@ export default function PrestadoresForm({ prestadorToEdit, onSuccess, onCancel }
           />
         </FormGroup>
 
-        <FormGroup className="full-width">
+        <FormGroup>
           <label>Complemento (Opcional)</label>
           <input 
             placeholder="Ex: Bloco A, Sala 202"
@@ -120,7 +186,6 @@ export default function PrestadoresForm({ prestadorToEdit, onSuccess, onCancel }
             className="cancel" 
             onClick={onCancel}
           >
-            {/* USO DO ÍCONE ATUALIZADO AQUI */}
             <LuCircleX size={20} /> 
             Cancelar
           </ActionButton>

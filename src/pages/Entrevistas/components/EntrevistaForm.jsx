@@ -80,9 +80,24 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
           api.get('/comorbidades'),
           api.get('/medicamentos') 
         ]);
+        
         setDiagnosticos(diagRes.data);
         setPrestadores(prestRes.data);
-        setMedicos(medicosRes.data);
+        
+        const medicosFiltrados = medicosRes.data.map(medico => {
+          const locaisValidos = medico.locais_atendimento?.filter(
+            local => local.tipo === 'hospital' || local.tipo === 'clinica'
+          ) || [];
+          
+          return {
+            ...medico,
+            locais_atendimento: locaisValidos
+          };
+        }).filter(medico => medico.locais_atendimento.length > 0);
+
+        setMedicos(medicosFiltrados);
+        // --------------------------------------------------------
+
         setListaComorbidades(comorbRes.data);
         setListaMedicamentos(medRes.data);
       } catch (err) {
@@ -328,7 +343,7 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div className="flex-row">
                   <input type="checkbox" checked={formData.comorbidade.sabe_diagnostico} onChange={e => handleNestedChange('comorbidade', 'sabe_diagnostico', e.target.checked)} />
-                  <label>Paciente sabe o diagnóstico?</label>
+                  <label>Paciente sabe dessa comorbidade?</label>
                 </div>
                 {formData.comorbidade.sabe_diagnostico && (
                   <FormGroup>

@@ -1,17 +1,17 @@
 // src/pages/NovaAvaliacao/index.jsx
-import React, { useState, useEffect, useMemo } from 'react'; // <-- Adicionado useMemo
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
-// <-- Adicionado LuCalculator para o botão flutuante
 import { LuUser, LuStethoscope, LuClipboardList, LuPill, LuFileText, LuCalculator } from "react-icons/lu";
 
+import AvaliacaoModal from './component/AvaliacaoModal'; // <-- Importando o novo componente do Modal
+
 import {
-  Container, Title, Form, QuestionCard, Select, Button, ModalOverlay,
-  ModalContent, SuccessCheck, Input, AlertBox, ButtonCancel,
-  SectionWrapper, SummaryCard, SummaryHeader, SummaryGrid, InfoGroup,
-  InfoItem, SummaryDivider, ObservationBox, ListStyled,
-  FloatingScore // <-- Adicionado o novo estilo importado
+  Container, Title, Form, QuestionCard, Select, Button, 
+  Input, AlertBox, ButtonCancel, SectionWrapper, SummaryCard, 
+  SummaryHeader, SummaryGrid, InfoGroup, InfoItem, 
+  SummaryDivider, ObservationBox, ListStyled, FloatingScore
 } from './styles';
 
 export default function NovaAvaliacao() {
@@ -26,8 +26,10 @@ export default function NovaAvaliacao() {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Estados controlados para o Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [scoreFinal, setScoreFinal] = useState(0);
+  const [evaluationId, setEvaluationId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -93,10 +95,15 @@ export default function NovaAvaliacao() {
     try {
       const res = await api.post('/evaluations/responses', payload);
       setScoreFinal(res.data.evaluation.total_score);
-      setModalOpen(true);
+      setEvaluationId(res.data.evaluation.id);
+      
       toast.success('Avaliação enviada com sucesso!');
       setPendingTemplates(prev => prev.filter(t => t.id !== Number(selectedTemplateId)));
       setAnswers({});
+      
+      // Abre o Modal Separado
+      setModalOpen(true);
+      
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Erro ao enviar avaliação.';
       toast.error(errorMsg);
@@ -119,21 +126,14 @@ export default function NovaAvaliacao() {
 
   const activeTemplate = pendingTemplates.find(t => t.id === Number(selectedTemplateId));
 
-  // ==========================================
-  // NOVO: CALCULAR PONTUAÇÃO EM TEMPO REAL
-  // ==========================================
   const currentLiveScore = useMemo(() => {
     if (!activeTemplate) return 0;
     let total = 0;
     
-    // Itera sobre todas as respostas que o usuário já clicou
     Object.values(answers).forEach(ans => {
-      // Se a resposta for de múltipla escolha (tem um option_selected_id)
       if (ans.option_selected_id) {
-        // Encontra a pergunta original no template
         const question = activeTemplate.questions.find(q => q.id === ans.question_id);
         if (question && question.options) {
-          // Encontra a opção original dentro da pergunta para pegar o Score
           const option = question.options.find(o => o.id === ans.option_selected_id);
           if (option && option.score) {
             total += Number(option.score);
@@ -143,8 +143,7 @@ export default function NovaAvaliacao() {
     });
     
     return total;
-  }, [answers, activeTemplate]); 
-  // O cálculo refaz toda vez que 'answers' ou 'activeTemplate' mudar.
+  }, [answers, activeTemplate]);
 
   if (loading) return <div style={{ padding: 20, textAlign: 'center', fontSize: '1.2rem' }}>Carregando dados da avaliação...</div>;
 
@@ -231,9 +230,13 @@ export default function NovaAvaliacao() {
                 <InfoItem>
                   <strong><LuPill size={18} /> Medicamento Contínuo:</strong>
                 </InfoItem>
-                {entrevistaData.infos_medicamento?.possui_medicamento ? (
+                {entrevistaData.medicamentos && entrevistaData.medicamentos.length > 0 ? (
                   <ListStyled>
-                    <li>{entrevistaData.infos_medicamento.medicamento_mestre?.nome} ({entrevistaData.infos_medicamento.medicamento_mestre?.dosagem})</li>
+                    {entrevistaData.medicamentos.map(med => (
+                      <li key={med.id}>
+                        {med.nome} {med.dosagem ? `(${med.dosagem})` : ''}
+                      </li>
+                    ))}
                   </ListStyled>
                 ) : (
                   <span style={{ color: '#888', marginLeft: '5px' }}>Nenhum uso contínuo relatado.</span>
@@ -289,8 +292,7 @@ export default function NovaAvaliacao() {
                           type="radio"
                           name={`q_${q.id}`}
                           value={opt.id}
-                          // IMPORTANTE: Manter o onChange atualizando o state answers
-                          onChange={() => handleOptionChange(q.id, opt.id)} 
+                          onChange={() => handleOptionChange(q.id, opt.id)}
                           required
                         />
                         {opt.label}
@@ -309,45 +311,24 @@ export default function NovaAvaliacao() {
             ))}
 
             <Button type="submit">Enviar Respostas</Button>
-            <ButtonCancel type="button" onClick={() => { navigate('/necessidade-navegacao') }}>Cancelar</ButtonCancel>
+            <ButtonCancel type="button" onClick={() => navigate('/necessidade-navegacao')}>Cancelar</ButtonCancel>
           </Form>
         )}
 
-        {/* MODAL DE SUCESSO */}
-        {modalOpen && (
-          <ModalOverlay>
-            <ModalContent>
-              <SuccessCheck viewBox="0 0 52 52">
-                <circle className="check-circle" cx="26" cy="26" r="25" fill="none" />
-                <path className="check-path" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-              </SuccessCheck>
+        {/* Instanciando o Modal Separado */}
+        <AvaliacaoModal
+          isOpen={modalOpen}
+          onClose={handleCloseModal}
+          scoreFinal={scoreFinal}
+          entrevistaData={entrevistaData}
+          pacienteId={paciente_id}
+          entrevistaId={entrevista_id}
+          evaluationId={evaluationId}
+          pendingTemplatesCount={pendingTemplates.length}
+        />
 
-              <h2>Avaliação Enviada!</h2>
-              <p style={{ fontSize: '1.2rem', marginTop: '10px' }}>
-                Pontuação calculada: <strong>{scoreFinal} pts</strong>
-              </p>
-
-              {pendingTemplates.length > 0 ? (
-                <>
-                  <p style={{ margin: '25px 0', color: '#e67e22', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    Existem mais {pendingTemplates.length} questionário(s) pendente(s). Deseja responder agora?
-                  </p>
-                  <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                    <Button onClick={() => handleCloseModal(true)}>Sim, Continuar</Button>
-                    <Button variant="secondary" onClick={() => handleCloseModal(false)}>Não, Voltar</Button>
-                  </div>
-                </>
-              ) : (
-                <Button style={{ marginTop: 25 }} onClick={() => handleCloseModal(false)}>Voltar à Tabela</Button>
-              )}
-            </ModalContent>
-          </ModalOverlay>
-        )}
       </SectionWrapper>
 
-      {/* ============================================================== */}
-      {/* NOVO: COMPONENTE FLUTUANTE EXIBINDO A PONTUAÇÃO (APENAS SE O TEMPLATE TIVER PERGUNTAS) */}
-      {/* ============================================================== */}
       {activeTemplate && activeTemplate.questions.length > 0 && (
         <FloatingScore>
            <LuCalculator size={28} />

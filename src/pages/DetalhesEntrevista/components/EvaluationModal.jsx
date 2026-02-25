@@ -1,5 +1,6 @@
 import React from 'react';
 import { Overlay, ModalContainer, CloseButton, ScoreHeader, QuestionItem } from './styles';
+import { useEffect } from 'react';
 
 export default function EvaluationModal({ isOpen, onClose, data }) {
   if (!isOpen || !data) return null;
@@ -7,6 +8,8 @@ export default function EvaluationModal({ isOpen, onClose, data }) {
   // Extraímos os objetos paciente e médico de dentro do data
   const { avaliacoes, paciente, data_contato } = data; 
   const avaliacoesList = avaliacoes || [];
+
+ 
 
   return (
     <Overlay onClick={onClose}>
@@ -32,10 +35,7 @@ export default function EvaluationModal({ isOpen, onClose, data }) {
                   <span>Pontuação do Questionário</span>
                   <strong>{aval.total_score} pts</strong>
                 </div>
-                <div>
-                  <span>Próximo Contato</span>
-                  <strong>{aval.data_proximo_contato ? aval.data_proximo_contato : 'Não definido'}</strong>
-                </div>
+             
               </ScoreHeader>
 
               <h4>Respostas Registradas</h4>
