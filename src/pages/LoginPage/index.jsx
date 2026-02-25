@@ -19,7 +19,6 @@ export default function LoginPage() {
       await Login(email, password);
     } catch (error) {
       console.error("Erro ao logar", error);
-      alert("Falha no login. Verifique suas credenciais.");
     } finally {
       setLoading(false);
     }
