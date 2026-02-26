@@ -216,7 +216,6 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel }) {
         <label>Operadora</label>
         <select name="operadora_id" value={formData.operadora_id} onChange={handleChange} required>
             <option value="">Selecione</option>
-            <option value="M">Masculino</option>
             {operadoras.map(op => (
                 <option key={op.id} value={op.id}>{op.nome}</option>
             ))}

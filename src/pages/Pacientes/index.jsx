@@ -11,14 +11,15 @@ import {
 } from "react-icons/lu";
 
 import api from '../../services/api';
-import { colors } from '../../themes/theme'; // Importação das cores do seu tema
+// Removida a importação estática 'colors', pois o styled-components cuidará do tema
 import { 
   Container, 
   Header, 
   TabContainer, 
   TabButton, 
   ContentBox,
-  Button 
+  Button,
+  FilterContainer // <-- Adicionado o container de filtros que você já tinha nos styles
 } from './styles';
 
 // Componentes internos
@@ -39,7 +40,7 @@ export default function PacientesPage() {
   const [filterNome, setFilterNome] = useState('');
   const [filterCpf, setFilterCpf] = useState('');
   const [filterOperadora, setFilterOperadora] = useState('');
-  const [filterStatus, setFilterStatus] = useState('ambos'); // NOVO: Estado do Status
+  const [filterStatus, setFilterStatus] = useState('ambos');
 
   // Estado para Edição e Visualização
   const [editingPaciente, setEditingPaciente] = useState(null);
@@ -62,7 +63,7 @@ export default function PacientesPage() {
           nome: filterNome,
           cpf: filterCpf,
           operadora_id: filterOperadora,
-          status_active: filterStatus // NOVO: Enviando o status para o backend
+          status_active: filterStatus
         }
       });
       setPacientes(response.data);
@@ -79,7 +80,7 @@ export default function PacientesPage() {
       loadPacientes();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, filterOperadora, filterStatus]); // Atualiza ao trocar o status também
+  }, [activeTab, filterOperadora, filterStatus]);
 
   // Gatilho de busca por teclado (Enter)
   const handleKeyDown = (e) => {
@@ -93,7 +94,7 @@ export default function PacientesPage() {
     setFilterNome('');
     setFilterCpf('');
     setFilterOperadora('');
-    setFilterStatus('ambos'); // Resetando o novo filtro
+    setFilterStatus('ambos');
     loadPacientes();
   };
 
@@ -166,18 +167,11 @@ export default function PacientesPage() {
 
       <ContentBox>
         {activeTab === 'list' && (
-          <div style={{ 
-            display: 'flex', gap: '15px', marginBottom: '25px', 
-            paddingBottom: '20px', borderBottom: `1px solid ${colors.border}`,
-            alignItems: 'flex-end', flexWrap: 'wrap'
-          }}>
-            {/* CORREÇÃO DAS CORES: colors.text para a letra, colors.inputBg para o fundo */}
-            <div style={{ flex: 2, minWidth: '180px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
-                Nome ou Sobrenome
-              </label>
+          // Substituímos a `div` com inline styles pelo `FilterContainer`
+          <FilterContainer>
+            <div className="filter-group large">
+              <label>Nome ou Sobrenome</label>
               <input 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterNome}
                 onChange={e => setFilterNome(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -185,12 +179,9 @@ export default function PacientesPage() {
               />
             </div>
 
-            <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
-                CPF
-              </label>
+            <div className="filter-group">
+              <label>CPF</label>
               <input 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterCpf}
                 onChange={e => setFilterCpf(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -198,12 +189,9 @@ export default function PacientesPage() {
               />
             </div>
 
-            <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
-                Operadora
-              </label>
+            <div className="filter-group">
+              <label>Operadora</label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterOperadora}
                 onChange={e => setFilterOperadora(e.target.value)}
               >
@@ -214,13 +202,9 @@ export default function PacientesPage() {
               </select>
             </div>
 
-            {/* --- NOVO FILTRO: STATUS --- */}
-            <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: colors?.text || 'inherit' }}>
-                Status
-              </label>
+            <div className="filter-group">
+              <label>Status</label>
               <select 
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${colors.border}`, backgroundColor: colors?.inputBg || 'transparent', color: colors?.text || 'inherit' }}
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
               >
@@ -230,7 +214,7 @@ export default function PacientesPage() {
               </select>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="filter-actions">
               <Button onClick={loadPacientes} title="Pesquisar" style={{ height: '42px', display: 'flex', alignItems: 'center' }}>
                 <LuSearch size={20} />
               </Button>
@@ -238,7 +222,7 @@ export default function PacientesPage() {
                 <LuFilterX size={20} />
               </Button>
             </div>
-          </div>
+          </FilterContainer>
         )}
 
         {/* RENDERIZAÇÃO CONDICIONAL DE CONTEÚDO */}
@@ -248,7 +232,7 @@ export default function PacientesPage() {
             loading={loading} 
             onEdit={handleEditRequest} 
             onViewAnexos={handleViewAnexos}
-            onToggleActive={handleToggleActive} // Passando a nova função para a tabela
+            onToggleActive={handleToggleActive}
           />
         )}
 
