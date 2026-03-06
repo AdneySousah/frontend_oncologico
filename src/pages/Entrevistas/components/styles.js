@@ -6,8 +6,37 @@ export const Container = styled.div`
   padding: 1rem;
 `;
 
+export const PageHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+
+  h2 {
+    color: ${({ theme }) => theme.colors.text};
+    margin: 0;
+  }
+`;
+
+export const BackButton = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.primary};
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
 export const Section = styled.section`
-  background-color: ${({ theme }) => theme.colors.surface}; /* Tirado o 'white' fixo */
+  background-color: ${({ theme }) => theme.colors.surface};
   padding: 1.5rem;
   border-radius: 8px;
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -18,10 +47,10 @@ export const Section = styled.section`
     display: flex;
     align-items: center;
     gap: 10px;
-    color: ${({ theme }) => theme.colors.primary}; /* Trocado de sidebarMiddle */
+    color: ${({ theme }) => theme.colors.primary};
     margin-bottom: 1.5rem;
     padding-bottom: 0.5rem;
-    border-bottom: 2px solid ${({ theme }) => theme.colors.border}; /* Trocado de backgroundAlt */
+    border-bottom: 2px solid ${({ theme }) => theme.colors.border};
     font-size: 1.1rem;
   }
 
@@ -59,6 +88,94 @@ export const Section = styled.section`
   }
 `;
 
+/* --- NOVOS ESTILOS PARA OS DADOS DO PACIENTE --- */
+export const InfoBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: ${({ theme }) => theme.colors.inputBg};
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+export const InfoGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+
+  &.col-2 {
+    grid-template-columns: 1fr 2fr;
+    border-top: 1px solid ${({ theme }) => theme.colors.border};
+    padding-top: 15px;
+  }
+
+  &.border-top {
+    border-top: 1px solid ${({ theme }) => theme.colors.border};
+    padding-top: 15px;
+  }
+`;
+
+export const InfoItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    color: ${({ theme }) => theme.colors.textLight};
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  p {
+    color: ${({ theme }) => theme.colors.text};
+    font-weight: 600;
+    margin: 0;
+  }
+`;
+
+/* --- NOVOS ESTILOS PARA LISTAS (Medicamentos, Anexos, etc) --- */
+export const NestedContainer = styled.div`
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background-color: ${({ theme }) => theme.colors.surface}; /* Usando surface ao invés de branco */
+`;
+
+export const ListItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed ${({ theme }) => theme.colors.border};
+  
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+`;
+
+export const FlexRowEnd = styled.div`
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: ${props => props.mb || '0'};
+`;
+
+export const ItemCard = styled.div`
+  background-color: ${({ theme }) => theme.colors.inputBg};
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+`;
+
 export const Form = styled.form`
   display: flex;
   flex-direction: column;
@@ -69,10 +186,12 @@ export const FormGroup = styled.div`
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex: ${props => props.flex || 'initial'};
+  margin: ${props => props.margin || '0 0 1rem 0'};
 
   label {
     font-size: 0.85rem;
-    color: ${({ theme }) => theme.colors.text}; /* Trocado de textLight para dar mais leitura */
+    color: ${({ theme }) => theme.colors.text};
     font-weight: 600;
   }
 
@@ -81,25 +200,82 @@ export const FormGroup = styled.div`
     border: 1px solid ${({ theme }) => theme.colors.border};
     border-radius: 6px;
     font-size: 1rem;
-    background-color: ${({ theme }) => theme.colors.inputBg}; /* Tirado o '#fff' fixo */
+    background-color: ${({ theme }) => theme.colors.inputBg};
     color: ${({ theme }) => theme.colors.text};
     transition: all 0.2s;
 
     &:focus {
       outline: none;
       border-color: ${({ theme }) => theme.colors.primary};
-      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33; /* Glow padronizado com transparência */
+      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33;
     }
     
     &::placeholder {
       color: ${({ theme }) => theme.colors.textLight};
       opacity: 0.7;
     }
+
+    &:read-only, &:disabled {
+      background-color: ${({ theme }) => theme.colors.surface}; /* Ajuste para dark mode */
+      color: ${({ theme }) => theme.colors.textLight};
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
   }
 
   textarea {
     min-height: 80px;
     resize: vertical;
+  }
+`;
+
+export const IconButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 45px;
+  padding: 0 15px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &.danger-outline {
+    background-color: transparent;
+    color: ${({ theme }) => theme.colors.danger || '#dc3545'};
+    border: 1px solid ${({ theme }) => theme.colors.danger || '#dc3545'};
+    &:hover {
+      background-color: ${({ theme }) => theme.colors.danger || '#dc3545'}1A;
+    }
+  }
+
+  &.danger {
+    background-color: ${({ theme }) => theme.colors.danger || '#dc3545'};
+    color: #fff;
+    border: none;
+    height: 40px;
+    &:hover { filter: brightness(0.9); }
+  }
+
+  &.primary {
+    background-color: ${({ theme }) => theme.colors.primary};
+    color: #fff;
+    border: none;
+    width: fit-content;
+    padding: 10px 15px;
+    &:hover { filter: brightness(0.9); }
+  }
+
+  &.success {
+    background-color: ${({ theme }) => theme.colors.success || '#28a745'};
+    color: #fff;
+    border: none;
+    width: fit-content;
+    padding: 10px 15px;
+    margin-top: 10px;
+    height: auto;
+    &:hover { filter: brightness(0.9); }
   }
 `;
 
@@ -134,17 +310,17 @@ export const ActionButton = styled.button`
   }
 
   &.cancel {
-    background-color: ${({ theme }) => theme.colors.inputBg}; /* Tirado o '#f1f1f1' */
-    color: ${({ theme }) => theme.colors.text}; /* Tirado o '#666' */
+    background-color: ${({ theme }) => theme.colors.inputBg};
+    color: ${({ theme }) => theme.colors.text};
     border: 1px solid ${({ theme }) => theme.colors.border};
     
     &:hover { 
-      background-color: ${({ theme }) => theme.colors.border}; /* Tirado o '#e5e5e5' */
+      background-color: ${({ theme }) => theme.colors.border};
     }
   }
 
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.border}; /* Tirado o '#ccc' */
+    background-color: ${({ theme }) => theme.colors.border};
     color: ${({ theme }) => theme.colors.textLight};
     cursor: not-allowed;
     border: none;
@@ -152,7 +328,7 @@ export const ActionButton = styled.button`
 `;
 
 // ==========================================
-// ESTILOS ADICIONADOS PARA O MODAL DE DETALHES
+// ESTILOS PARA O MODAL DE DETALHES 
 // ==========================================
 
 export const ModalOverlay = styled.div`
@@ -179,7 +355,6 @@ export const ModalContainer = styled.div`
   padding: 20px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 
-  /* Estilização sutil da barra de rolagem */
   &::-webkit-scrollbar {
     width: 8px;
   }
@@ -206,7 +381,7 @@ export const ModalHeader = styled.div`
     background: none;
     border: none;
     cursor: pointer;
-    color: ${({ theme }) => theme.colors.danger || '#dc3545'}; /* Cor de fechar/erro */
+    color: ${({ theme }) => theme.colors.danger || '#dc3545'};
     display: flex;
     align-items: center;
     justify-content: center;
@@ -257,7 +432,6 @@ export const ModalText = styled.span`
   color: ${({ theme }) => theme.colors.text};
   font-weight: 500;
   
-  /* Classe auxiliar para textos longos como observações */
   &.box {
     display: block;
     background-color: ${({ theme }) => theme.colors.surface};
@@ -266,10 +440,10 @@ export const ModalText = styled.span`
     border: 1px solid ${({ theme }) => theme.colors.border};
     margin-top: 5px;
     line-height: 1.5;
+    min-height: 40px; /* Adicionado para garantir o tamanho visual do textarea no modal */
   }
 `;
 
-/* Adicionado Header e ContentBox e Table básicos para não dar erro na página principal */
 export const Header = styled.header`
   display: flex;
   justify-content: space-between;
@@ -295,5 +469,65 @@ export const Table = styled.table`
     text-align: left;
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+// ==========================================
+// NOVOS ESTILOS PARA SUBSTITUIR OS INLINES NO MODAL
+// ==========================================
+
+export const ModalBlock = styled.div`
+  margin-top: ${props => props.mt || '0'};
+  margin-bottom: ${props => props.mb || '0'};
+`;
+
+export const ModalList = styled.div`
+  display: grid;
+  gap: 10px;
+  margin-top: ${props => props.mt || '0'};
+`;
+
+export const ModalListItem = styled.div`
+  display: flex;
+  flex-direction: ${props => props.direction || 'column'};
+  gap: ${props => props.gap || '0'};
+  align-items: ${props => props.align || 'flex-start'};
+  justify-content: ${props => props.justify || 'flex-start'};
+  padding: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border || '#ddd'};
+  border-radius: 6px;
+  background-color: ${({ theme }) => theme.colors.surface || '#f8f9fa'};
+`;
+
+export const ModalItemTextGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+export const ModalItemTitle = styled.strong`
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.text || '#333'};
+`;
+
+export const ModalItemSubtitle = styled.span`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textLight || '#666'};
+`;
+
+export const ModalDownloadLink = styled.a`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: ${({ theme }) => theme.colors.primary || '#007bff'};
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: bold;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.9;
   }
 `;

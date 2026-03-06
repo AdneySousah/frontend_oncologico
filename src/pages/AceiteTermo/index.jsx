@@ -43,8 +43,8 @@ export default function TelaAceiteTermo() {
         return <div style={{ textAlign: 'center', marginTop: '50px' }}>Carregando informações...</div>;
     }
 
-    // 3. Lógica principal: Se já foi respondido (Aceito ou Recusado)
-    if (statusTermo === 'Aceito' || statusTermo === 'Recusado') {
+    // 3. Lógica principal: Se já foi respondido (Aceito)
+    if (statusTermo === 'Aceito') {
         return (
             <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}>
                 <h2 style={{ color: '#28a745' }}>Atenção</h2>

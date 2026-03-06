@@ -21,7 +21,8 @@ const modulosSistema = [
     { key: 'termos', label: 'Termos de Aceite' },
     { key: 'telemonitoramento', label: 'Telemonitoramento' },
     { key: 'reacao_adversa', label: 'Reação Adversa' },
-    { key: 'dashboard', label: 'Dashboard' }
+    { key: 'dashboard', label: 'Dashboard' },
+
 
 ];
 

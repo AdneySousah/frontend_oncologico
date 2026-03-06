@@ -1,19 +1,18 @@
-// src/pages/Telemonitoramento/index.jsx
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
-import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo } from "react-icons/lu";
+import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuSearch } from "react-icons/lu";
 import { useSearchParams } from 'react-router-dom';
 
 import {
   Container, SectionWrapper, Title, TableContainer, Table,
   SubTableWrapper, SubTable, StatusBadge, ActionButton,
   HeaderFlex, InfoButton, ModalOverlay, ModalContent, Button,
-  AdherenceBadge, LegendList
+  AdherenceBadge, LegendList,
+  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo
 } from './styles';
 
-// Função para classificar o nível de adesão baseado no score
 export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
   if (score <= 10) return { label: 'Alta Probabilidade de Adesão', level: 'alta' };
@@ -26,6 +25,14 @@ export default function Telemonitoramento() {
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
 
+  // Estados de Paginação e Busca
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const limit = 20;
+
   // Controle de Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
@@ -34,6 +41,15 @@ export default function Telemonitoramento() {
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
 
+  // Debounce para a barra de pesquisa
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1); 
+    }, 500);
+
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (highlightKey && monitoramentosAgrupados.length > 0) {
@@ -48,18 +64,28 @@ export default function Telemonitoramento() {
     }
   }, [highlightKey, monitoramentosAgrupados]);
 
-
   useEffect(() => {
     fetchMonitoramentos();
-  }, []);
+  }, [currentPage, debouncedSearch]);
 
   async function fetchMonitoramentos() {
     try {
       setLoading(true);
-      const response = await api.get('/monitoramento-medicamentos/pendentes');
+      
+      const response = await api.get('/monitoramento-medicamentos/pendentes', {
+        params: {
+          page: currentPage,
+          limit: limit,
+          search: debouncedSearch
+        }
+      });
 
+      const { data, total, totalPages: fetchedTotalPages } = response.data;
+      
+      setTotalPages(fetchedTotalPages || 1);
+      setTotalItems(total || 0);
 
-      const agrupados = response.data.reduce((acc, item) => {
+      const agrupados = data.reduce((acc, item) => {
         const key = `${item.paciente.id}_${item.medicamento.id}`;
 
         if (!acc[key]) {
@@ -69,28 +95,83 @@ export default function Telemonitoramento() {
             medicamento: item.medicamento,
             avaliacao: item.avaliacao,
             historico: [],
+            niveisAdesao: [], 
             qtdConcluido: 0,
             qtdPendente: 0,
-            proximoContatoData: null // Nova propriedade
+            proximoContatoData: null,
+            estoqueProjetado: null 
           };
         }
 
         acc[key].historico.push(item);
-        if (item.status === 'CONCLUIDO') acc[key].qtdConcluido++;
+        if (item.status === 'CONCLUIDO') {
+          acc[key].qtdConcluido++;
+          if (item.nivel_adesao) {
+            acc[key].niveisAdesao.push(item.nivel_adesao); 
+          }
+        }
         if (item.status === 'PENDENTE') acc[key].qtdPendente++;
 
         return acc;
       }, {});
 
-      // Lógica para encontrar qual é a data do próximo contato na aba de resumo
       const agrupadosArray = Object.values(agrupados).map(grupo => {
+        
+        if (grupo.niveisAdesao.length > 0) {
+          const somaPercentual = grupo.niveisAdesao.reduce((totalValor, nivel) => {
+            if (nivel === 'COMPLETAMENTE') return totalValor + 100;
+            if (nivel === 'PARCIALMENTE') return totalValor + 50;
+            return totalValor; 
+          }, 0);
+          grupo.mediaAdesao = Math.round(somaPercentual / grupo.niveisAdesao.length);
+        } else {
+          grupo.mediaAdesao = null;
+        }
+
         const pendentes = grupo.historico.filter(h => h.status === 'PENDENTE');
         if (pendentes.length > 0) {
-          // Ordena pelas datas mais antigas primeiro
           pendentes.sort((a, b) => new Date(a.data_proximo_contato) - new Date(b.data_proximo_contato));
-          grupo.proximoContatoData = pendentes[0].data_proximo_contato;
+          const contatoAtual = pendentes[0];
+          
+          grupo.proximoContatoData = contatoAtual.data_proximo_contato;
+
+          if (contatoAtual.data_calculada_fim_caixa && contatoAtual.posologia_diaria) {
+            const [ano, mes, dia] = contatoAtual.data_calculada_fim_caixa.split('-');
+            const dataFim = new Date(ano, mes - 1, dia);
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
+            grupo.estoqueProjetado = Math.max(0, diffDays * contatoAtual.posologia_diaria);
+          }
         }
         return grupo;
+      });
+
+      // NOVA ORDENAÇÃO: Prioridade total para risco de não adesão
+      agrupadosArray.sort((a, b) => {
+        // 1º Prioridade: Score da Avaliação (Quanto MAIOR o score, MENOR a adesão, MAIOR a prioridade)
+        const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
+        const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
+
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA; // Decrescente (Ex: 17 vem antes de 10)
+        }
+
+        // 2º Prioridade: Média de Adesão Histórica (Quanto MENOR a %, MENOR a adesão, MAIOR a prioridade)
+        // Se não tiver média histórica (null), consideramos 999 para ir pro final desse desempate
+        const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
+        const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
+
+        if (mediaA !== mediaB) {
+          return mediaA - mediaB; // Crescente (Ex: 0% vem antes de 100%)
+        }
+
+        // 3º Prioridade (Desempate): Data do próximo contato (mais atrasados primeiro)
+        if (!a.proximoContatoData) return 1;
+        if (!b.proximoContatoData) return -1;
+        
+        return new Date(a.proximoContatoData) - new Date(b.proximoContatoData);
       });
 
       setMonitoramentosAgrupados(agrupadosArray);
@@ -133,164 +214,225 @@ export default function Telemonitoramento() {
     return { texto: `Atrasado há ${Math.abs(diffDays)} dias`, status: 'atrasado' };
   };
 
-  if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', fontSize: '1.2rem' }}>Carregando contatos agendados...</div>;
-  }
-
   return (
     <Container>
       <SectionWrapper>
 
-        {/* CABEÇALHO ATUALIZADO */}
         <HeaderFlex>
-          <Title><LuPhoneCall style={{ marginRight: '10px' }} /> Telemonitoramento Ativo</Title>
+          <Title><LuPhoneCall style={{ marginRight: '10px' }} /> Telemonitoramentos agendados</Title>
           <InfoButton onClick={() => setIsLegendModalOpen(true)}>
             <LuInfo size={20} /> Entenda as Pontuações
           </InfoButton>
         </HeaderFlex>
 
-        <p style={{ marginBottom: '20px', color: 'var(--text-color)', opacity: 0.8 }}>
-          Lista de pacientes em uso contínuo de medicamentos. Clique no paciente para expandir o histórico de contatos.
-        </p>
+        <ControlsContainer>
+          <p style={{ margin: 0, color: 'var(--text-color)', opacity: 0.8 }}>
+            Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
+          </p>
+          <SearchInputContainer>
+            <LuSearch size={18} />
+            <SearchInput 
+              type="text" 
+              placeholder="Buscar paciente por nome..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </SearchInputContainer>
+        </ControlsContainer>
 
-        {monitoramentosAgrupados.length === 0 ? (
+        {loading && monitoramentosAgrupados.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', fontSize: '1.2rem' }}>Carregando contatos agendados...</div>
+        ) : monitoramentosAgrupados.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', background: 'var(--surface-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <h3>Nenhum paciente no ciclo de monitoramento ainda.</h3>
+            <h3>Nenhum paciente encontrado para este filtro.</h3>
           </div>
         ) : (
-          <TableContainer>
-            <Table>
-              <thead>
-                <tr>
-                  <th>Paciente e Adesão</th>
-                  <th>Operadora</th>
-                  <th>Medicamento</th>
-                  <th>Próximo Contato</th>
-                  <th>Status Geral</th>
-                  <th style={{ textAlign: 'right' }}>Detalhes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monitoramentosAgrupados.map(grupo => {
-                  const adInfo = getAdherenceClassification(grupo.avaliacao?.total_score);
-                  const tempoProximoContato = calcularStatusTempo(grupo.proximoContatoData);
-                  const isHighlighted = highlightKey === grupo.key;
+          <>
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Paciente e Adesão</th>
+                    <th>Operadora</th>
+                    <th>Medicamento</th>
+                    <th>Próximo Contato</th>
+                    <th>Status Geral</th>
+                    <th style={{ textAlign: 'right' }}>Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monitoramentosAgrupados.map(grupo => {
+                    const adInfo = getAdherenceClassification(grupo.avaliacao?.total_score);
+                    const tempoProximoContato = calcularStatusTempo(grupo.proximoContatoData);
+                    const isHighlighted = highlightKey === grupo.key;
 
-                  return (
-                    <React.Fragment key={grupo.key}>
-                      <tr
-                        id={`row-${grupo.key}`} // <-- ADD O ID AQUI
-                        className="summary-row"
-                        onClick={() => toggleRow(grupo.key)}
-                        // <-- ADD ESTE STYLE
-                        style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.15)', borderLeft: '4px solid #f39c12' } : {}}
-                      >
-                        {/* 1. Nome e Badge de Adesão */}
-                        <td>
-                          <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
-                          <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '4px' }}>
-                            Score Atual: {grupo.avaliacao?.total_score || '-'} pts
-                          </div>
-                          {grupo.avaliacao?.total_score != null && (
-                            <AdherenceBadge level={adInfo.level}>
-                              {adInfo.label}
-                            </AdherenceBadge>
-                          )}
-                        </td>
+                    return (
+                      <React.Fragment key={grupo.key}>
+                        <tr
+                          id={`row-${grupo.key}`}
+                          className="summary-row"
+                          onClick={() => toggleRow(grupo.key)}
+                          style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.15)', borderLeft: '4px solid #f39c12' } : {}}
+                        >
+                          <td>
+                            <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
+                            
+                            <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span>Score Atual: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
+                              
+                              {grupo.mediaAdesao !== null && (
+                                <>
+                                  <span style={{ color: '#ccc' }}>|</span>
+                                  <span style={{ 
+                                    color: grupo.mediaAdesao >= 80 ? '#27ae60' : grupo.mediaAdesao >= 50 ? '#f39c12' : '#e74c3c',
+                                    fontWeight: 'bold',
+                                    backgroundColor: 'rgba(0,0,0,0.04)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--border-color)'
+                                  }}>
+                                    Média de adesão: {grupo.mediaAdesao}%
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            
+                            {grupo.avaliacao?.total_score != null && (
+                              <AdherenceBadge level={adInfo.level}>
+                                {adInfo.label}
+                              </AdherenceBadge>
+                            )}
+                          </td>
+                          
                           <td>{grupo.paciente?.operadoras?.nome}</td>
-                        {/* 2. Medicamento */}
-                        <td>{grupo.medicamento?.nome}</td>
+                          
+                          <td>
+                            <div style={{ fontWeight: '500' }}>{grupo.medicamento?.nome}</div>
+                            {grupo.estoqueProjetado != null && (
+                              <div style={{ 
+                                fontSize: '0.8rem', 
+                                color: 'var(--primary-color)', 
+                                backgroundColor: 'rgba(0,0,0,0.04)', 
+                                padding: '2px 8px', 
+                                borderRadius: '4px',
+                                display: 'inline-block',
+                                marginTop: '6px',
+                                border: '1px solid var(--border-color)'
+                              }}>
+                                ~{grupo.estoqueProjetado} un. estimadas
+                              </div>
+                            )}
+                          </td>
 
-                        {/* 3. Próximo Contato Rápido */}
-                        <td>
-                          {grupo.proximoContatoData ? (
-                            <>
-                              <div style={{ fontWeight: 'bold' }}>{formatarData(grupo.proximoContatoData)}</div>
-                              <span style={{ fontSize: '0.85rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
-                                {tempoProximoContato.texto}
-                              </span>
-                            </>
-                          ) : (
-                            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>Ciclo Concluído</span>
-                          )}
-                        </td>
+                          <td>
+                            {grupo.proximoContatoData ? (
+                              <>
+                                <div style={{ fontWeight: 'bold' }}>{formatarData(grupo.proximoContatoData)}</div>
+                                <span style={{ fontSize: '0.85rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
+                                  {tempoProximoContato.texto}
+                                </span>
+                              </>
+                            ) : (
+                              <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>Ciclo Concluído</span>
+                            )}
+                          </td>
 
-                        {/* 4. Status (Quantidades) */}
-                        <td>
-                          <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#2ecc71', marginRight: '15px' }}>
-                            {grupo.qtdConcluido} Concluído(s)
-                          </span>
-                          <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f39c12' }}>
-                            {grupo.qtdPendente} Pendente(s)
-                          </span>
-                        </td>
+                          <td>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#2ecc71', marginRight: '15px' }}>
+                              {grupo.qtdConcluido} Concluído(s)
+                            </span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f39c12' }}>
+                              {grupo.qtdPendente} Pendente(s)
+                            </span>
+                          </td>
 
-                        {/* 5. Setinha */}
-                        <td style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
-                          {expandedRows[grupo.key] ? <LuChevronUp size={24} /> : <LuChevronDown size={24} />}
-                        </td>
-                      </tr>
-
-                      {expandedRows[grupo.key] && (
-                        <tr className="details-row">
-                          <td colSpan="5">
-                            <SubTableWrapper>
-                              <SubTable>
-                                <thead>
-                                  <tr>
-                                    <th>Data Programada</th>
-                                    <th>Previsão Fim da Caixa</th>
-                                    <th>Status do Contato</th>
-                                    <th>Ações</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {grupo.historico.map(hist => {
-                                    const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
-
-                                    return (
-                                      <tr key={hist.id}>
-                                        <td>
-                                          <strong>{formatarData(hist.data_proximo_contato)}</strong>
-                                        </td>
-                                        <td>{formatarData(hist.data_calculada_fim_caixa)}</td>
-                                        <td>
-                                          {hist.status === 'CONCLUIDO' ? (
-                                            <StatusBadge status="concluido">CONCLUÍDO</StatusBadge>
-                                          ) : (
-                                            <StatusBadge status={infoTempo.status}>
-                                              {infoTempo.texto}
-                                            </StatusBadge>
-                                          )}
-                                        </td>
-                                        <td>
-                                          {hist.status === 'PENDENTE' ? (
-                                            <ActionButton onClick={() => handleOpenModal(hist)}>
-                                              Registrar Contato
-                                            </ActionButton>
-                                          ) : (
-                                            <span style={{ color: '#888', fontSize: '0.85rem' }}>Contato já realizado</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </SubTable>
-                            </SubTableWrapper>
+                          <td style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
+                            {expandedRows[grupo.key] ? <LuChevronUp size={24} /> : <LuChevronDown size={24} />}
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  )
-                })}
-              </tbody>
-            </Table>
-          </TableContainer>
+
+                        {expandedRows[grupo.key] && (
+                          <tr className="details-row">
+                            <td colSpan="6">
+                              <SubTableWrapper>
+                                <SubTable>
+                                  <thead>
+                                    <tr>
+                                      <th>Data Programada</th>
+                                      <th>Previsão Fim da Caixa</th>
+                                      <th>Status do Contato</th>
+                                      <th>Ações</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {grupo.historico.map(hist => {
+                                      const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
+
+                                      return (
+                                        <tr key={hist.id}>
+                                          <td>
+                                            <strong>{formatarData(hist.data_proximo_contato)}</strong>
+                                          </td>
+                                          <td>{formatarData(hist.data_calculada_fim_caixa)}</td>
+                                          <td>
+                                            {hist.status === 'CONCLUIDO' ? (
+                                              <StatusBadge status="concluido">CONCLUÍDO</StatusBadge>
+                                            ) : (
+                                              <StatusBadge status={infoTempo.status}>
+                                                {infoTempo.texto}
+                                              </StatusBadge>
+                                            )}
+                                          </td>
+                                          <td>
+                                            {hist.status === 'PENDENTE' ? (
+                                              <ActionButton onClick={() => handleOpenModal(hist)}>
+                                                Registrar Contato
+                                              </ActionButton>
+                                            ) : (
+                                              <span style={{ color: '#888', fontSize: '0.85rem' }}>Contato já realizado</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </SubTable>
+                              </SubTableWrapper>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </Table>
+            </TableContainer>
+
+            {totalPages > 0 && (
+              <PaginationContainer>
+                <PaginationInfo>
+                  Mostrando página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> (Total: {totalItems} pendentes)
+                </PaginationInfo>
+                <div>
+                  <PageButton 
+                    disabled={currentPage === 1} 
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                  >
+                    Anterior
+                  </PageButton>
+                  <PageButton 
+                    disabled={currentPage === totalPages} 
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                  >
+                    Próxima
+                  </PageButton>
+                </div>
+              </PaginationContainer>
+            )}
+          </>
         )}
       </SectionWrapper>
 
-      {/* Modal Principal de Registro */}
       <TelemonitoramentoModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -298,10 +440,8 @@ export default function Telemonitoramento() {
         onSucesso={fetchMonitoramentos}
       />
 
-      {/* NOVO: Modal de Legenda das Pontuações */}
       {isLegendModalOpen && (
         <ModalOverlay onClick={() => setIsLegendModalOpen(false)}>
-          {/* onClick no Content com e.stopPropagation() evita que feche se clicar dentro da caixa branca */}
           <ModalContent onClick={(e) => e.stopPropagation()}>
             <h3>Entenda o Score de Adesão</h3>
             <p style={{ color: '#666', marginBottom: '15px' }}>

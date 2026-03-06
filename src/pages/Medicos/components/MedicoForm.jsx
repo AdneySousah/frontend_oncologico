@@ -1,34 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import Select from 'react-select';
+import { useTheme } from 'styled-components'; // Adicionado para puxar as cores do seu tema
 import api from '../../../services/api';
-import { FormContainer, InputGroup, CheckboxGroup, Button } from './styles';
+import { FormContainer, InputGroup, Button } from './styles';
+import { getCustomSelectStyles } from '../../../utils/selectStyles';
 
 export default function MedicoForm({ onSuccess }) {
+    const theme = useTheme(); // Puxa o tema atual (dark/light)
     const [nome, setNome] = useState('');
     const [crm, setCrm] = useState('');
-    const [prestadores, setPrestadores] = useState([]); // Lista que vem da API
-    const [prestadoresSelecionados, setPrestadoresSelecionados] = useState([]); // IDs marcados
+    const [prestadoresOptions, setPrestadoresOptions] = useState([]); // Opções formatadas para o Select
+    const [prestadoresSelecionados, setPrestadoresSelecionados] = useState([]); // Tags selecionadas
 
     useEffect(() => {
         async function loadPrestadores() {
             try {
-                // Supondo que sua rota de listar clínicas se chame /prestadores
                 const response = await api.get('/prestadores-medicos'); 
-                setPrestadores(response.data);
+                
+                // O react-select exige que os dados tenham esse formato: { value: id, label: nome }
+                const optionsFormatadas = response.data.map(prestador => ({
+                    value: prestador.id,
+                    label: prestador.nome
+                }));
+                
+                setPrestadoresOptions(optionsFormatadas);
             } catch (error) {
                 toast.error('Erro ao carregar locais de atendimento.');
             }
         }
         loadPrestadores();
     }, []);
-
-    const handleCheckbox = (id) => {
-        if (prestadoresSelecionados.includes(id)) {
-            setPrestadoresSelecionados(prestadoresSelecionados.filter(item => item !== id));
-        } else {
-            setPrestadoresSelecionados([...prestadoresSelecionados, id]);
-        }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -39,10 +41,13 @@ export default function MedicoForm({ onSuccess }) {
         }
 
         try {
+            // Extrai apenas os IDs (value) das opções selecionadas para enviar para sua API
+            const idsPrestadores = prestadoresSelecionados.map(option => option.value);
+
             await api.post('/medicos', {
                 nome,
                 crm,
-                prestadores: prestadoresSelecionados
+                prestadores: idsPrestadores
             });
 
             toast.success('Médico cadastrado com sucesso!');
@@ -50,13 +55,13 @@ export default function MedicoForm({ onSuccess }) {
             setCrm('');
             setPrestadoresSelecionados([]);
             
-            // Atualiza a lista na tela principal
             if (onSuccess) onSuccess(); 
         } catch (error) {
             const msg = error.response?.data?.error || 'Erro ao cadastrar médico.';
             toast.error(msg);
         }
     };
+
 
     return (
         <FormContainer onSubmit={handleSubmit}>
@@ -84,21 +89,18 @@ export default function MedicoForm({ onSuccess }) {
 
             <InputGroup>
                 <label>Locais de Atendimento (Prestadores)</label>
-                <div className="checkbox-list">
-                    {prestadores.map(prestador => (
-                        <CheckboxGroup key={prestador.id}>
-                            <input 
-                                type="checkbox" 
-                                id={`prestador-${prestador.id}`}
-                                checked={prestadoresSelecionados.includes(prestador.id)}
-                                onChange={() => handleCheckbox(prestador.id)}
-                            />
-                            <label htmlFor={`prestador-${prestador.id}`}>
-                                {prestador.nome}
-                            </label>
-                        </CheckboxGroup>
-                    ))}
-                </div>
+                <Select
+                    isMulti
+                    name="prestadores"
+                    options={prestadoresOptions}
+                    className="basic-multi-select"
+                    classNamePrefix="select"
+                    placeholder="Selecione um ou mais locais..."
+                    value={prestadoresSelecionados}
+                    onChange={setPrestadoresSelecionados}
+                    styles={getCustomSelectStyles(theme)} // Passa o tema para customizar os estilos
+                    noOptionsMessage={() => "Nenhum local encontrado"}
+                />
             </InputGroup>
 
             <Button type="submit">Salvar Médico</Button>

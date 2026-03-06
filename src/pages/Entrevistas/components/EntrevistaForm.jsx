@@ -1,28 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import { toast } from 'react-toastify';
-import { 
-  LuCircleUser, 
-  LuStethoscope, 
-  LuFlaskConical, 
-  LuCircleCheck, 
-  LuCircleX, 
+import {
+  LuCircleUser,
+  LuStethoscope,
+  LuFlaskConical,
+  LuCircleCheck,
+  LuCircleX,
   LuHistory,
   LuCircleAlert,
   LuPill,
   LuPaperclip,
   LuPlus,
-  LuTrash2
+  LuTrash2,
+  LuArrowLeft
 } from "react-icons/lu";
 
-import { 
-  Form, 
-  FormGroup, 
-  ButtonGroup, 
-  ActionButton, 
+import {
+  Form,
+  FormGroup,
+  ButtonGroup,
+  ActionButton,
   Section,
-  Container 
+  Container,
+  PageHeader,
+  BackButton,
+  InfoBox,
+  InfoGrid,
+  InfoItem,
+  NestedContainer,
+  ListItem,
+  FlexRowEnd,
+  ItemCard,
+  IconButton
 } from './styles';
+import { calcularProximoContato } from '../../../utils/calculateData';
 
 export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -30,22 +42,23 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
   const [prestadores, setPrestadores] = useState([]);
   const [medicos, setMedicos] = useState([]);
   const [listaComorbidades, setListaComorbidades] = useState([]);
-  const [listaMedicamentos, setListaMedicamentos] = useState([]); 
-  
-  // ESTADO DOS ANEXOS
+  const [listaMedicamentos, setListaMedicamentos] = useState([]);
+
   const [anexos, setAnexos] = useState([]);
 
-  // ESTADO DOS MEDICAMENTOS (Array de IDs)
-  // Iniciamos com um array vazio. Se o checkbox for marcado, ele terá pelo menos um item (mesmo que vazio '')
   const [medicamentosUso, setMedicamentosUso] = useState([]);
   const [possuiMedicamento, setPossuiMedicamento] = useState(false);
 
+  const dataAtualStr = new Date().toISOString().split('T')[0];
+
   const [formData, setFormData] = useState({
-    medico_id: '',
+    // ---> Aqui a mágica acontece. Ele pega o ID enviado pelo modal. Se não vier nada, fica vazio.
+    medico_id: paciente.medico_pre_selecionado || '', 
     estadiamento: 'I',
     data_contato: new Date().toISOString().split('T')[0],
+    data_proximo_contato: calcularProximoContato(dataAtualStr),
     observacoes: '',
-    data_proximo_contato: '',
+    observacao_medicacao: '', 
     turno_contato: 'Manhã',
     diagnostico_id: '',
     prestador_medico_id: '',
@@ -67,7 +80,6 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
       data_exame_resultado: '',
       prestador_medico_id: ''
     }
-    // medicamento_uso foi removido daqui e virou o state independente acima
   });
 
   useEffect(() => {
@@ -78,17 +90,17 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
           api.get('/prestadores-medicos'),
           api.get('/medicos'),
           api.get('/comorbidades'),
-          api.get('/medicamentos') 
+          api.get('/medicamentos')
         ]);
-        
+
         setDiagnosticos(diagRes.data);
         setPrestadores(prestRes.data);
-        
+
         const medicosFiltrados = medicosRes.data.map(medico => {
           const locaisValidos = medico.locais_atendimento?.filter(
             local => local.tipo === 'hospital' || local.tipo === 'clinica'
           ) || [];
-          
+
           return {
             ...medico,
             locais_atendimento: locaisValidos
@@ -96,8 +108,6 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
         }).filter(medico => medico.locais_atendimento.length > 0);
 
         setMedicos(medicosFiltrados);
-        // --------------------------------------------------------
-
         setListaComorbidades(comorbRes.data);
         setListaMedicamentos(medRes.data);
       } catch (err) {
@@ -127,11 +137,9 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
     }));
   };
 
-  // --- HANDLES DOS MEDICAMENTOS MÚLTIPLOS ---
   const handlePossuiMedicamentoChange = (e) => {
     const isChecked = e.target.checked;
     setPossuiMedicamento(isChecked);
-    // Se marcou que possui, inicializa o array com 1 slot vazio. Se desmarcou, zera.
     setMedicamentosUso(isChecked ? [''] : []);
   };
 
@@ -151,7 +159,6 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
     setMedicamentosUso(novosMedicamentos);
   };
 
-  // HANDLES DE ANEXOS
   const adicionarAnexo = () => {
     setAnexos([...anexos, { nome: '', file: null }]);
   };
@@ -179,19 +186,18 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
       const dataToSend = new FormData();
 
       const camposBase = [
-        'medico_id', 'estadiamento', 'data_contato', 'observacoes', 
-        'data_proximo_contato', 'turno_contato', 'diagnostico_id', 
-        'prestador_medico_id', 'paciente_id'
+        'medico_id', 'estadiamento', 'data_contato', 'observacoes',
+        'data_proximo_contato', 'turno_contato', 'diagnostico_id',
+        'prestador_medico_id', 'paciente_id', 'observacao_medicacao'
       ];
-      
+
       camposBase.forEach(key => {
-          if (formData[key]) dataToSend.append(key, formData[key]);
+        if (formData[key]) dataToSend.append(key, formData[key]);
       });
 
       dataToSend.append('comorbidade', JSON.stringify(formData.comorbidade));
       dataToSend.append('exame', JSON.stringify(formData.exame));
-      
-      // Filtrar apenas os selects que foram preenchidos (ignorando os vazios) e enviar como array
+
       const medicamentosPreenchidos = medicamentosUso.filter(id => id !== '');
       dataToSend.append('medicamentos_selecionados', JSON.stringify(medicamentosPreenchidos));
 
@@ -203,7 +209,7 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
       });
 
       await api.post('/entrevistas-medicas', dataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       toast.success("Entrevista salva com sucesso!");
@@ -228,64 +234,62 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
 
   return (
     <Container>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}>
-        <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#0052cc', cursor: 'pointer', fontWeight: 'bold' }}>
-          ← Voltar para Lista de Pacientes
-        </button>
-        <h2 style={{ color: '#333' }}>Entrevista de Admissão Clínica</h2>
-      </div>
+      <PageHeader>
+        <BackButton onClick={onCancel}>
+          <LuArrowLeft /> Voltar para Lista de Pacientes
+        </BackButton>
+        <h2>Entrevista de Admissão Clínica</h2>
+      </PageHeader>
 
       <Section>
         <h3><LuCircleUser /> Dados do Paciente Selecionado</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', background: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Nome Completo:</label><p><strong>{paciente.nome} {paciente.sobrenome}</strong></p></div>
-            <div><label style={{ color: '#666', fontSize: '0.8rem' }}>CPF:</label><p><strong>{paciente.cpf}</strong></p></div>
-            <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Nascimento:</label><p><strong>{formatarData(paciente.data_nascimento)}</strong></p></div>
-            <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Sexo:</label><p><strong>{formatarSexo(paciente.sexo)}</strong></p></div>
-            <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Operadora:</label><p><strong>{paciente.operadoras?.nome || 'Não informada'}</strong></p></div>
-          </div>
+        <InfoBox>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px', borderTop: '1px solid #e0e0e0', paddingTop: '15px' }}>
-            <div>
-              <label style={{ color: '#666', fontSize: '0.8rem' }}>Contatos:</label>
-              <p><strong>Cel:</strong> {paciente.celular || '-'}</p>
-              <p><strong>Tel:</strong> {paciente.telefone || '-'}</p>
-            </div>
-            <div>
-              <label style={{ color: '#666', fontSize: '0.8rem' }}>Endereço Completo:</label>
+          <InfoGrid>
+            <InfoItem><label>Nome Completo:</label><p>{paciente.nome} {paciente.sobrenome}</p></InfoItem>
+            <InfoItem><label>CPF:</label><p>{paciente.cpf}</p></InfoItem>
+            <InfoItem><label>Nascimento:</label><p>{formatarData(paciente.data_nascimento)}</p></InfoItem>
+            <InfoItem><label>Sexo:</label><p>{formatarSexo(paciente.sexo)}</p></InfoItem>
+            <InfoItem><label>Operadora:</label><p>{paciente.operadoras?.nome || 'Não informada'}</p></InfoItem>
+          </InfoGrid>
+
+          <InfoGrid className="col-2">
+            <InfoItem>
+              <label>Contatos:</label>
+              <p>Cel: {paciente.celular || '-'}</p>
+              <p>Tel: {paciente.telefone || '-'}</p>
+            </InfoItem>
+            <InfoItem>
+              <label>Endereço Completo:</label>
               <p>
-                <strong>
-                  {paciente.logradouro || ''}, {paciente.numero || 'S/N'} 
-                  {paciente.complemento ? ` (${paciente.complemento})` : ''} - {paciente.bairro || ''}, 
-                  {paciente.cidade || ''} - {paciente.estado || ''}
-                </strong>
+                {paciente.logradouro || ''}, {paciente.numero || 'S/N'}
+                {paciente.complemento ? ` (${paciente.complemento})` : ''} - {paciente.bairro || ''},
+                {paciente.cidade || ''} - {paciente.estado || ''}
               </p>
-              <p><strong>CEP:</strong> {paciente.cep || '-'}</p>
-            </div>
-          </div>
+              <p>CEP: {paciente.cep || '-'}</p>
+            </InfoItem>
+          </InfoGrid>
 
-          <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '15px' }}>
-            <label style={{ color: '#666', fontSize: '0.8rem' }}>Possui Cuidador?</label>
-            <p style={{ marginBottom: paciente.possui_cuidador ? '10px' : '0' }}>
-              <strong>{paciente.possui_cuidador ? 'Sim' : 'Não'}</strong>
-            </p>
-            
+          <InfoGrid className="border-top">
+            <InfoItem>
+              <label>Possui Cuidador?</label>
+              <p>{paciente.possui_cuidador ? 'Sim' : 'Não'}</p>
+            </InfoItem>
+
             {paciente.possui_cuidador && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', background: '#fff', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
-                <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Nome do Cuidador:</label><p><strong>{paciente.nome_cuidador || '-'}</strong></p></div>
-                <div><label style={{ color: '#666', fontSize: '0.8rem' }}>Contato do Cuidador:</label><p><strong>{paciente.contato_cuidador || '-'}</strong></p></div>
-              </div>
+              <>
+                <InfoItem><label>Nome do Cuidador:</label><p>{paciente.nome_cuidador || '-'}</p></InfoItem>
+                <InfoItem><label>Contato do Cuidador:</label><p>{paciente.contato_cuidador || '-'}</p></InfoItem>
+              </>
             )}
-          </div>
+          </InfoGrid>
 
-        </div>
+        </InfoBox>
       </Section>
 
       <Form onSubmit={handleSubmit}>
         <Section>
-          <h3><LuStethoscope /> Informações Médicas e Estadiamento</h3>
+          <h3><LuStethoscope />Informações Iniciais</h3>
           <div className="grid-3">
             <FormGroup>
               <label>Médico Responsável</label>
@@ -296,7 +300,7 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
             </FormGroup>
             <FormGroup>
               <label>CRM</label>
-              <input readOnly value={medicoSelecionado?.crm || ''} style={{ backgroundColor: '#e9ecef', color: '#666' }} />
+              <input readOnly value={medicoSelecionado?.crm || ''} />
             </FormGroup>
             <FormGroup>
               <label>Local de Atendimento</label>
@@ -305,34 +309,34 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
                 {locaisPermitidos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </FormGroup>
+
             <FormGroup>
-              <label>Estadiamento Atual</label>
-              <select value={formData.estadiamento} onChange={e => setFormData({ ...formData, estadiamento: e.target.value })}>
-                <option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option>
-              </select>
-            </FormGroup>
-            <FormGroup>
-              <label>Diagnóstico Primário (CID)</label>
-              <select required value={formData.diagnostico_id} onChange={e => setFormData({ ...formData, diagnostico_id: e.target.value })}>
-                <option value="">Selecione o CID...</option>
-                {diagnosticos.map(d => <option key={d.id} value={d.id}>{d.diagnostico}</option>)}
-              </select>
-            </FormGroup>
-            <FormGroup>
-              <label>Data do Atendimento</label>
-              <input type="date" required value={formData.data_contato} onChange={e => setFormData({ ...formData, data_contato: e.target.value })} />
+              <label>Data do contato</label>
+              <input
+                type="date"
+                required
+                value={formData.data_contato}
+                onChange={e => {
+                  const novaDataContato = e.target.value;
+                  setFormData({
+                    ...formData,
+                    data_contato: novaDataContato,
+                    data_proximo_contato: calcularProximoContato(novaDataContato)
+                  });
+                }}
+              />
             </FormGroup>
           </div>
         </Section>
 
         <Section>
-          <h3><LuCircleAlert /> Histórico de Comorbidades</h3>
+          <h3><LuCircleAlert /> Histórico do paciente</h3>
           <div className="flex-row">
             <input type="checkbox" checked={formData.comorbidade.possui_comorbidade} onChange={e => handleNestedChange('comorbidade', 'possui_comorbidade', e.target.checked)} />
             <label>O paciente possui alguma comorbidade associada?</label>
           </div>
           {formData.comorbidade.possui_comorbidade && (
-            <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="grid-6" style={{ marginTop: '15px' }}>
               <FormGroup>
                 <label>Selecione a Comorbidade</label>
                 <select required value={formData.comorbidade.comorbidade_id} onChange={e => handleNestedChange('comorbidade', 'comorbidade_id', e.target.value)}>
@@ -353,205 +357,199 @@ export default function EntrevistaForm({ paciente, onCancel, onSuccess }) {
               </div>
             </div>
           )}
+<br />
+          <h3> Histórico do paciente</h3>
+          <FormGroup>
+            <label>Estadiamento Atual</label>
+            <select value={formData.estadiamento} onChange={e => setFormData({ ...formData, estadiamento: e.target.value })}>
+              <option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option>
+            </select>
+          </FormGroup>
+          <FormGroup>
+            <label>Diagnóstico Primário (CID)</label>
+            <select required value={formData.diagnostico_id} onChange={e => setFormData({ ...formData, diagnostico_id: e.target.value })}>
+              <option value="">Selecione o CID...</option>
+              {diagnosticos.map(d => <option key={d.id} value={d.id}>{d.diagnostico}</option>)}
+            </select>
+          </FormGroup>
         </Section>
 
         <Section>
-            <h3><LuFlaskConical /> Registro de Exames Relevantes</h3>
-            <div className="flex-row">
-                <input type="checkbox" checked={formData.exame.possui_exame} onChange={e => handleNestedChange('exame', 'possui_exame', e.target.checked)} />
-                <label>Foram apresentados resultados de exames?</label>
+          <h3><LuFlaskConical /> Registro de Exames Relevantes</h3>
+          <div className="flex-row">
+            <input type="checkbox" checked={formData.exame.possui_exame} onChange={e => handleNestedChange('exame', 'possui_exame', e.target.checked)} />
+            <label>Qual o último exame realizado?</label>
+          </div>
+          {formData.exame.possui_exame && (
+            <div className="grid-3" style={{ marginTop: '15px' }}>
+              <FormGroup><label>Nome do Exame</label><input required value={formData.exame.nome_exame} onChange={e => handleNestedChange('exame', 'nome_exame', e.target.value)} /></FormGroup>
+              <FormGroup>
+                <label>Tipo</label>
+                <select value={formData.exame.tipo_exame} onChange={e => handleNestedChange('exame', 'tipo_exame', e.target.value)}>
+                  <option value="sangue">Sangue</option><option value="imagem">Imagem</option><option value="biópsia">Biópsia</option><option value="outro">Outro</option>
+                </select>
+              </FormGroup>
+              <FormGroup>
+                <label>Laboratório</label>
+                <select required value={formData.exame.prestador_medico_id} onChange={e => handleNestedChange('exame', 'prestador_medico_id', e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {laboratorios.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </FormGroup>
+              <FormGroup><label>Resultado</label><input required value={formData.exame.resultado_exame} onChange={e => handleNestedChange('exame', 'resultado_exame', e.target.value)} /></FormGroup>
+              <FormGroup><label>Data do exame</label><input type="date" required value={formData.exame.data_exame_realizado} onChange={e => handleNestedChange('exame', 'data_exame_realizado', e.target.value)} /></FormGroup>
+
             </div>
-            {formData.exame.possui_exame && (
-              <div className="grid-3" style={{ marginTop: '15px' }}>
-                  <FormGroup><label>Nome do Exame</label><input required value={formData.exame.nome_exame} onChange={e => handleNestedChange('exame', 'nome_exame', e.target.value)} /></FormGroup>
-                  <FormGroup>
-                      <label>Tipo</label>
-                      <select value={formData.exame.tipo_exame} onChange={e => handleNestedChange('exame', 'tipo_exame', e.target.value)}>
-                          <option value="sangue">Sangue</option><option value="imagem">Imagem</option><option value="biópsia">Biópsia</option><option value="outro">Outro</option>
-                      </select>
-                  </FormGroup>
-                  <FormGroup>
-                      <label>Laboratório</label>
-                      <select required value={formData.exame.prestador_medico_id} onChange={e => handleNestedChange('exame', 'prestador_medico_id', e.target.value)}>
-                          <option value="">Selecione...</option>
-                          {laboratorios.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                      </select>
-                  </FormGroup>
-                  <FormGroup><label>Resultado</label><input required value={formData.exame.resultado_exame} onChange={e => handleNestedChange('exame', 'resultado_exame', e.target.value)} /></FormGroup>
-                  <FormGroup><label>Realização</label><input type="date" required value={formData.exame.data_exame_realizado} onChange={e => handleNestedChange('exame', 'data_exame_realizado', e.target.value)} /></FormGroup>
-                  <FormGroup><label>Laudo</label><input type="date" required value={formData.exame.data_exame_resultado} onChange={e => handleNestedChange('exame', 'data_exame_resultado', e.target.value)} /></FormGroup>
-              </div>
-            )}
+          )}
+
         </Section>
 
         <Section>
-            <h3><LuPill /> Uso de Medicamentos</h3>
-            <div className="flex-row">
-                <input type="checkbox" checked={possuiMedicamento} onChange={handlePossuiMedicamentoChange} />
-                <label>O paciente faz uso de algum medicamento oncológico?</label>
-            </div>
-            
-            {possuiMedicamento && (
-              <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '15px', background: '#f8f9fa', padding: '15px', borderRadius: '8px', border: '1px solid #e9ecef' }}>
-                
-                {medicamentosUso.map((medId, index) => {
-                  // Busca o objeto completo para mostrar o card, se estiver preenchido
-                  const medSelecionado = listaMedicamentos.find(m => m.id === Number(medId));
+          <h3><LuPill /> Informações de Medicamentos</h3>
 
-                  return (
-                    <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '15px', borderBottom: index !== medicamentosUso.length - 1 ? '1px dashed #ccc' : 'none' }}>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                        <FormGroup style={{ flex: 1, margin: 0 }}>
-                            <label>Medicamento {index + 1}</label>
-                            <select 
-                              required 
-                              value={medId} 
-                              onChange={e => handleMedicamentoChange(index, e.target.value)}
-                            >
-                                <option value="">Selecione o medicamento na lista...</option>
-                                {listaMedicamentos.map(m => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.principio_ativo || m.nome_comercial ? `${m.nome_comercial || ''} (${m.principio_ativo || ''}) - ${m.dosagem || ''}${m.tipo_dosagem || ''}` : m.nome}
-                                  </option>
-                                ))}
-                            </select>
-                        </FormGroup>
-                        
-                        {/* Só mostra botão de remover se houver mais de um select */}
-                        {medicamentosUso.length > 1 && (
-                          <button 
-                            type="button" 
-                            onClick={() => removerSelectMedicamento(index)} 
-                            style={{ background: '#fff', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '4px', padding: '0 15px', height: '45px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
-                            title="Remover este medicamento"
-                          >
-                             <LuTrash2 size={18} /> Remover
-                          </button>
-                        )}
-                      </div>
+          <FormGroup>
+            <label>Outros Medicamentos (Não Oncológicos ou Uso Contínuo)</label>
+            <textarea 
+              rows="3"
+              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', resize: 'vertical' }}
+              placeholder="Descreva aqui os medicamentos não oncológicos que o paciente utiliza..."
+              value={formData.observacao_medicacao}
+              onChange={e => setFormData({ ...formData, observacao_medicacao: e.target.value })}
+            />
+          </FormGroup>
 
-                      {/* INFO CARD DO MEDICAMENTO SELECIONADO */}
-                      {medSelecionado && (
-                        <div style={{ 
-                          background: '#fff', 
-                          padding: '12px', 
-                          borderRadius: '6px', 
-                          border: '1px solid #d0d7de',
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                          gap: '10px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                        }}>
-                          <div>
-                            <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 'bold' }}>Nome Comercial</label>
-                            <p style={{ margin: '3px 0 0 0', color: '#333', fontSize: '0.85rem' }}>{medSelecionado.nome_comercial || '-'}</p>
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 'bold' }}>Princípio Ativo</label>
-                            <p style={{ margin: '3px 0 0 0', color: '#333', fontSize: '0.85rem' }}>{medSelecionado.principio_ativo || '-'}</p>
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 'bold' }}>Dosagem</label>
-                            <p style={{ margin: '3px 0 0 0', color: '#333', fontSize: '0.85rem' }}>
-                              {medSelecionado.dosagem ? `${medSelecionado.dosagem} ${medSelecionado.tipo_dosagem || ''}` : '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 'bold' }}>Qtd. Caixa</label>
-                            <p style={{ margin: '3px 0 0 0', color: '#333', fontSize: '0.85rem' }}>
-                              {medSelecionado.qtd_capsula ? `${medSelecionado.qtd_capsula} cápsulas/comp.` : '-'}
-                            </p>
-                          </div>
-                        </div>
+          <div className="flex-row" style={{ marginTop: '20px' }}>
+            <input type="checkbox" checked={possuiMedicamento} onChange={handlePossuiMedicamentoChange} />
+            <label>O paciente faz uso de algum medicamento oncológico?</label>
+          </div>
+
+          {possuiMedicamento && (
+            <NestedContainer>
+
+              {medicamentosUso.map((medId, index) => {
+                const medSelecionado = listaMedicamentos.find(m => m.id === Number(medId));
+
+                return (
+                  <ListItem key={index}>
+                    <FlexRowEnd>
+                      <FormGroup flex="1" margin="0">
+                        <label>Medicamento {index + 1}</label>
+                        <select
+                          required
+                          value={medId}
+                          onChange={e => handleMedicamentoChange(index, e.target.value)}
+                        >
+                          <option value="">Selecione o medicamento na lista...</option>
+                          {listaMedicamentos.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.principio_ativo || m.nome_comercial ? `(${m.nome_comercial || ''}) ${m.principio_ativo || ''} - ${m.dosagem || ''}${m.tipo_dosagem || ''}` : m.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </FormGroup>
+
+                      {medicamentosUso.length > 1 && (
+                        <IconButton
+                          type="button"
+                          className="danger-outline"
+                          onClick={() => removerSelectMedicamento(index)}
+                          title="Remover este medicamento"
+                        >
+                          <LuTrash2 size={18} /> Remover
+                        </IconButton>
                       )}
-                    </div>
-                  );
-                })}
+                    </FlexRowEnd>
 
-                <button 
-                  type="button" 
-                  onClick={adicionarSelectMedicamento} 
-                  style={{ 
-                    background: '#0052cc', 
-                    color: '#fff', 
-                    border: 'none', 
-                    borderRadius: '4px', 
-                    padding: '10px', 
-                    cursor: 'pointer', 
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    width: 'fit-content'
-                  }}
-                >
-                    <LuPlus size={18} /> Adicionar outro medicamento
-                </button>
-              </div>
-            )}
+                    {medSelecionado && (
+                      <ItemCard>
+                        <InfoItem>
+                          <label>Nome Comercial</label>
+                          <p>{medSelecionado.nome_comercial || '-'}</p>
+                        </InfoItem>
+                        <InfoItem>
+                          <label>Princípio Ativo</label>
+                          <p>{medSelecionado.principio_ativo || '-'}</p>
+                        </InfoItem>
+                        <InfoItem>
+                          <label>Dosagem</label>
+                          <p>{medSelecionado.dosagem ? `${medSelecionado.dosagem} ${medSelecionado.tipo_dosagem || ''}` : '-'}</p>
+                        </InfoItem>
+                        <InfoItem>
+                          <label>Qtd. Caixa</label>
+                          <p>{medSelecionado.qtd_capsula ? `${medSelecionado.qtd_capsula} cápsulas/comp.` : '-'}</p>
+                        </InfoItem>
+                      </ItemCard>
+                    )}
+                  </ListItem>
+                );
+              })}
+
+              <IconButton
+                type="button"
+                className="primary"
+                onClick={adicionarSelectMedicamento}
+              >
+                <LuPlus size={18} /> Adicionar outro medicamento
+              </IconButton>
+            </NestedContainer>
+          )}
+
         </Section>
 
         <Section>
           <h3><LuPaperclip /> Anexos da Entrevista (Exames, Receitas, Laudos)</h3>
-          <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '5px' }}>
+          <NestedContainer>
             {anexos.map((anexo, index) => (
-                <div key={index} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '10px' }}>
-                    <FormGroup style={{ flex: 1, margin: 0 }}>
-                        <label>Nome do Documento</label>
-                        <input 
-                            placeholder="Ex: Exame de Sangue..."
-                            value={anexo.nome}
-                            onChange={(e) => handleAnexoChange(index, 'nome', e.target.value)}
-                            required
-                        />
-                    </FormGroup>
-                    
-                    <FormGroup style={{ flex: 1, margin: 0 }}>
-                        <label>Arquivo</label>
-                        <input 
-                            type="file" 
-                            onChange={(e) => handleAnexoChange(index, 'file', e.target.files[0])}
-                            required
-                        />
-                    </FormGroup>
+              <FlexRowEnd key={index} mb="10px">
+                <FormGroup flex="1" margin="0">
+                  <label>Nome do Documento</label>
+                  <input
+                    placeholder="Ex: Exame de Sangue..."
+                    value={anexo.nome}
+                    onChange={(e) => handleAnexoChange(index, 'nome', e.target.value)}
+                    required
+                  />
+                </FormGroup>
 
-                    <button 
-                      type="button" 
-                      onClick={() => removerAnexo(index)} 
-                      style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '0 15px', height: '40px', cursor: 'pointer' }}
-                    >
-                        Remover
-                    </button>
-                </div>
+                <FormGroup flex="1" margin="0">
+                  <label>Arquivo</label>
+                  <input
+                    type="file"
+                    onChange={(e) => handleAnexoChange(index, 'file', e.target.files[0])}
+                    required
+                  />
+                </FormGroup>
+
+                <IconButton
+                  type="button"
+                  className="danger"
+                  onClick={() => removerAnexo(index)}
+                >
+                  Remover
+                </IconButton>
+              </FlexRowEnd>
             ))}
 
-            <button 
-              type="button" 
-              onClick={adicionarAnexo} 
-              style={{ background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 15px', cursor: 'pointer', marginTop: '10px', fontWeight: 'bold' }}
+            <IconButton
+              type="button"
+              className="success"
+              onClick={adicionarAnexo}
             >
-                + Adicionar Anexo
-            </button>
-          </div>
+              <LuPlus size={18} /> Adicionar Anexo
+            </IconButton>
+          </NestedContainer>
         </Section>
 
         <Section>
           <h3><LuHistory /> Próximos Passos</h3>
           <div className="grid-3">
-            <FormGroup><label>Data do Próximo Contato</label><input type="date" value={formData.data_proximo_contato} onChange={e => setFormData({...formData, data_proximo_contato: e.target.value})} /></FormGroup>
-            <FormGroup>
-              <label>Turno Preferencial</label>
-              <select value={formData.turno_contato} onChange={e => setFormData({...formData, turno_contato: e.target.value})}>
-                  <option value="Manhã">Manhã</option><option value="Tarde">Tarde</option><option value="Noite">Noite</option>
-              </select>
-            </FormGroup>
+            <FormGroup><label>Data da navegação do paciente</label><input type="date" value={formData.data_proximo_contato} onChange={e => setFormData({ ...formData, data_proximo_contato: e.target.value })} /></FormGroup>
           </div>
         </Section>
 
         <ButtonGroup>
-            <ActionButton type="button" onClick={onCancel} className="cancel"><LuCircleX size={20} /> Cancelar</ActionButton>
-            <ActionButton type="submit" className="save" disabled={loading}><LuCircleCheck size={20} /> {loading ? 'Processando...' : 'Finalizar Entrevista Médica'}</ActionButton>
+          <ActionButton type="button" onClick={onCancel} className="cancel"><LuCircleX size={20} /> Cancelar</ActionButton>
+          <ActionButton type="submit" className="save" disabled={loading}><LuCircleCheck size={20} /> {loading ? 'Processando...' : 'Finalizar Entrevista Médica'}</ActionButton>
         </ButtonGroup>
       </Form>
     </Container>

@@ -45,6 +45,12 @@ export const FilterBar = styled.div`
   padding: 1.5rem;  
   border-radius: 8px;
   border: 1px solid ${({ theme }) => theme.colors?.border || '#ccc'};
+
+  label {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 0.9rem; font-weight: 600;
+    
+  }
 `;
 
 export const FilterInput = styled.input`

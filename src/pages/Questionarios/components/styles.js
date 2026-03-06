@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 export const Overlay = styled.div`
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -10,13 +10,13 @@ export const Overlay = styled.div`
 export const ModalContainer = styled.div`
   background-color: ${({ theme }) => theme.colors.surface}; 
   width: 100%; 
-  max-width: 900px; // Um pouco mais largo
+  max-width: 1000px; /* Alargado um pouco para caber as 3 colunas confortavelmente */
   height: 90vh; 
-  border-radius: 12px; // Bordas mais arredondadas
+  border-radius: 12px; 
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   display: flex; 
   flex-direction: column;
-  overflow: hidden; // Garante que nada vaze
+  overflow: hidden; 
 `;
 
 export const ModalHeader = styled.div`
@@ -26,7 +26,7 @@ export const ModalHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;
 
   h2 { 
-    color: ${({ theme }) => theme.colors.text}; /* Alterado de sidebarMiddle para text */
+    color: ${({ theme }) => theme.colors.text};
     font-size: 1.5rem;
     font-weight: 700;
   }
@@ -36,9 +36,8 @@ export const ModalBody = styled.div`
   padding: 2rem; 
   overflow-y: auto; 
   flex: 1;
-  background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg}; // Fundo cinza suave atrás dos cards
+  background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg}; 
   
-  /* Scrollbar bonita e adaptável ao tema */
   &::-webkit-scrollbar { width: 8px; }
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb { background-color: ${({ theme }) => theme.colors.border}; border-radius: 4px; }
@@ -54,29 +53,33 @@ export const ModalFooter = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
 `;
 
+export const Section = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
 // -- Inputs e Labels Globais --
 export const Label = styled.label`
   display: block; 
   margin-bottom: 0.5rem; 
-  color: ${({ theme }) => theme.colors.text}; /* Alterado de sidebarMiddle */
+  color: ${({ theme }) => theme.colors.text}; 
   font-weight: 600;
   font-size: 0.9rem;
 `;
 
 export const Input = styled.input`
   width: 100%; 
-  padding: 0.9rem 1rem; // Maior altura interna
+  padding: 0.9rem 1rem; 
   border: 1px solid ${({ theme }) => theme.colors.border}; 
   border-radius: 6px;
   font-size: 1rem;
   color: ${({ theme }) => theme.colors.text};
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Trocado de #fff */
+  background-color: ${({ theme }) => theme.colors.inputBg}; 
   transition: all 0.2s;
 
   &:focus { 
     outline: none; 
     border-color: ${({ theme }) => theme.colors.primary}; 
-    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33; // Glow usando cor dinâmica com transparência (33 = ~20%)
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33; 
   }
   
   &::placeholder { 
@@ -108,7 +111,7 @@ export const Select = styled.select`
   padding: 0.9rem 1rem; 
   border: 1px solid ${({ theme }) => theme.colors.border}; 
   border-radius: 6px; 
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Trocado de white */
+  background-color: ${({ theme }) => theme.colors.inputBg}; 
   font-size: 1rem;
   color: ${({ theme }) => theme.colors.text};
   cursor: pointer;
@@ -118,34 +121,40 @@ export const Select = styled.select`
 
 // -- Card da Pergunta --
 export const QuestionCard = styled.div`
-  background-color: ${({ theme }) => theme.colors.surface};
-  padding: 0; // Padding removido aqui, controlado internamente
+  position: relative; /* Mantém a lixeira posicionada relativa ao card */
+  background-color: ${({ theme, isOrientacao }) => 
+    isOrientacao ? (theme.colors.infoBg || '#f0f9fa') : theme.colors.surface
+  };
+  padding: 0; 
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   margin-bottom: 1.5rem;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  overflow: hidden;
+  
+  /* Borda lateral azul se for orientação */
+  ${({ isOrientacao }) => isOrientacao && css`
+    border-left: 4px solid #17a2b8;
+  `}
 
-  transition: transform 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+
   &:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15); /* Aumentei um pouco o alpha para o dark mode */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
   }
 `;
 
 export const QuestionHeader = styled.div`
   padding: 1.5rem;
-  display: grid;
-  grid-template-columns: 60px 1fr 200px auto; // Numeracao | Texto | Tipo | Delete
-  gap: 1rem;
-  align-items: center;
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
+  padding-right: 40px; /* Espaço para não encavalar o texto na lixeira */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-start;
 `;
 
 export const QuestionNumber = styled.div`
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Trocado de backgroundAlt */
+  background-color: ${({ theme }) => theme.colors.inputBg}; 
   color: ${({ theme }) => theme.colors.primary};
   font-weight: bold;
   height: 40px;
@@ -155,11 +164,43 @@ export const QuestionNumber = styled.div`
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+  flex-shrink: 0; /* Impede que o número diminua */
+  margin-top: 5px; /* Alinha com os inputs */
+`;
+
+/* Wrappers para os blocos dentro do Header (Substituindo os flex inline) */
+export const QuestionCategoryWrapper = styled.div`
+  flex: 1 1 200px;
+`;
+
+export const QuestionTypeWrapper = styled.div`
+  flex: 1 1 200px;
+`;
+
+export const QuestionTextWrapper = styled.div`
+  width: 100%;
+  margin-top: 5px;
+`;
+
+export const DeleteButtonWrapper = styled.div`
+  position: absolute;
+  top: 15px;
+  right: 15px;
+`;
+
+export const FormSectionHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+
+  h3 { color: ${({ theme }) => theme.colors.text}; }
+  small { color: ${({ theme }) => theme.colors.textLight}; }
 `;
 
 // -- Área de Opções --
 export const OptionsArea = styled.div`
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Trocado de #f8fafc que ficaria branco no dark mode */
+  background-color: ${({ theme }) => theme.colors.inputBg}; 
   padding: 1.5rem;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
 `;
@@ -170,8 +211,8 @@ export const OptionRow = styled.div`
   align-items: center; 
   margin-bottom: 0.8rem;
   
-  .input-label { flex: 1; } // Ocupa o espaço restante
-  .input-score { width: 100px; text-align: center; } // Largura fixa para pontos
+  .input-label { flex: 1; } 
+  .input-score { width: 100px; text-align: center; } 
 `;
 
 export const Button = styled.button`
@@ -204,7 +245,7 @@ export const Button = styled.button`
     padding: 0.5rem;
     &:hover { 
       color: ${({ theme }) => theme.colors.danger || '#ff4d4f'}; 
-      background-color: rgba(255, 77, 79, 0.1); /* Transparência em vez de cor sólida */
+      background-color: rgba(255, 77, 79, 0.1); 
     }
   }
 
@@ -214,11 +255,11 @@ export const Button = styled.button`
     border: 1px dashed ${({ theme }) => theme.colors.primary}; 
     width: 100%;
     margin-top: 0.5rem;
-    &:hover { background-color: ${({ theme }) => theme.colors.primary}1A; } /* Fundo primário com 10% opacidade */
+    &:hover { background-color: ${({ theme }) => theme.colors.primary}1A; } 
   }
 
   &.add-question {
-    background-color: ${({ theme }) => theme.colors.primary}; /* Trocado de sidebarMiddle para primary */
+    background-color: ${({ theme }) => theme.colors.primary}; 
     color: #ffffff;
     width: 100%;
     padding: 1rem;
@@ -227,8 +268,4 @@ export const Button = styled.button`
   }
   
   &:hover { opacity: 0.9; }
-`;
-
-export const Section = styled.div`
-  margin-bottom: 1.5rem;
 `;

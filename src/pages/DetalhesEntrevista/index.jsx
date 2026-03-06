@@ -1,4 +1,3 @@
-// src/pages/ListaEntrevistas/index.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -9,16 +8,15 @@ import TermoModal from './components/TermoModal';
 import { LuArrowUpDown, LuEye } from "react-icons/lu"; 
 
 export default function ListaEntrevistas() {
-  const [entrevistas, setEntrevistas] = useState([]);
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
+  // Mudamos o padrão para 'desc' para priorizar os mais caros primeiro
+  const [sortOrder, setSortOrder] = useState('desc'); 
   
-  // Estados do Modal de Avaliação 
-  const [selectedEntrevista, setSelectedEntrevista] = useState(null);
+  const [selectedPaciente, setSelectedPaciente] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   
-  // Estados do Modal de Termo
   const [termoModalOpen, setTermoModalOpen] = useState(false);
-  const [entrevistaParaTermo, setEntrevistaParaTermo] = useState(null);
+  const [pacienteParaTermo, setPacienteParaTermo] = useState(null);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -27,70 +25,46 @@ export default function ListaEntrevistas() {
   const load = async () => {
     try {
       const res = await api.get('/evaluations/responses');
-      console.log(res.data)
-      setEntrevistas(res.data);
-
-      console.log(res.data)
+      setPacientesNavegacao(res.data);
     } catch (error) {
-      console.error("Erro ao buscar entrevistas", error);
+      console.error("Erro ao buscar dados", error);
     }
   };
 
   useEffect(() => { load(); }, []);
 
-  // Efeito de Scroll e Destaque da linha (Vindo do Alerta da Sidebar)
+  // Efeito de Scroll
   useEffect(() => {
-    if (highlightId && entrevistas.length > 0) {
+    if (highlightId && pacientesNavegacao.length > 0) {
       setTimeout(() => {
         const element = document.getElementById(`row-${highlightId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 500); 
     }
-  }, [highlightId, entrevistas]);
+  }, [highlightId, pacientesNavegacao]);
 
   const handleSort = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
 
-  const sortedEntrevistas = useMemo(() => {
-    return [...entrevistas].sort((a, b) => {
-      const dateA = a.data_proximo_contato ? new Date(a.data_proximo_contato) : new Date('9999-12-31');
-      const dateB = b.data_proximo_contato ? new Date(b.data_proximo_contato) : new Date('9999-12-31');
-      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+  // Nova regra de ordenação baseada no price
+  const sortedPacientes = useMemo(() => {
+    return [...pacientesNavegacao].sort((a, b) => {
+      const priceA = Number(a.price) || 0;
+      const priceB = Number(b.price) || 0;
+      return sortOrder === 'desc' ? priceB - priceA : priceA - priceB;
     });
-  }, [entrevistas, sortOrder]);
+  }, [pacientesNavegacao, sortOrder]);
 
-  const getAlertConfig = (item) => {
-    if (item.status_avaliacao === 'Concluída' || !item.data_proximo_contato) return null;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const contactDate = new Date(item.data_proximo_contato);
-    contactDate.setHours(0, 0, 0, 0);
-
-    const diffTime = contactDate - today;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays <= 0) return { color: '#ff4d4f', label: 'ATRASADO/HOJE' };
-    if (diffDays <= 1) return { color: '#ff4d4f', label: 'CRÍTICO' };
-    if (diffDays <= 3) return { color: '#faad14', label: 'ATENÇÃO' };
-    if (diffDays <= 5) return { color: '#52c41a', label: 'PRAZO' };
-
-    return null;
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const [year, month, day] = dateString.split('T')[0].split('-');
-    return `${day}/${month}/${year}`;
+  // Função para formatar o valor monetário
+  const formatPrice = (price) => {
+    if (!price) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
   };
 
   return (
     <S.Container>
       <S.Header>
-        <h1>Pacientes Entrevistados</h1>
-        <p>Monitore os prazos de contato e status das avaliações oncológicas.</p>
+        <h1>Navegação de Pacientes</h1>
+        <p>Monitore o status das avaliações oncológicas diretas e priorize os atendimentos de alto custo.</p>
       </S.Header>
 
       <S.Table>
@@ -98,61 +72,47 @@ export default function ListaEntrevistas() {
           <tr>
             <th>ID</th>
             <th>Paciente</th>
-            <th>Médico da entrevista</th>
             <th>Contato</th>
             <th>Operadora</th>
             <th className="sortable" onClick={handleSort}>
-              Próximo Contato <LuArrowUpDown size={14} />
+              Medicamento / Custo <LuArrowUpDown size={14} />
             </th>
-            <th>Data Entrevista</th>
             <th>Termo</th>
             <th>Status</th>
             <th style={{ textAlign: 'center' }}>Ações</th>
           </tr>
         </thead>
         <tbody>
-          {sortedEntrevistas.map(item => {
-            const alert = getAlertConfig(item);
-            const statusTermo = item.paciente?.status_termo || 'Pendente';
-            
-            const isHighlighted = highlightId === String(item.id); 
-            
-            // Garantia de busca da operadora independente do plural/singular retornado pela API
-            const nomeOperadora = item.paciente?.operadoras?.nome || item.paciente?.operadora?.nome || '-';
+          {sortedPacientes.map(paciente => {
+            const statusTermo = paciente.status_termo || 'Pendente';
+            const isHighlighted = highlightId === String(paciente.id); 
+            const nomeOperadora = paciente.operadoras?.nome || '-';
+            const nomeMedicamento = paciente.medicamento?.nome || 'Não informado';
 
             return (
               <tr 
-                key={item.id}
-                id={`row-${item.id}`} 
+                key={paciente.id} id={`row-${paciente.id}`} 
                 style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.2)', transition: 'background-color 2s' } : {}}
               >
-                <td>#{item.id}</td>
+                <td>#{paciente.id}</td>
                 <td>
                   <div style={{ lineHeight: '1.4' }}>
-                    <strong>{item.paciente?.nome} {item.paciente?.sobrenome}</strong><br />
-                   
+                    <strong>{paciente.nome} {paciente.sobrenome}</strong><br />
+                    <small style={{ opacity: 0.5 }}>CPF: {paciente.cpf}</small>
                   </div>
                 </td>
-
-                <td>
-                  <div style={{ lineHeight: '1.4' }}>
-                     <strong>{item.medico?.nome} {item.medico?.sobrenome}</strong><br />
-                    <small style={{ opacity: 0.5 }}>CRM: {item.medico?.crm || '---'}</small>
-                  </div>
-                </td>
-                <td>{item.paciente?.celular || item.paciente?.telefone || '-'}</td>
-                
-                {/* Operadora Corrigida */}
+                <td>{paciente.celular || paciente.telefone || '-'}</td>
                 <td>{nomeOperadora}</td>
                 
+                {/* Coluna Atualizada: Nome do Medicamento e Preço */}
                 <td>
-                  <div style={{ color: alert?.color, fontWeight: alert ? '800' : 'normal' }}>
-                    {formatDate(item.data_proximo_contato)}
-                    {alert && <div style={{ fontSize: '9px', marginTop: '-2px' }}>{alert.label}</div>}
+                  <div style={{ lineHeight: '1.4' }}>
+                    <strong>{nomeMedicamento}</strong><br />
+                    <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                      {formatPrice(paciente.price)}
+                    </span>
                   </div>
                 </td>
-
-                <td>{formatDate(item.data_contato)}</td>
 
                 <td>
                   <S.StatusBadge
@@ -165,39 +125,37 @@ export default function ListaEntrevistas() {
 
                 <td>
                   <S.StatusBadge
-                    done={item.status_avaliacao === 'Concluída'}
-                    bg={item.status_avaliacao === 'Parcial' ? 'rgba(250, 173, 20, 0.15)' : null}
-                    color={item.status_avaliacao === 'Parcial' ? '#faad14' : null}
+                    done={paciente.status_avaliacao === 'Concluída'}
+                    bg={paciente.status_avaliacao === 'Parcial' ? 'rgba(250, 173, 20, 0.15)' : null}
+                    color={paciente.status_avaliacao === 'Parcial' ? '#faad14' : null}
                   >
-                    {item.status_avaliacao}
+                    {paciente.status_avaliacao}
                   </S.StatusBadge>
                 </td>
 
                 <td>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                    {/* Botão Principal de Avaliação */}
                     <S.ActionButton
                       mode="create"
                       onClick={() => {
                         if (statusTermo !== 'Aceito') {
-                          setEntrevistaParaTermo(item);
+                          setPacienteParaTermo(paciente);
                           setTermoModalOpen(true);
                         } else {
-                          navigate(`/avaliacao/new?entrevista_id=${item.id}&paciente_id=${item.paciente_id}`);
+                          navigate(`/avaliacao/new?paciente_id=${paciente.id}`);
                         }
                       }}
                     >
-                      {item.status_avaliacao === 'Parcial' ? 'Continuar' : 'Avaliar'}
+                      {paciente.status_avaliacao === 'Parcial' ? 'Continuar' : 'Avaliar'}
                     </S.ActionButton>
 
-                    {/* Botão Secundário para abrir o Modal de Detalhes (Visualizar) */}
                     <S.ActionButton
                       style={{ backgroundColor: '#17a2b8', color: '#fff', padding: '8px 12px' }}
                       onClick={() => {
-                        setSelectedEntrevista(item);
+                        setSelectedPaciente(paciente);
                         setModalOpen(true);
                       }}
-                      title="Ver Detalhes"
+                      title="Ver Histórico"
                     >
                       <LuEye size={18} />
                     </S.ActionButton>
@@ -209,30 +167,26 @@ export default function ListaEntrevistas() {
         </tbody>
       </S.Table>
 
-      {/* Modal de Termo */}
       <TermoModal
         isOpen={termoModalOpen}
         onClose={() => setTermoModalOpen(false)}
-        entrevista={entrevistaParaTermo}
-        onSuccess={(entrevistaAtualizada) => {
+        paciente={pacienteParaTermo}
+        onSuccess={(pacienteAtualizado) => {
           load();
           setTermoModalOpen(false);
-          // O disparo de evento ('updateAlerts') vai recarregar a Sidebar
           window.dispatchEvent(new Event('updateAlerts')); 
-          navigate(`/avaliacao/new?entrevista_id=${entrevistaAtualizada.id}&paciente_id=${entrevistaAtualizada.paciente_id}`);
+          navigate(`/avaliacao/new?paciente_id=${pacienteAtualizado.id}`);
         }}
       />
 
-      {/* Modal de Detalhes (Restaurado) */}
       <EvaluationModal
         isOpen={modalOpen}
-        data={selectedEntrevista}
+        data={selectedPaciente} 
         onClose={() => {
           setModalOpen(false);
-          setSelectedEntrevista(null);
+          setSelectedPaciente(null);
         }}
       />
-
     </S.Container>
   );
 }

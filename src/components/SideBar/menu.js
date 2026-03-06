@@ -21,7 +21,7 @@ import {
 export const navOptions = [
   // Dashboard não tem 'modulo' específico, vamos deixar livre para todos logados
   { id: "dashboard", label: "Dashboard", icon: LuLayoutDashboard, path: "/", modulo: "dashboard" },
-  { id: "entrevista", label: "Entrevista Médica", icon: LuClipboardList, path: "/entrevista-medica", modulo: "entrevistas_medicas" },
+
   { id: "necessidade", label: "Necessidade de Navegação", icon: LuCompass, path: "/necessidade-navegacao", modulo: "avaliacoes" },
   { id: "tele", label: "Telemonitoramento", icon: LuActivity, path: "/telemonitoramento", modulo: "avaliacoes" },
   { id: "linhadotempo", label: "Linha do Tempo", icon: LuHistory, path: "/linha-do-tempo", modulo: "avaliacoes" },

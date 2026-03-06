@@ -5,11 +5,9 @@ import {
   Button, WaitingBox, ErrorBox, SuccessBox 
 } from './styles';
 
-export default function TermoModal({ isOpen, onClose, entrevista, onSuccess }) {
+export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   const [step, setStep] = useState('initial'); // 'initial' | 'sending' | 'waiting' | 'accepted' | 'rejected'
   const [countdown, setCountdown] = useState(3);
-  
-  const paciente = entrevista?.paciente;
 
   // Reseta os estados toda vez que o modal é aberto
   useEffect(() => {
@@ -57,7 +55,8 @@ export default function TermoModal({ isOpen, onClose, entrevista, onSuccess }) {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timerId);
-            onSuccess(entrevista); // Função que faz a navegação lá no componente Pai
+            // Agora passamos o paciente atualizado no onSuccess
+            onSuccess(paciente); 
             return 0;
           }
           return prev - 1;
@@ -68,7 +67,7 @@ export default function TermoModal({ isOpen, onClose, entrevista, onSuccess }) {
     return () => {
       if (timerId) clearInterval(timerId);
     };
-  }, [step, entrevista, onSuccess]);
+  }, [step, paciente, onSuccess]);
 
 
   const handleSendLink = async () => {
@@ -87,7 +86,8 @@ export default function TermoModal({ isOpen, onClose, entrevista, onSuccess }) {
     onClose();
   };
 
-  if (!isOpen || !entrevista) return null;
+  // Correção principal: validamos se paciente existe, em vez de entrevista
+  if (!isOpen || !paciente) return null;
 
   return (
     <Overlay>

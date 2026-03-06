@@ -4,41 +4,42 @@ import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import { 
   ModalOverlay, ModalContent, SuccessCheck, Button, Input 
-} from '../styles'; // Certifique-se de que esses componentes existem no seu styles.js
+} from '../styles'; 
 
 export default function AvaliacaoModal({ 
   isOpen, 
   onClose, 
   scoreFinal, 
-  entrevistaData, 
+  pacienteData, // Recebendo diretamente os dados do paciente
   pacienteId, 
-  entrevistaId, 
   evaluationId, 
   pendingTemplatesCount 
 }) {
   // Controle de Abas do Modal: 'success' -> 'medicamentos' -> 'nextTemplate'
   const [modalStep, setModalStep] = useState('success'); 
-  const [medicamentosMonitoramento, setMedicamentosMonitoramento] = useState({});
+  const [medicamentoState, setMedicamentoState] = useState({});
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
 
-  // Reseta o modal e prepara os medicamentos sempre que for aberto
+  // Reseta o modal e prepara o medicamento sempre que for aberto
   useEffect(() => {
     if (isOpen) {
       setModalStep('success');
-      if (entrevistaData?.medicamentos?.length > 0) {
-        const initialState = {};
-        entrevistaData.medicamentos.forEach(med => {
-          initialState[med.id] = { usa: true, posologia: '' };
+      // Verifica se o paciente possui UM medicamento vinculado
+      if (pacienteData?.medicamento) {
+        setMedicamentoState({
+          [pacienteData.medicamento.id]: { usa: true, posologia: '' }
         });
-        setMedicamentosMonitoramento(initialState);
+      } else {
+        setMedicamentoState({});
       }
     }
-  }, [isOpen, entrevistaData]);
+  }, [isOpen, pacienteData]);
 
   if (!isOpen) return null;
 
-  const handleAvançarParaMedicamentos = () => {
-    if (entrevistaData?.medicamentos && entrevistaData.medicamentos.length > 0) {
+  const handleAvancarParaMedicamentos = () => {
+    // Se o paciente tiver um medicamento atrelado no cadastro, abre a tela de posologia
+    if (pacienteData?.medicamento) {
       setModalStep('medicamentos');
     } else {
       setModalStep('nextTemplate');
@@ -46,7 +47,7 @@ export default function AvaliacaoModal({
   };
 
   const handleMonitoramentoChange = (medId, field, value) => {
-    setMedicamentosMonitoramento(prev => ({
+    setMedicamentoState(prev => ({
       ...prev,
       [medId]: {
         ...prev[medId],
@@ -58,7 +59,8 @@ export default function AvaliacaoModal({
   const handleSalvarMonitoramento = async () => {
     setLoadingMonitoramento(true);
 
-    const confirmados = Object.entries(medicamentosMonitoramento)
+    // Formata o payload (mantemos em formato de array para o backend não quebrar)
+    const confirmados = Object.entries(medicamentoState)
       .map(([medId, data]) => ({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
@@ -73,9 +75,9 @@ export default function AvaliacaoModal({
     }
 
     try {
+      // Retirado o entrevista_profissional_id do payload
       await api.post('/monitoramento-medicamentos', {
         paciente_id: Number(pacienteId),
-        entrevista_profissional_id: Number(entrevistaId),
         patient_evaluation_id: evaluationId,
         medicamentos_confirmados: confirmados
       });
@@ -104,66 +106,63 @@ export default function AvaliacaoModal({
             <p style={{ fontSize: '1.2rem', marginTop: '10px' }}>
               Pontuação calculada: <strong>{scoreFinal} pts</strong>
             </p>
-            <Button style={{ marginTop: '20px' }} onClick={handleAvançarParaMedicamentos}>
+            <Button style={{ marginTop: '20px' }} onClick={handleAvancarParaMedicamentos}>
               Continuar
             </Button>
           </>
         )}
 
         {/* ETAPA 2: Configuração de Monitoramento */}
-        {modalStep === 'medicamentos' && (
+        {modalStep === 'medicamentos' && pacienteData?.medicamento && (
           <>
             <h3 style={{ marginBottom: '10px' }}>Confirmação de Uso Contínuo</h3>
             <p style={{ fontSize: '0.9rem', marginBottom: '20px', color: '#555' }}>
-              Paciente: <strong>{entrevistaData.paciente?.nome}</strong><br/>
+              Paciente: <strong>{pacienteData.nome} {pacienteData.sobrenome}</strong><br/>
               Confirme a posologia para agendar os próximos contatos de monitoramento.
             </p>
 
-            <div style={{ textAlign: 'left', maxHeight: '300px', overflowY: 'auto', marginBottom: '20px' }}>
-              {entrevistaData.medicamentos?.map(med => {
-                const state = medicamentosMonitoramento[med.id] || { usa: true, posologia: '' };
-                return (
-                  <div key={med.id} style={{ marginBottom: '15px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>{med.nome} {med.dosagem ? `(${med.dosagem})` : ''}</div>
-                    
-                    <label style={{ display: 'block', marginBottom: '8px' }}>
-                      O paciente continua usando este medicamento?
-                    </label>
-                    <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
-                      <label style={{ cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          name={`usa_${med.id}`} 
-                          checked={state.usa === true}
-                          onChange={() => handleMonitoramentoChange(med.id, 'usa', true)}
-                        /> Sim
-                      </label>
-                      <label style={{ cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          name={`usa_${med.id}`} 
-                          checked={state.usa === false}
-                          onChange={() => handleMonitoramentoChange(med.id, 'usa', false)}
-                        /> Não
-                      </label>
-                    </div>
+            <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+              <div style={{ marginBottom: '15px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>
+                  {pacienteData.medicamento.nome} 
+                </div>
+                
+                <label style={{ display: 'block', marginBottom: '8px' }}>
+                  O paciente continua usando este medicamento?
+                </label>
+                <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
+                  <label style={{ cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name={`usa_${pacienteData.medicamento.id}`} 
+                      checked={medicamentoState[pacienteData.medicamento.id]?.usa === true}
+                      onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', true)}
+                    /> Sim
+                  </label>
+                  <label style={{ cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name={`usa_${pacienteData.medicamento.id}`} 
+                      checked={medicamentoState[pacienteData.medicamento.id]?.usa === false}
+                      onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', false)}
+                    /> Não
+                  </label>
+                </div>
 
-                    {state.usa && (
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Quantos comprimidos ao dia?</label>
-                        <Input 
-                          type="number" 
-                          min="1"
-                          value={state.posologia}
-                          onChange={(e) => handleMonitoramentoChange(med.id, 'posologia', e.target.value)}
-                          placeholder="Ex: 2"
-                          style={{ width: '120px', padding: '5px', marginTop: '5px' }}
-                        />
-                      </div>
-                    )}
+                {medicamentoState[pacienteData.medicamento.id]?.usa && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Quantos comprimidos ao dia?</label>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''}
+                      onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)}
+                      placeholder="Ex: 2"
+                      style={{ width: '120px', padding: '5px', marginTop: '5px' }}
+                    />
                   </div>
-                )
-              })}
+                )}
+              </div>
             </div>
 
             <Button onClick={handleSalvarMonitoramento} disabled={loadingMonitoramento}>
@@ -182,7 +181,6 @@ export default function AvaliacaoModal({
                 </p>
                 <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
                   <Button onClick={() => onClose(true)}>Sim, Continuar</Button>
-                  {/* Se tiver uma variação de botão secondary, substitua a prop abaixo */}
                   <Button style={{ backgroundColor: '#888' }} onClick={() => onClose(false)}>Não, Voltar à Tabela</Button>
                 </div>
               </>

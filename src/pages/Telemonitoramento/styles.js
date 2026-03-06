@@ -1,4 +1,3 @@
-// src/pages/Telemonitoramento/styles.js
 import styled from 'styled-components';
 
 export const Container = styled.div`
@@ -33,16 +32,16 @@ export const Title = styled.h2`
   color: ${props => props.theme.colors.text};
   display: flex;
   align-items: center;
-  margin: 0; /* Removido o margin-bottom pois o HeaderFlex agora cuida disso */
+  margin: 0; 
 `;
 
 export const TableContainer = styled.div`
   background: ${props => props.theme.colors.surface};
   border: 1px solid ${props => props.theme.colors.border};
-  border-radius: 8px;
+  border-bottom: none; /* Removido para encaixar com a paginação */
+  border-radius: 8px 8px 0 0;
   overflow-x: auto;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  margin-top: 20px;
+  margin-top: 10px;
 `;
 
 export const Table = styled.table`
@@ -101,7 +100,7 @@ export const SubTable = styled.table`
   }
 
   th {
-    background-color: rgba(0,0,0,0.03);
+    background-color: ${props => props.theme.colors.inputBg}; 
     color: ${props => props.theme.colors.textLight};
     text-transform: uppercase;
     font-size: 0.85rem;
@@ -114,7 +113,6 @@ export const SubTable = styled.table`
   }
 `;
 
-/* Badge para o Tempo/Atraso */
 export const StatusBadge = styled.span`
   display: inline-block;
   padding: 8px 14px;
@@ -141,7 +139,6 @@ export const StatusBadge = styled.span`
   }};
 `;
 
-/* Badge para a Classificação de Adesão */
 export const AdherenceBadge = styled.span`
   display: inline-flex;
   align-items: center;
@@ -161,23 +158,8 @@ export const AdherenceBadge = styled.span`
     if (props.level === 'alta') return '#27ae60';
     if (props.level === 'media') return '#d35400';
     if (props.level === 'baixa') return '#c0392b';
-    return '#555';
+    return props.theme.colors.text;
   }};
-`;
-
-export const LegendList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 20px 0;
-  text-align: left;
-  
-  li {
-    margin-bottom: 15px;
-    font-size: 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-  }
 `;
 
 export const ActionButton = styled.button`
@@ -221,28 +203,116 @@ export const ModalOverlay = styled.div`
 `;
 
 export const ModalContent = styled.div`
-  background: ${props => props.theme.colors.surface}; color: ${props => props.theme.colors.text};
-  padding: 40px; border-radius: 12px; max-width: 1200px; width: 90%;
+  background: ${props => props.theme.colors.surface}; 
+  color: ${props => props.theme.colors.text};
+  padding: 40px; border-radius: 12px; max-width: 600px; width: 90%;
   border: 1px solid ${props => props.theme.colors.border};
   h3 { margin-bottom: 20px; border-bottom: 1px solid ${props => props.theme.colors.border}; padding-bottom: 10px; }
 `;
-
-export const FormGroup = styled.div`
-  margin-bottom: 20px; text-align: left;
-  label { display: block; margin-bottom: 8px; font-weight: bold; color: ${props => props.theme.colors.text}; }
-`;
-
-export const Input = styled.input`
-  width: 100%; padding: 12px; border: 1px solid ${props => props.theme.colors.border};
-  background-color: ${props => props.theme.colors.inputBg}; color: ${props => props.theme.colors.text};
-  border-radius: 6px; font-size: 1rem;
-`;
-
-export const ButtonGroup = styled.div` display: flex; gap: 10px; justify-content: flex-end; margin-top: 30px; `;
 
 export const Button = styled.button`
   background: ${props => props.variant === 'secondary' ? '#555' : props.theme.colors.primary};
   color: #fff; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;
   &:hover { filter: brightness(1.2); }
-  &:disabled { opacity: 0.7; cursor: not-allowed; }
+`;
+
+export const LegendList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+  text-align: left;
+  
+  li {
+    margin-bottom: 15px;
+    font-size: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+`;
+
+/* --- NOVOS ESTILOS PARA BUSCA E PAGINAÇÃO --- */
+
+export const ControlsContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 15px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+export const SearchInputContainer = styled.div`
+  position: relative;
+  width: 350px;
+
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+
+  svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+  }
+`;
+
+export const SearchInput = styled.input`
+  width: 100%;
+  padding: 12px 15px 12px 38px;
+  border: 1px solid ${props => props.theme.colors.border};
+  border-radius: 6px;
+  background-color: ${props => props.theme.colors.inputBg};
+  color: ${props => props.theme.colors.text};
+  font-size: 0.95rem;
+
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.colors.primary};
+  }
+`;
+
+export const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: ${props => props.theme.colors.surface};
+  border: 1px solid ${props => props.theme.colors.border};
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+`;
+
+export const PaginationInfo = styled.div`
+  color: ${props => props.theme.colors.text};
+  font-size: 0.9rem;
+`;
+
+export const PageButton = styled.button`
+  padding: 8px 16px;
+  margin-left: 8px;
+  border: 1px solid ${props => props.theme.colors.border};
+  background-color: ${props => props.theme.colors.inputBg};
+  color: ${props => props.theme.colors.text};
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background-color: ${props => props.theme.colors.primary};
+    color: white;
+    border-color: ${props => props.theme.colors.primary};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;

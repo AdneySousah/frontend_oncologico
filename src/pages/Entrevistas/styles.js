@@ -83,3 +83,126 @@ export const ActionButton = styled.button`
     opacity: 0.9;
   }
 `;
+
+export const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex: ${props => props.flex || 'initial'};
+  margin: ${props => props.margin || '0 0 1rem 0'};
+
+  label {
+    font-size: 0.85rem;
+    color: ${({ theme }) => theme.colors.text};
+    font-weight: 600;
+  }
+
+  input, select, textarea {
+    padding: 0.8rem;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 6px;
+    font-size: 1rem;
+    background-color: ${({ theme }) => theme.colors.inputBg};
+    color: ${({ theme }) => theme.colors.text};
+    transition: all 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: ${({ theme }) => theme.colors.primary};
+      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primary}33;
+    }
+    
+    &::placeholder {
+      color: ${({ theme }) => theme.colors.textLight};
+      opacity: 0.7;
+    }
+
+    &:read-only, &:disabled {
+      background-color: ${({ theme }) => theme.colors.surface}; /* Ajuste para dark mode */
+      color: ${({ theme }) => theme.colors.textLight};
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+  }
+
+  textarea {
+    min-height: 80px;
+    resize: vertical;
+  }
+`;
+
+export const ModalContainer = styled.div`
+  background-color: ${({ theme }) => theme.colors.surface || '#fff'};
+  border-radius: 8px;
+  width: 100%;
+  max-width: ${props => props.style?.maxWidth || '800px'};
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: ${({ theme }) => theme.colors.border || '#ccc'};
+    border-radius: 4px;
+  }
+`;
+
+export const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border || '#ccc'};
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+
+  h2 {
+    margin: 0;
+    color: ${({ theme }) => theme.colors.primary || '#007bff'};
+  }
+
+  button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.danger || '#dc3545'};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background 0.2s;
+
+    &:hover {
+      background-color: ${({ theme }) => theme.colors.border || '#eee'};
+    }
+  }
+`;
+
+export const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 20px;
+
+  .div-container{
+    display: flex;
+    flex-direction: column ;
+    gap: 20px;
+    padding: 10px 0;
+
+  p{
+    color: ${({ theme }) => theme.colors.text};
+  }
+  }
+`;

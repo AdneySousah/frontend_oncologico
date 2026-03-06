@@ -117,6 +117,13 @@ export const CheckboxGroup = styled.div`
     accent-color: ${({ theme }) => theme.colors.primary};
     cursor: pointer;
   }
+
+  .info-adm{
+    font-size: 0.8rem;
+    color: ${({ theme }) => theme.colors.textLight};
+    margin-left: 4px;
+    margin-top: 4px;
+  }
 `;
 
 export const Select = styled.select`

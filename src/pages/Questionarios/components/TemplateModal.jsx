@@ -1,26 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { 
   Overlay, ModalContainer, ModalHeader, ModalBody, ModalFooter, 
   Section, QuestionCard, QuestionHeader, QuestionNumber, OptionsArea, OptionRow, 
-  Button, Select, Input, Label, Textarea 
+  Button, Select, Input, Label, Textarea,
+  QuestionCategoryWrapper, QuestionTypeWrapper, QuestionTextWrapper, 
+  DeleteButtonWrapper, FormSectionHeader
 } from './styles';
 import { LuTrash2, LuPlus, LuX } from "react-icons/lu";
 import api from '../../../services/api';
 
-const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
+const TemplateModal = ({ isOpen, onClose, onSuccess, templateToEdit }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   
   const [questions, setQuestions] = useState([
-    { enunciado: '', tipo: 'texto', options: [] } 
+    { categoria: '', enunciado: '', tipo: 'texto', options: [] } 
   ]);
+
+  useEffect(() => {
+    if (templateToEdit) {
+      setTitle(templateToEdit.title || '');
+      setDescription(templateToEdit.description || '');
+      
+      if (templateToEdit.questions && templateToEdit.questions.length > 0) {
+        setQuestions(templateToEdit.questions.map(q => ({
+          categoria: q.categoria || '',
+          enunciado: q.enunciado,
+          tipo: q.tipo,
+          options: q.options ? q.options.map(o => ({ label: o.label, score: o.score })) : []
+        })));
+      } else {
+        setQuestions([{ categoria: '', enunciado: '', tipo: 'texto', options: [] }]);
+      }
+    } else {
+      setTitle('');
+      setDescription('');
+      setQuestions([{ categoria: '', enunciado: '', tipo: 'texto', options: [] }]);
+    }
+  }, [templateToEdit, isOpen]);
 
   if (!isOpen) return null;
 
-  // --- Funções de Manipulação (Mantidas iguais) ---
   const addQuestion = () => {
-    setQuestions([...questions, { enunciado: '', tipo: 'texto', options: [] }]);
+    const lastCategory = questions.length > 0 ? questions[questions.length - 1].categoria : '';
+    setQuestions([...questions, { categoria: lastCategory, enunciado: '', tipo: 'texto', options: [] }]);
   };
 
   const removeQuestion = (index) => {
@@ -33,7 +57,7 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
     const newQuestions = [...questions];
     newQuestions[index][field] = value;
     
-    if (field === 'tipo' && value === 'texto') {
+    if ((field === 'tipo' && value === 'texto') || (field === 'tipo' && value === 'orientacao')) {
         newQuestions[index].options = [];
     }
     if (field === 'tipo' && value === 'multipla_escolha' && newQuestions[index].options.length === 0) {
@@ -61,33 +85,43 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    // ... (Mesma validação e lógica de submit do código anterior) ...
-    // Vou resumir para focar no layout, mas mantenha a lógica original aqui
     if (!title.trim()) return toast.warn("Dê um título ao questionário.");
+    
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!q.enunciado.trim()) return toast.warn(`A pergunta ${i + 1} precisa de um enunciado/texto.`);
+        if (q.tipo === 'multipla_escolha' && q.options.length === 0) {
+            return toast.warn(`A pergunta ${i + 1} de múltipla escolha precisa de opções.`);
+        }
+    }
     
     const payload = {
         title,
         description,
         questions: questions.map(q => ({
+            categoria: q.categoria?.trim() || null,
             enunciado: q.enunciado,
             tipo: q.tipo,
             options: q.tipo === 'multipla_escolha' ? q.options.map(o => ({
                 label: o.label,
-                score: Number(o.score)
+                score: Number(o.score) || 0
             })) : [] 
         }))
     };
 
     try {
-        await api.post('/evaluations/templates', payload);
-        toast.success("Questionário criado com sucesso!");
+        if (templateToEdit) {
+            await api.put(`/evaluations/templates/${templateToEdit.id}`, payload);
+            toast.success("Questionário atualizado com sucesso!");
+        } else {
+            await api.post('/evaluations/templates', payload);
+            toast.success("Questionário criado com sucesso!");
+        }
+        
         onSuccess();
         onClose();
-        setTitle('');
-        setDescription('');
-        setQuestions([{ enunciado: '', tipo: 'texto', options: [] }]);
     } catch (err) {
-        const msg = err.response?.data?.error || "Erro ao salvar";
+        const msg = err.response?.data?.error || "Erro ao salvar questionário";
         toast.error(msg);
     }
   };
@@ -96,16 +130,15 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
     <Overlay>
       <ModalContainer>
         <ModalHeader>
-          <h2>Novo Modelo de Avaliação</h2>
+          <h2>{templateToEdit ? 'Editar Questionário' : 'Novo Modelo de Avaliação'}</h2>
           <Button className="danger-icon" onClick={onClose}><LuX size={24}/></Button>
         </ModalHeader>
         
         <ModalBody>
-          {/* Dados do Cabeçalho */}
           <Section>
             <Label>Título do Questionário</Label>
             <Input 
-                placeholder="Ex: Anamnese Oncológica Padrão" 
+                placeholder="Ex: Escala de Avaliação de Necessidade de Navegação" 
                 value={title} 
                 onChange={e => setTitle(e.target.value)}
                 autoFocus
@@ -122,59 +155,72 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
             />
           </Section>
 
-          <div style={{ marginTop: '2rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
-               <h3 style={{ color: '#555' }}>Perguntas do Formulário</h3>
-               <small style={{ color: '#888' }}>{questions.length} pergunta(s)</small>
-            </div>
+          <Section>
+            <FormSectionHeader>
+               <h3>Estrutura do Formulário</h3>
+               <small>{questions.length} item(ns)</small>
+            </FormSectionHeader>
             
             {questions.map((q, qIndex) => (
-              <QuestionCard key={qIndex}>
-                {/* Header da Pergunta: Grid System */}
+              <QuestionCard 
+                key={qIndex} 
+                isOrientacao={q.tipo === 'orientacao'}
+              >
                 <QuestionHeader>
                   <QuestionNumber>{qIndex + 1}</QuestionNumber>
                   
-                  <div style={{ width: '100%' }}>
-                    <Label style={{ marginBottom: '4px' }}>Enunciado</Label>
+                  <QuestionCategoryWrapper>
+                    <Label>Categoria (Opcional)</Label>
                     <Input 
-                        value={q.enunciado} 
-                        onChange={e => updateQuestion(qIndex, 'enunciado', e.target.value)}
-                        placeholder="Ex: O paciente apresenta náuseas?"
+                        value={q.categoria} 
+                        onChange={e => updateQuestion(qIndex, 'categoria', e.target.value)}
+                        placeholder="Ex: Capacidade de comunicação"
                     />
-                  </div>
+                  </QuestionCategoryWrapper>
 
-                  <div>
-                    <Label style={{ marginBottom: '4px' }}>Tipo de Resposta</Label>
+                  <QuestionTypeWrapper>
+                    <Label>Tipo do Item</Label>
                     <Select 
                         value={q.tipo} 
                         onChange={e => updateQuestion(qIndex, 'tipo', e.target.value)}
                     >
                         <option value="texto">Texto Livre</option>
                         <option value="multipla_escolha">Múltipla Escolha</option>
+                        <option value="orientacao">Orientação / Observação (Sem resposta)</option>
                     </Select>
-                  </div>
+                  </QuestionTypeWrapper>
 
-                  <div style={{ marginTop: '22px' }}>
+                  <QuestionTextWrapper>
+                    <Label>
+                      {q.tipo === 'orientacao' ? 'Texto da Orientação' : 'Enunciado da Pergunta'}
+                    </Label>
+                    <Input 
+                        value={q.enunciado} 
+                        onChange={e => updateQuestion(qIndex, 'enunciado', e.target.value)}
+                        placeholder={q.tipo === 'orientacao' ? "Ex: Observar a capacidade de comunicação..." : "Ex: O paciente apresenta náuseas?"}
+                    />
+                  </QuestionTextWrapper>
+
+                  <DeleteButtonWrapper>
                     <Button 
                         className="danger-icon" 
                         onClick={() => removeQuestion(qIndex)} 
-                        title="Remover Pergunta"
+                        title="Remover Item"
                     >
                         <LuTrash2 size={20} />
                     </Button>
-                  </div>
+                  </DeleteButtonWrapper>
                 </QuestionHeader>
 
-                {/* Área de Opções (Condicional e Destacada) */}
                 {q.tipo === 'multipla_escolha' && (
                     <OptionsArea>
-                        <Label style={{ marginBottom: '10px' }}>Opções Selecionáveis</Label>
+                        <Label>Critérios / Opções de Resposta</Label>
                         
                         {q.options.map((opt, optIndex) => (
                             <OptionRow key={optIndex}>
                                 <div className="input-label">
                                     <Input 
-                                        placeholder="Texto da opção (ex: Sim, Frequente)" 
+                                        placeholder="Critério (ex: Apresenta alguma dificuldade)" 
                                         value={opt.label}
                                         onChange={e => updateOption(qIndex, optIndex, 'label', e.target.value)}
                                     />
@@ -183,7 +229,7 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
                                     <Input 
                                         type="number"
                                         placeholder="Pts" 
-                                        title="Pontuação para Score de Risco"
+                                        title="Pontuação"
                                         value={opt.score}
                                         onChange={e => updateOption(qIndex, optIndex, 'score', e.target.value)}
                                     />
@@ -199,7 +245,7 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
                         ))}
                         
                         <Button className="add-option" onClick={() => addOption(qIndex)}>
-                            <LuPlus /> Adicionar Opção de Resposta
+                            <LuPlus /> Adicionar Opção
                         </Button>
                     </OptionsArea>
                 )}
@@ -207,15 +253,17 @@ const TemplateModal = ({ isOpen, onClose, onSuccess }) => {
             ))}
 
             <Button className="add-question" onClick={addQuestion}>
-                <LuPlus size={20} /> Adicionar Nova Pergunta
+                <LuPlus size={20} /> Adicionar Novo Item
             </Button>
-          </div>
+          </Section>
 
         </ModalBody>
 
         <ModalFooter>
           <Button className="secondary" onClick={onClose}>Cancelar</Button>
-          <Button className="primary" onClick={handleSubmit}>Salvar Questionário</Button>
+          <Button className="primary" onClick={handleSubmit}>
+              {templateToEdit ? 'Salvar Alterações' : 'Salvar Questionário'}
+          </Button>
         </ModalFooter>
       </ModalContainer>
     </Overlay>

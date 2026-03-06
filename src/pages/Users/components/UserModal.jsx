@@ -33,7 +33,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
           api.get('/perfis') // Busca os perfis
         ]);
 
-     
+
         setSpecialties(specsRes.data);
         setOperadorasList(opsRes.data);
         setPerfisList(perfisRes.data);
@@ -139,7 +139,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
     <Overlay>
       <ModalContainer style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <h2>{userToEdit ? 'Editar Usuário' : 'Novo Usuário'}</h2>
-        
+
         <Form onSubmit={handleSubmit}>
           {/* PERFIL DE ACESSO */}
           <FormGroup>
@@ -191,26 +191,27 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
 
           {/* Permissões */}
           <FormGroup>
-             <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>
+            <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>
               Status / Tipo
             </label>
             <CheckboxGroup>
+              <div>
+                <label>
+                  <input
+                    type="checkbox"
+                    name="is_admin"
+                    checked={userData.is_admin}
+                    onChange={handleUserChange}
+                  />
+                  Ver todas as operadoras
+                </label>
+              </div>
               <label>
-                <input 
-                  type="checkbox" 
-                  name="is_admin" 
-                  checked={userData.is_admin} 
-                  onChange={handleUserChange} 
-                />
-                Administrador
-              </label>
-
-              <label>
-                <input 
-                  type="checkbox" 
-                  name="is_profissional" 
-                  checked={userData.is_profissional} 
-                  onChange={handleUserChange} 
+                <input
+                  type="checkbox"
+                  name="is_profissional"
+                  checked={userData.is_profissional}
+                  onChange={handleUserChange}
                 />
                 É um Profissional de Saúde?
               </label>
@@ -219,9 +220,9 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
 
           {/* Área Condicional: Dados Profissionais */}
           {userData.is_profissional && (
-            <ProfessionalSection style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginTop: '10px' }}>
+            <ProfessionalSection style={{  padding: '15px', borderRadius: '8px', marginTop: '10px' }}>
               <h4>Dados do Registro Profissional</h4>
-              
+
               <FormGroup>
                 <label>Tipo de Registro</label>
                 <Select name="registry_type" value={proData.registry_type} onChange={handleProChange}>
@@ -233,20 +234,20 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
 
               <FormGroup>
                 <label>Número do Registro</label>
-                <input 
-                  name="registry_number" 
-                  value={proData.registry_number} 
-                  onChange={handleProChange} 
+                <input
+                  name="registry_number"
+                  value={proData.registry_number}
+                  onChange={handleProChange}
                   placeholder="Ex: 12345-MG"
-                  required={userData.is_profissional} 
+                  required={userData.is_profissional}
                 />
               </FormGroup>
 
               <FormGroup>
                 <label>Especialidade</label>
-                <Select 
-                  name="especiality_id" 
-                  value={proData.especiality_id} 
+                <Select
+                  name="especiality_id"
+                  value={proData.especiality_id}
                   onChange={handleProChange}
                   required={userData.is_profissional}
                 >

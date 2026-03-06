@@ -1,7 +1,6 @@
 import { Routes as Switch, Route } from 'react-router-dom';
 import LoginPage from '../pages/LoginPage';
 import { UserLayout } from '../Layout/userLayout';
-import HomePage from '../pages/HomePage';
 import UsersPage from '../pages/Users';
 import SpecialtiesPage from '../pages/Especialidades';
 import OperadorasPage from '../pages/Operadoras';
@@ -9,7 +8,6 @@ import QuestionariosPage from '../pages/Questionarios';
 import PacientesPage from '../pages/Pacientes';
 import DiagnosticosPage from '../pages/Diagnosticos';
 import PrestadoresPage from '../pages/Prestadores';
-import EntrevistasPage from '../pages/Entrevistas';
 import DetalhesEntrevista from '../pages/DetalhesEntrevista';
 import NovaAvaliacao from '../pages/NovaAvaliacao';
 import Medicos from '../pages/Medicos';
@@ -22,6 +20,7 @@ import FirstAccess from '../pages/FirstAccess';
 import Telemonitoramento from '../pages/Telemonitoramento';
 import ReacoesAdversasPage from '../pages/ReacaoAdversa';
 import Dashboard from '../pages/Dashboard';
+import ForgotPasswordPage from '../pages/LoginPage/ForgotPasswordPage';
 
 
 export default function Routes() {
@@ -29,6 +28,7 @@ export default function Routes() {
         <Switch>
             {/* Rota Pública */}
             <Route path='/login' element={<LoginPage />} />
+            <Route path='/reset' element={<ForgotPasswordPage />} />
             <Route path="/paciente/termo/:id" element={<TelaAceiteTermo />} />
             <Route path='/primeiro-acesso' element={<FirstAccess />} />
             {/* Rotas Privadas (Com Sidebar/Layout) */}
@@ -49,7 +49,6 @@ export default function Routes() {
                 <Route path='/operadoras' element={<OperadorasPage />} />
                 <Route path='/diagnosticos' element={<DiagnosticosPage />} />
                 <Route path='/prestadores' element={<PrestadoresPage />} />
-                <Route path='/entrevista-medica' element={<EntrevistasPage />} />
                 <Route path='/medicos' element={<Medicos />} />
                 <Route path='/comorbidades' element={<ComorbidadesPage />} />
                 <Route path='/medicamentos' element={<MedicamentosPage />} />

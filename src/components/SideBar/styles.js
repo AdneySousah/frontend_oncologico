@@ -241,6 +241,88 @@ export const AlertModalContent = styled.div`
   }
 `;
 
+export const AlertControls = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 25px;
+  background-color: ${props => props.theme.colors.surface || '#fafafa'};
+  border-bottom: 1px solid ${props => props.theme.colors.border || '#eee'};
+
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .sort-btn {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid ${props => props.theme.colors.border || '#ddd'};
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: ${props => props.theme.colors.textLight || '#666'};
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: ${props => props.theme.colors.inputBg || '#eee'};
+      color: ${props => props.theme.colors.text || '#333'};
+    }
+  }
+`;
+export const FilterBtn = styled.button`
+  background: ${props => props.$active ? (props.theme.colors.primary || '#007D99') : 'transparent'};
+  color: ${props => props.$active ? '#fff' : (props.theme.colors.textLight || '#666')};
+  border: 1px solid ${props => props.$active ? (props.theme.colors.primary || '#007D99') : (props.theme.colors.border || '#ddd')};
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${props => props.$active ? (props.theme.colors.primary || '#007D99') : (props.theme.colors.inputBg || '#eee')};
+  }
+`;
+
+/* Adicione este novo componente para a pontuação dinâmica */
+export const ScoreBadge = styled.span`
+  display: inline-block;
+  font-size: 0.70rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-left: 10px; /* Dá um espacinho do nome */
+  white-space: nowrap;
+
+  /* LÓGICA DE CORES DA LEGENDA */
+  background-color: ${props => {
+    if (props.score <= 10) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; // Verde (Boa adesão)
+    if (props.score <= 14) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; // Laranja (Atenção)
+    return props.theme.colors.dangerLight || 'rgba(255, 77, 79, 0.15)'; // Vermelho (Risco)
+  }};
+
+  color: ${props => {
+    if (props.score <= 10) return props.theme.colors.success || '#52c41a';
+    if (props.score <= 14) return props.theme.colors.warning || '#faad14';
+    return props.theme.colors.danger || '#ff4d4f';
+  }};
+  
+  border: 1px solid ${props => {
+    if (props.score <= 10) return props.theme.colors.success || '#52c41a';
+    if (props.score <= 14) return props.theme.colors.warning || '#faad14';
+    return props.theme.colors.danger || '#ff4d4f';
+  }};
+`;
+
+/* Atualize o AlertCard existente para suportar o name-row */
 export const AlertCard = styled.div`
   display: flex;
   justify-content: space-between;
@@ -248,24 +330,80 @@ export const AlertCard = styled.div`
   padding: 15px;
   border-radius: 8px;
   background: ${props => props.theme.colors.inputBg || '#fafafa'};
-  border-left: 5px solid ${props => props.diffDays <= 1 ? '#ff4d4f' : props.diffDays <= 3 ? '#faad14' : '#52c41a'};
+  border-left: 5px solid ${props => 
+    props.diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : 
+    props.diffDays <= 3 ? (props.theme.colors.warning || '#faad14') : 
+    (props.theme.colors.success || '#52c41a')
+  };
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 
   .alert-info {
     flex: 1;
+    
     .badge {
-      display: inline-block; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; 
-      background: #e6f7ff; color: #1890ff; border-radius: 4px; margin-bottom: 5px;
+      display: inline-block; 
+      font-size: 0.70rem; 
+      font-weight: 800; 
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      
+      background-color: ${props => {
+        const t = (props.$alertType || '').toLowerCase();
+        if (t.includes('monitoramento')) return props.theme.colors.warningLight || 'rgba(250, 84, 28, 0.15)'; 
+        if (t.includes('novo') || t.includes('paciente')) return props.theme.colors.infoLight || 'rgba(24, 144, 255, 0.15)'; 
+        if (t.includes('termo')) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
+        return props.theme.colors.inputBg || '#e6f7ff'; 
+      }};
+      
+      color: ${props => {
+        const t = (props.$alertType || '').toLowerCase();
+        if (t.includes('monitoramento')) return props.theme.colors.warning || '#fa541c'; 
+        if (t.includes('novo') || t.includes('paciente')) return props.theme.colors.info || '#1890ff';
+        if (t.includes('termo')) return props.theme.colors.success || '#52c41a';
+        return props.theme.colors.primary || '#1890ff';
+      }};
     }
-    h4 { margin: 0 0 5px 0; color: ${props => props.theme.colors.text || '#333'}; font-size: 1rem; }
-    p { margin: 0 0 5px 0; font-size: 0.85rem; color: #666; }
-    .time { font-size: 0.8rem; font-weight: bold; color: ${props => props.diffDays <= 1 ? '#ff4d4f' : '#888'}; }
+
+    /* Nova linha flexível para agrupar o nome e o score */
+    .name-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+      
+      h4 { 
+        margin: 0; 
+        color: ${props => props.theme.colors.text || '#333'}; 
+        font-size: 1rem; 
+      }
+    }
+
+    p { margin: 0 0 5px 0; font-size: 0.85rem; color: ${props => props.theme.colors.textLight || '#666'}; }
+    
+    .time { 
+      font-size: 0.8rem; 
+      font-weight: bold; 
+      color: ${props => props.diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : (props.theme.colors.textLight || '#888')}; 
+    }
   }
 
   .action-btn {
     background: ${props => props.theme.colors.primary || '#007D99'};
-    color: white; border: none; padding: 8px 16px; border-radius: 6px;
-    cursor: pointer; font-weight: bold; transition: filter 0.2s;
+    color: #fff; 
+    border: none; 
+    padding: 8px 16px; 
+    border-radius: 6px;
+    cursor: pointer; 
+    font-weight: bold; 
+    transition: filter 0.2s;
+    
     &:hover { filter: brightness(1.1); }
+  }
+
+  small {
+    color: ${props => props.diffDays < 0 ? `${props.theme.colors.text}` : (props.theme.colors.danger || '#ff4d4f')} !important;
+    font-weight: ${props => props.diffDays <= 0 ? 'bold' : 'normal'} !important;
   }
 `;

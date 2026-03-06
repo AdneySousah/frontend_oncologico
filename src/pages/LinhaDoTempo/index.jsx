@@ -32,61 +32,59 @@ export default function TimelinePacientes() {
     useEffect(() => {
         async function fetchData() {
             try {
-                // Buscamos os dados das avaliações (que já vêm filtrados por operadora pelo backend)
-                // e os dados de monitoramento
-                const [respAvaliacoes, respMonitoramento] = await Promise.all([
+                // Buscamos os pacientes com suas avaliações e a timeline de monitoramentos
+                const [respPacientes, respMonitoramento] = await Promise.all([
                     api.get('/avaliacoes'),
                     api.get('/monitoramento/timeline')
                 ]);
 
-                const entrevistas = respAvaliacoes.data;
+                const pacientesList = respPacientes.data;
                 const monitoramentos = respMonitoramento.data;
                 const grupos = {};
 
-                // 1. Processar Entrevistas e Avaliações
-                entrevistas.forEach(ent => {
-                    const paciente = ent.paciente;
-                    if (!paciente) return;
-
+                // 1. Processar Pacientes e Avaliações (Questionários de Navegação)
+                pacientesList.forEach(paciente => {
                     if (!grupos[paciente.id]) {
                         grupos[paciente.id] = {
                             id: paciente.id,
                             nome: `${paciente.nome} ${paciente.sobrenome}`,
-                            cpf: paciente.cpf,
-                            celular: paciente.celular,
-                            // Pegamos o nome da operadora aqui
+                            cpf: paciente.cpf || '-',
+                            celular: paciente.celular || paciente.telefone || '-',
                             operadora: paciente.operadoras ? paciente.operadoras.nome : 'N/A',
                             timeline: []
                         };
                     }
 
-                    grupos[paciente.id].timeline.push({
-                        id: `ent-${ent.id}`,
-                        tipo: 'entrevista',
-                        titulo: 'Entrevista Médica Realizada',
-                        data: ent.createdAt,
-                        detalhe: `Médico: ${ent.medico ? ent.medico.nome : 'Não informado'}`,
-                        status: 'CONCLUIDO'
-                    });
-
-                    if (ent.avaliacoes && ent.avaliacoes.length > 0) {
-                        ent.avaliacoes.forEach(avaliacao => {
+                    // Se o paciente respondeu questionários, joga na timeline
+                    if (paciente.avaliacoes && paciente.avaliacoes.length > 0) {
+                        paciente.avaliacoes.forEach(avaliacao => {
                             grupos[paciente.id].timeline.push({
                                 id: `av-${avaliacao.id}`,
                                 tipo: 'questionario',
-                                titulo: `Questionário: ${avaliacao.template?.title || 'Avaliação'}`,
+                                titulo: `Questionário: ${avaliacao.template?.title || 'Avaliação de Necessidade'}`,
                                 data: avaliacao.createdAt,
-                                detalhe: `Score Total: ${avaliacao.total_score}`,
+                                detalhe: `Score Calculado: ${avaliacao.total_score} pts`,
                                 status: 'CONCLUIDO'
                             });
                         });
                     }
                 });
 
-                // 2. Processar Monitoramentos
+                // 2. Processar Monitoramentos (Contatos Realizados e Futuros)
                 monitoramentos.forEach(mon => {
-                    const pacId = mon.paciente_id;
-                    if (!grupos[pacId]) return;
+                    // O id do paciente pode vir direto ou aninhado dependendo do include do backend
+                    const pacId = mon.paciente ? mon.paciente.id : mon.paciente_id;
+                    
+                    if (!grupos[pacId]) {
+                        grupos[pacId] = {
+                            id: pacId,
+                            nome: mon.paciente ? `${mon.paciente.nome} ${mon.paciente.sobrenome}` : 'Paciente Não Identificado',
+                            cpf: '-',
+                            celular: '-',
+                            operadora: 'N/A',
+                            timeline: []
+                        };
+                    }
 
                     const isFuturo = mon.status === 'PENDENTE';
                     
@@ -95,18 +93,18 @@ export default function TimelinePacientes() {
                         tipo: 'monitoramento',
                         titulo: isFuturo ? `Próximo Contato Agendado` : `Monitoramento Realizado`,
                         data: isFuturo ? mon.data_proximo_contato : mon.updatedAt,
-                        detalhe: `Medicamento: ${mon.medicamento?.nome || 'N/I'} | Posologia: ${mon.posologia_diaria}`,
+                        detalhe: `Medicamento: ${mon.medicamento?.nome || 'N/I'} | Posologia: ${mon.posologia_diaria || '-'}`,
                         status: mon.status
                     });
                 });
 
                 const listaFinal = Object.values(grupos).map(pac => {
-                    // Ordena a timeline do paciente: mais antigo para o mais novo
+                    // Ordena a timeline do paciente: do mais antigo para o mais novo
                     pac.timeline.sort((a, b) => new Date(a.data) - new Date(b.data));
                     return pac;
                 });
 
-                // Ordena a lista de pacientes por nome
+                // Ordena a lista de pacientes por nome alfabeticamente
                 listaFinal.sort((a, b) => a.nome.localeCompare(b.nome));
 
                 setPacientesAgrupados(listaFinal);
@@ -124,12 +122,55 @@ export default function TimelinePacientes() {
         setExpandedId(expandedId === id ? null : id);
     };
 
-    const formatarData = (dataString) => {
-        const data = new Date(dataString);
-        return new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
+    // --- NOVA FUNÇÃO DE DATA AMIGÁVEL ---
+    const formatarDataAmigavel = (dataString) => {
+        if (!dataString) return '-';
+        
+        // Se a data vier apenas como YYYY-MM-DD (sem hora), forçamos ela pro fuso local
+        const isApenasData = dataString.length === 10;
+        const data = isApenasData ? new Date(`${dataString}T12:00:00`) : new Date(dataString);
+        
+        const agora = new Date();
+
+        // Zera as horas para comparar apenas os dias exatos
+        const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+        const dataEvento = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+
+        const diffTime = dataEvento - hoje;
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
+
+        // Formata a hora (ex: 14:30)
+        const horaFormatada = new Intl.DateTimeFormat('pt-BR', {
             hour: '2-digit', minute: '2-digit'
         }).format(data);
+
+        // Formata data curta (ex: 05 de mar)
+        const dataCurta = new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit', month: 'short'
+        }).format(data);
+
+        // --- DATAS FUTURAS (Agendamentos) ---
+        if (diffDays > 0) {
+            if (diffDays === 1) return isApenasData ? 'Amanhã' : `Amanhã às ${horaFormatada}`;
+            if (diffDays <= 7) return isApenasData ? `Em ${diffDays} dias` : `Em ${diffDays} dias às ${horaFormatada}`;
+            return isApenasData ? `${dataCurta}` : `${dataCurta} às ${horaFormatada}`;
+        }
+
+        // --- DATAS PASSADAS E HOJE ---
+        if (diffDays === 0) {
+            return isApenasData ? 'Hoje' : `Hoje às ${horaFormatada}`;
+        } else if (diffDays === -1) {
+            return isApenasData ? 'Ontem' : `Ontem às ${horaFormatada}`;
+        } else if (diffDays >= -7) {
+            return isApenasData ? `Há ${Math.abs(diffDays)} dias` : `Há ${Math.abs(diffDays)} dias às ${horaFormatada}`;
+        } else {
+            // Passou de uma semana, mostra a data legível completa
+            const dataCompleta = new Intl.DateTimeFormat('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric'
+            }).format(data);
+            
+            return isApenasData ? dataCompleta : `${dataCompleta} às ${horaFormatada}`;
+        }
     };
 
     // --- LÓGICA DE BUSCA ---
@@ -146,7 +187,7 @@ export default function TimelinePacientes() {
         return (
             paciente.nome.toLowerCase().includes(termo) ||
             paciente.cpf.includes(termo) ||
-            paciente.operadora.toLowerCase().includes(termo) // Permite busca por operadora
+            paciente.operadora.toLowerCase().includes(termo)
         );
     });
 
@@ -179,7 +220,7 @@ export default function TimelinePacientes() {
                     </Toolbar>
 
                     {loading ? (
-                        <p>Carregando dados...</p>
+                        <p style={{ padding: '20px', textAlign: 'center' }}>Carregando dados da timeline...</p>
                     ) : (
                         <>
                             <Table>
@@ -224,26 +265,30 @@ export default function TimelinePacientes() {
                                                     <TimelineRow>
                                                         <td colSpan="5" style={{ padding: 0 }}>
                                                             <TimelineWrapper>
-                                                                {paciente.timeline.map((evento, index) => {
-                                                                    const isUltimo = index === paciente.timeline.length - 1;
-                                                                    const isFuturo = new Date(evento.data) > new Date();
+                                                                {paciente.timeline.length === 0 ? (
+                                                                    <p style={{ padding: '20px', color: '#888' }}>Sem eventos registrados.</p>
+                                                                ) : (
+                                                                    paciente.timeline.map((evento, index) => {
+                                                                        const isUltimo = index === paciente.timeline.length - 1;
+                                                                        const isFuturo = new Date(evento.data) > new Date();
 
-                                                                    return (
-                                                                        <TimelineItem key={evento.id}>
-                                                                            <TimelineDot 
-                                                                                $type={evento.tipo} 
-                                                                                $isCurrent={isUltimo}
-                                                                                style={isFuturo ? { backgroundColor: '#ffa000' } : {}}
-                                                                            />
-                                                                            <TimelineContent $isCurrent={isUltimo}>
-                                                                                <strong>
-                                                                                    {evento.titulo} {isFuturo && <small style={{color: '#ef6c00'}}> (AGENDADO)</small>}
-                                                                                </strong>
-                                                                                <span>{formatarData(evento.data)} • {evento.detalhe}</span>
-                                                                            </TimelineContent>
-                                                                        </TimelineItem>
-                                                                    );
-                                                                })}
+                                                                        return (
+                                                                            <TimelineItem key={evento.id}>
+                                                                                <TimelineDot 
+                                                                                    $type={evento.tipo} 
+                                                                                    $isCurrent={isUltimo}
+                                                                                    style={isFuturo ? { backgroundColor: '#ffa000' } : {}}
+                                                                                />
+                                                                                <TimelineContent $isCurrent={isUltimo}>
+                                                                                    <strong>
+                                                                                        {evento.titulo} {isFuturo && <small style={{color: '#ef6c00'}}> (AGENDADO)</small>}
+                                                                                    </strong>
+                                                                                    <span>{formatarDataAmigavel(evento.data)} • {evento.detalhe}</span>
+                                                                                </TimelineContent>
+                                                                            </TimelineItem>
+                                                                        );
+                                                                    })
+                                                                )}
                                                             </TimelineWrapper>
                                                         </td>
                                                     </TimelineRow>

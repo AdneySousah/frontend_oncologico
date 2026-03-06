@@ -211,3 +211,177 @@ export const ActionButton = styled.button`
     border-color: ${({ theme }) => theme.colors.primary};
   }
 `;
+
+export const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+`;
+
+export const ModalContent = styled.div`
+  background-color: ${({ theme }) => theme.colors?.inputBg || '#fff'};
+  padding: 30px;
+  border-radius: 8px;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#eee'};
+
+  h3{
+    margin-bottom: 15px;
+    color: ${({ theme }) => theme.colors.text};
+  }
+  p{
+    font-size: 1.1rem; margin-bottom: 25px; color: ${({ theme }) => theme.colors.text};
+
+  }
+`;
+
+export const ModalActions = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+
+  button {
+    flex: 1;
+  }
+`;
+
+export const SectionTitle = styled.h3`
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  margin-bottom: 5px;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+export const StatusBadge = styled.span`
+  margin-left: 10px;
+  font-size: 12px;
+  background: #faad14;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: normal;
+`;
+
+export const CheckboxGroup = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+
+  label {
+    margin: 0;
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.text};
+    font-weight: 600;
+  }
+`;
+
+export const AttachmentsContainer = styled.div`
+  grid-column: 1 / -1;
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 5px;
+  background-color: ${({ theme }) => theme.colors.inputBg || 'transparent'};
+
+  h4 {
+    margin-bottom: 15px;
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+export const AttachmentItem = styled.div`
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+
+
+export const AutoFillContainer = styled.div`
+  grid-column: 1 / -1;
+  margin-bottom: 20px;
+  padding: 15px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  
+  /* Usa a cor primária do seu tema com 15 de transparência (hex) */
+  background-color: ${({ theme }) => theme.colors.primary}15;
+  border: 1px dashed ${({ theme }) => theme.colors.primary};
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    text-align: center;
+  }
+`;
+
+export const AutoFillText = styled.div`
+  h4 {
+    margin: 0 0 5px 0;
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.textLight || theme.colors.text};
+    opacity: 0.8;
+  }
+`;
+
+export const ResultBox = styled.div`
+  margin-bottom: 15px;
+  padding: 15px;
+  border-radius: 6px;
+  text-align: left;
+
+  &.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  &.warning {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  h4 {
+    margin-bottom: 10px;
+    color: inherit;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 14px;
+    color: inherit;
+  }
+`;
