@@ -15,35 +15,93 @@ export const Container = styled.div`
   z-index: 100;
 `;
 
+// ==============================
+// NOVO CONTAINER PARA A LOGO
+// ==============================
+export const LogoArea = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Altura maior se aberto, menor se colapsado */
+  height: ${(props) => (props.isCollapsed ? "80px" : "100px")};
+  padding: ${(props) => (props.isCollapsed ? "15px" : "20px")};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    /* Aqui o segredo do tamanho: max-width fixa a largura máxima, e contain não distorce */
+    max-width: ${(props) => (props.isCollapsed ? "40px" : "160px")};
+    max-height: ${(props) => (props.isCollapsed ? "40px" : "60px")};
+    object-fit: contain; 
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+`;
+
 export const Header = styled.div`
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 15px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  height: 80px;
+  height: 90px; /* Reduzi um pouco a altura já que agora temos a logo em cima */
+  flex-shrink: 0;
 
   .user-info {
     opacity: ${(props) => (props.isCollapsed ? 0 : 1)};
     transition: opacity 0.2s;
     pointer-events: ${(props) => (props.isCollapsed ? "none" : "all")};
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 `;
 
+export const AvatarContainer = styled.div`
+  min-width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme === 'light' ? '#007D99' : '#203a43'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+  border: 2px solid #52c41a; 
+  box-shadow: 0 0 5px rgba(82, 196, 26, 0.5); 
+  flex-shrink: 0;
+  letter-spacing: 1px;
+`;
+
 export const SystemName = styled.h3`
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: ${({ theme }) => theme.colors.textLight};
-  margin-bottom: 4px;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 1px;
 `;
 
 export const UserName = styled.h2`
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.text};
+  margin: 0;
+  line-height: 1.2;
+  word-break: break-word;
+  padding: 10px 0;
+`;
+
+export const UserRole = styled.span`
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.primary};
+  margin: 0;
+  word-break: break-word;
 `;
 
 export const ToggleButton = styled.button`
@@ -124,7 +182,6 @@ export const MenuItem = styled.li`
     }
   }
 
-  /* Tooltip Customizado para quando estiver colapsado */
   &:hover::after {
     content: "${(props) => (props.isCollapsed ? props.label : "")}";
     position: absolute;
@@ -161,6 +218,7 @@ export const Footer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
 
   button {
     width: 100%;
@@ -201,6 +259,8 @@ export const Divider = styled.div`
   background-color: ${({ theme }) => theme.colors.border};
   margin: 10px 15px;
 `;
+
+// (O RESTANTE DOS SEUS ESTILOS: AlertOverlay, AlertModalContent, AlertControls, FilterBtn, ScoreBadge, AlertCard PERMANECE EXATAMENTE IGUAL)
 
 
 export const AlertOverlay = styled.div`

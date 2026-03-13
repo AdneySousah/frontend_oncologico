@@ -16,6 +16,8 @@ export default function MedicamentosList({ data, loading, onEdit }) {
             <th>Apresentação</th>
             <th>Dosagem</th>
             <th>Laboratório</th>
+            <th>Fornecedor</th>
+            <th>Preço</th>
             <th>Qtd</th>
             <th style={{ textAlign: 'right' }}>Ações</th>
           </tr>
@@ -23,7 +25,7 @@ export default function MedicamentosList({ data, loading, onEdit }) {
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan="8" style={{ textAlign: 'center', padding: '30px', opacity: 0.7 }}>
+              <td colSpan="10" style={{ textAlign: 'center', padding: '30px', opacity: 0.7 }}>
                 Nenhum medicamento encontrado.
               </td>
             </tr>
@@ -40,6 +42,13 @@ export default function MedicamentosList({ data, loading, onEdit }) {
                   {item.dosagem ? `${item.dosagem} ${item.tipo_dosagem || ''}` : '-'}
                 </td>
                 <td>{item.laboratorio || '-'}</td>
+                <td>{item.fornecedor || '-'}</td>
+                <td>
+                  {/* FORMATAÇÃO DO PREÇO AQUI */}
+                  {item.price 
+                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price) 
+                    : '-'}
+                </td>
                 <td>{item.qtd_capsula || '-'}</td>
                 <td style={{ textAlign: 'right' }}>
                   <ActionButton className="edit" onClick={() => onEdit(item)} title="Editar">

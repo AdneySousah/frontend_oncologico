@@ -4,16 +4,19 @@ import { useNavigate, useLocation } from "react-router-dom";
 import * as S from "./styles";
 import {
   LuLogOut, LuChevronLeft, LuChevronRight, LuSun, LuMoon,
-  LuChevronDown, LuTable2, LuBell
+  LuChevronDown, LuTable2, LuBell, LuSettings
 } from "react-icons/lu";
 
-import { navOptions, registerOptions } from "./menu";
+import { navOptions, registerOptions, adminOptions } from "./menu";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
 import api from "../../services/api";
 
-// Importando o novo componente filho
 import AlertModal from "./AlertModal";
+
+// IMPORT DAS LOGOS (Ajuste o caminho se necessário)
+import logoBranca from "../../assets/logo_branca.png";
+
 
 export default function Sidebar() {
   const { logout } = useContext(AuthContext);
@@ -22,14 +25,32 @@ export default function Sidebar() {
   const location = useLocation();
 
   const [collapsed, setCollapsed] = useState(false);
-  const [userStorage, setUserStorage] = useState();
+  const [userStorage, setUserStorage] = useState(null);
+  const [userProfileData, setUserProfileData] = useState(null);
+  
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
-  // Estados dos Alertas
   const [alertCount, setAlertCount] = useState(0);
   const [alertColor, setAlertColor] = useState('#888');
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertsList, setAlertsList] = useState([]);
+
+  // Lógica de qual logo exibir baseada no tema atual
+
+  const currentLogo = theme === 'light' ? logoBranca : logoBranca;
+
+  const getInitials = (fullName) => {
+    if (!fullName) return "U";
+    const names = fullName.trim().split(" ");
+    let initials = "";
+    for (let i = 0; i < Math.min(names.length, 3); i++) {
+      if (names[i].length > 0) {
+        initials += names[i].charAt(0).toUpperCase();
+      }
+    }
+    return initials;
+  };
 
   const temPermissaoDeAcesso = (modulo, userData = userStorage?.user) => {
     if (!modulo) return true;
@@ -40,11 +61,9 @@ export default function Sidebar() {
 
   const processDate = (dateString) => {
     if (!dateString) return 999;
-
     try {
       let dateToProcess = dateString;
       if (dateToProcess.includes('T')) dateToProcess = dateToProcess.split('T')[0];
-
       let year, month, day;
       if (dateToProcess.includes('-')) {
         [year, month, day] = dateToProcess.split('-');
@@ -53,11 +72,9 @@ export default function Sidebar() {
       } else {
         return 999;
       }
-
       const date = new Date(year, month - 1, day);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
       return Math.round((date - today) / (1000 * 60 * 60 * 24));
     } catch (error) {
       return 999;
@@ -65,7 +82,7 @@ export default function Sidebar() {
   };
 
   const loadAlerts = async () => {
-    try {
+     try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
@@ -75,21 +92,12 @@ export default function Sidebar() {
         api.get('/pacientes/pendentes').catch(() => ({ data: [] }))
       ]);
 
-      api.get('/pacientes/pendentes').catch((err) => {
-        // ISSO VAI MOSTRAR EXATAMENTE QUEM ESTÁ BARRANDO A ROTA:
-        console.error("ERRO NA ROTA PENDENTES:", err.response?.status, err.response?.data);
-        return { data: [] };
-      })
-
-
       const navData = Array.isArray(resNavegacao.data) ? resNavegacao.data : (resNavegacao.data?.data || []);
       const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
       const novosPacientesData = Array.isArray(resNovosPacientes.data) ? resNovosPacientes.data : [];
 
-      // 1. Processar Novos Pacientes (Sempre Urgente para Admins)
-      // O endpoint do backend já deve trazer isso filtrado pela operadora
       novosPacientesData.forEach(item => {
-        mostCritical = 0; // Força a cor vermelha no sino
+        mostCritical = 0; 
         unifiedAlerts.push({
           id: `pac_new_${item.id}`,
           type: 'Novo Paciente',
@@ -100,7 +108,6 @@ export default function Sidebar() {
         });
       });
 
-      // 2. Processar Alertas de Navegação
       navData.forEach(item => {
         const status = item.status_avaliacao ? String(item.status_avaliacao).toUpperCase() : '';
         const isConcluido = ['CONCLUÍDA', 'CONCLUIDA', 'CONCLUÍDO', 'CONCLUIDO', 'CANCELADO'].includes(status);
@@ -121,8 +128,6 @@ export default function Sidebar() {
         }
       });
 
-      // 3. Processar Alertas de Telemonitoramento
-      // 3. Processar Alertas de Telemonitoramento
       teleData.forEach(item => {
         const status = item.status ? String(item.status).toUpperCase() : '';
         const isConcluido = ['CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'FINALIZADA', 'CANCELADO'].includes(status);
@@ -138,7 +143,6 @@ export default function Sidebar() {
               description: `Medicamento: ${item.medicamento?.nome || 'N/A'}`,
               diffDays,
               route: `/telemonitoramento?highlight=${item.paciente?.id}_${item.medicamento?.id}`,
-              // 👇 NOVA PROPRIEDADE ADICIONADA AQUI 👇
               score: item.avaliacao?.total_score != null ? item.avaliacao.total_score : null
             });
           }
@@ -146,7 +150,6 @@ export default function Sidebar() {
       });
 
       unifiedAlerts.sort((a, b) => a.diffDays - b.diffDays);
-
       setAlertsList(unifiedAlerts);
       setAlertCount(unifiedAlerts.length);
 
@@ -162,7 +165,16 @@ export default function Sidebar() {
 
   useEffect(() => {
     const user = localStorage.getItem('oncologico:UserData');
-    if (user) setUserStorage(JSON.parse(user));
+    if (user) {
+      const parsedUser = JSON.parse(user);
+      setUserStorage(parsedUser);
+      
+      if(parsedUser?.token) {
+        api.get('/users/me')
+          .then(response => setUserProfileData(response.data))
+          .catch(err => console.error("Erro ao buscar dados do perfil", err));
+      }
+    }
 
     loadAlerts();
     const interval = setInterval(() => loadAlerts(), 300000);
@@ -177,7 +189,10 @@ export default function Sidebar() {
   }, []);
 
   useEffect(() => {
-    if (collapsed) setIsRegisterOpen(false);
+    if (collapsed) {
+      setIsRegisterOpen(false);
+      setIsAdminMenuOpen(false);
+    }
   }, [collapsed]);
 
   const handleNavigation = (path) => {
@@ -185,8 +200,20 @@ export default function Sidebar() {
     setIsAlertModalOpen(false);
   };
 
+  const getRoleText = () => {
+    if (!userProfileData) return "Carregando...";
+    if (userProfileData.is_admin) return "Cic Oncologia";
+    if (userProfileData.operadoras && userProfileData.operadoras.length > 0) {
+      return userProfileData.operadoras.map(op => op.nome).join(', '); 
+    }
+    return "Sem Operadora";
+  };
+
   const menusNavegacaoVisiveis = navOptions.filter(item => temPermissaoDeAcesso(item.modulo));
   const menusCadastroVisiveis = registerOptions.filter(item => temPermissaoDeAcesso(item.modulo));
+  const menusAdminVisiveis = adminOptions.filter(item => temPermissaoDeAcesso(item.modulo));
+
+  const userNameToShow = userProfileData?.name || userStorage?.user?.name || "Usuário";
 
   return (
     <>
@@ -195,18 +222,21 @@ export default function Sidebar() {
           {collapsed ? <LuChevronRight size={18} /> : <LuChevronLeft size={18} />}
         </S.ToggleButton>
 
+        {/* NOVA ÁREA DA LOGO */}
+        <S.LogoArea isCollapsed={collapsed}>
+          <img src={currentLogo} alt="Logo Onco Navegação" />
+        </S.LogoArea>
+
+        {/* ÁREA DO USUÁRIO (Abaixo da logo) */}
         <S.Header isCollapsed={collapsed}>
-          <div style={{
-            minWidth: '40px', height: '40px', borderRadius: '50%',
-            background: theme === 'light' ? '#007D99' : '#203a43',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.2rem', fontWeight: 'bold', color: '#fff'
-          }}>
-            {userStorage?.user?.name ? userStorage.user.name.charAt(0).toUpperCase() : "U"}
-          </div>
+          <S.AvatarContainer theme={theme}>
+            {getInitials(userNameToShow)}
+          </S.AvatarContainer>
+          
           <div className="user-info">
             <S.SystemName>Onco Navegação</S.SystemName>
-            <S.UserName>{userStorage?.user?.name || "Usuário"}</S.UserName>
+            <S.UserName title={userNameToShow}>{userNameToShow}</S.UserName>
+            <S.UserRole title={getRoleText()}>{getRoleText()}</S.UserRole>
           </div>
         </S.Header>
 
@@ -239,6 +269,7 @@ export default function Sidebar() {
 
           <S.Divider isCollapsed={collapsed} />
 
+          {/* MENU TABELAS CADASTRAIS */}
           {menusCadastroVisiveis.length > 0 && (
             <S.MenuItem isCollapsed={collapsed} label="Tabelas Cadastrais" isOpen={isRegisterOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsRegisterOpen(!isRegisterOpen); }}>
@@ -258,6 +289,28 @@ export default function Sidebar() {
               </S.SubMenuContent>
             </S.MenuItem>
           )}
+
+          {/* MENU ADMINISTRATIVO */}
+          {menusAdminVisiveis.length > 0 && (
+            <S.MenuItem isCollapsed={collapsed} label="Administrativo" isOpen={isAdminMenuOpen}>
+              <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsAdminMenuOpen(!isAdminMenuOpen); }}>
+                <LuSettings size={24} />
+                <span>Administrativo</span>
+                <LuChevronDown className="arrow-icon" size={18} />
+              </button>
+              <S.SubMenuContent isOpen={isAdminMenuOpen} isCollapsed={collapsed}>
+                {menusAdminVisiveis.map((item) => (
+                  <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
+                    <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }} style={{ padding: '10px 15px', fontSize: '0.85rem' }}>
+                      <item.icon size={20} />
+                      <span>{item.label}</span>
+                    </a>
+                  </S.MenuItem>
+                ))}
+              </S.SubMenuContent>
+            </S.MenuItem>
+          )}
+
         </S.MenuList>
 
         <S.Footer isCollapsed={collapsed}>

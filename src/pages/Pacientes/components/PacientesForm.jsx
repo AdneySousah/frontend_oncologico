@@ -556,7 +556,7 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
             <Button type="submit" onClick={() => setSubmitAction('save')}>Atualizar Dados</Button>
           )}
 
-          {pacienteToEdit && pacienteToEdit.is_new_user && !isAdmin && (
+          {pacienteToEdit && pacienteToEdit.is_new_user && isAdmin ===true && (
             <Button type="submit" onClick={() => setSubmitAction('confirm')} color="#faad14">Confirmar Cadastro</Button>
           )}
         </ButtonGroup>

@@ -10,6 +10,7 @@ const FichaRamChart = ({ chartData, reportData }) => {
       { header: 'Nome Paciente', key: 'nome_paciente', width: 35 },
       { header: 'Reação Adversa', key: 'reacao_adversa', width: 40 },
       { header: 'Data Registro', key: 'data_registro', width: 20 },
+      { header: 'Operadora', key: 'operadora', width: 20 },
     ];
     exportToXLSX(reportData, columns, 'Relatorio_Fichas_RAM', 'Fichas RAM - Pacientes por Reação');
   };

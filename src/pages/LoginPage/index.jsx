@@ -3,6 +3,9 @@ import * as S from "./styles";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
 
+// Importação da Logo
+import logoImg from "../../assets/logo_branca.png";
+
 export default function LoginPage() {
   const { Login } = useContext(AuthContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -33,17 +36,14 @@ export default function LoginPage() {
       </S.ThemeToggleButton>
 
       <S.LoginCard>
-        {/* Ícone do topo similar ao print */}
-        <S.TopIconContainer>
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-          </svg>
-        </S.TopIconContainer>
+        
+        {/* Logo inserida aqui no lugar do ícone SVG */}
+        <S.Logo src={logoImg} alt="Logo CICFarma" />
 
         {/* Títulos internos para seguir o estilo moderno */}
         <S.HeaderBrand>
-          <h1>Entrar no sistema</h1>
-          <p>Acesse o Onco Navegador para<br/>gerenciar dados e equipes no ambiente restrito.</p>
+          <h1>Seja bem vindo </h1>
+          <p>Digite seus dados para acessar o sistema</p>
         </S.HeaderBrand>
         
         <S.Form onSubmit={handleSubmit}>
@@ -92,13 +92,6 @@ export default function LoginPage() {
             </S.Button>
           </S.ButtonContainer>
         </S.Form>
-
-        {/* Divisor estilizado no lugar das redes sociais */}
-        <S.Divider>Ou acesse com</S.Divider>
-
-        <S.FooterLinks>
-          <a href="/help">Não tenho Usuário e Senha</a>
-        </S.FooterLinks>
       </S.LoginCard>
     </S.Container>
   );

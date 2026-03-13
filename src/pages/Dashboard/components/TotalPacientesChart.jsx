@@ -3,25 +3,24 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader, ExportButton } from '../styles';
 
-// Cores mais modernas e vibrantes
-const COLORS = ['#10B981', '#F59E0B', '#EF4444']; 
+const COLORS = ['#3B82F6', '#9CA3AF']; // Azul para Ativos, Cinza para Inativos
 
-const TermosChart = ({ chartData, reportData }) => {
+const TotalPacientesChart = ({ chartData, reportData, total }) => {
   const handleExport = () => {
     const columns = [
       { header: 'ID Paciente', key: 'paciente_id', width: 15 },
       { header: 'Nome Paciente', key: 'nome_paciente', width: 35 },
-      { header: 'Status Termo', key: 'status_termo', width: 20 },
-      { header: 'Data Registro', key: 'data_registro', width: 20 },
       { header: 'Operadora', key: 'operadora', width: 20 },
+      { header: 'Status', key: 'status_ativo', width: 15 },
+      { header: 'Data Registro', key: 'data_registro', width: 20 },
     ];
-    exportToXLSX(reportData, columns, 'Relatorio_Termos', 'Status de Aceite dos Termos');
+    exportToXLSX(reportData, columns, 'Relatorio_Total_Pacientes', 'Total de Pacientes (Ativos/Inativos)');
   };
 
   return (
     <>
       <ChartHeader>
-        <h3>Status dos Termos</h3>
+        <h3>Total de Pacientes: {total}</h3>
         <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
       </ChartHeader>
       
@@ -29,11 +28,11 @@ const TermosChart = ({ chartData, reportData }) => {
         <PieChart>
           <Pie 
             data={chartData} 
-            innerRadius={70} 
+            innerRadius={60} 
             outerRadius={100} 
             paddingAngle={5} 
             dataKey="value"
-            stroke="none" // Remove a borda feia nas fatias
+            stroke="none"
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -50,4 +49,4 @@ const TermosChart = ({ chartData, reportData }) => {
   );
 };
 
-export default memo(TermosChart);
+export default memo(TotalPacientesChart);

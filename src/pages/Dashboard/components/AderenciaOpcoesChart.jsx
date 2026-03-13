@@ -10,6 +10,7 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
       { header: 'Nome Paciente', key: 'nome_paciente', width: 35 },
       { header: 'Nível Adesão', key: 'nivel_adesao_informado', width: 25 },
       { header: 'Data Monitoramento', key: 'data_monitoramento', width: 20 },
+      { header: 'Operadora', key: 'operadora', width: 20 },
     ];
     exportToXLSX(reportData, columns, 'Relatorio_Aderencia_Opcoes', 'Nível de Aderência Declarado');
   };

@@ -21,6 +21,7 @@ import Telemonitoramento from '../pages/Telemonitoramento';
 import ReacoesAdversasPage from '../pages/ReacaoAdversa';
 import Dashboard from '../pages/Dashboard';
 import ForgotPasswordPage from '../pages/LoginPage/ForgotPasswordPage';
+import AuditoriaPage from '../pages/Auditoria';
 
 
 export default function Routes() {
@@ -54,8 +55,9 @@ export default function Routes() {
                 <Route path='/medicamentos' element={<MedicamentosPage />} />
                 <Route path='/linha-do-tempo' element={<TimelinePacientes />} />
                 <Route path='/permissoes' element={<PerfisPage />} />
-                <Route path='/telemonitoramento' element={<Telemonitoramento />} />
+                <Route path='/telemonitoramento' element={<Telemonitoramento />} /> 
                 <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
+                <Route path='/auditoria' element={<AuditoriaPage />} />
                 
                 
 

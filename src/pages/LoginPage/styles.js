@@ -52,6 +52,16 @@ export const LoginCard = styled.div`
   align-items: center;
 `;
 
+/* Novo estilo para a Logo inserida */
+export const Logo = styled.img`
+  width: 100%;
+  max-width: 240px; /* Ajuste este valor conforme a necessidade do tamanho da sua logo */
+  height: auto;
+  margin-bottom: 24px;
+  object-fit: contain;
+`;
+
+/* Mantive o TopIconContainer caso você use em outro lugar, mas ele não será mais usado no login/senha */
 export const TopIconContainer = styled.div`
   width: 56px;
   height: 56px;
@@ -120,7 +130,7 @@ export const InputIcon = styled.div`
 
 export const Input = styled.input`
   width: 100%;
-  padding: 14px 14px 14px 42px; /* Espaço extra na esquerda para o ícone */
+  padding: 14px 14px 14px 42px;
   border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.modernInputBorder};
   background-color: ${({ theme }) => theme.colors.modernInputBg};

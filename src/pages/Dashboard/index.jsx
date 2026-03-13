@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 
-import TermosChart from './components/TermosChart';
 import AdesaoScoreChart from './components/AdesaoScoreChart';
 import AderenciaOpcoesChart from './components/AderenciaOpcoesChart';
 import FichaRamChart from './components/FichaRamChart';
+import TotalPacientesChart from './components/TotalPacientesChart';
+import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
+import PacientesElegiveisChart from './components/PacientesElegiveisChart';
 
 import { Container, Title, Grid, Card, ControlsPanel, FilterGroup, SelectGroup } from './styles';
 
@@ -58,8 +60,10 @@ export default function Dashboard() {
           <label>Visualizar Gráfico:</label>
           <select value={graficoSelecionado} onChange={(e) => setGraficoSelecionado(e.target.value)}>
             <option value="todos">Ver Todos</option>
+            <option value="total_pacientes">Total de Pacientes</option>
+            <option value="pacientes_monitorados">Pacientes Monitorados</option>
+            <option value="pacientes_elegiveis">Pacientes Elegíveis</option>
             <option value="termos">Status dos Termos</option>
-            <option value="aderencia_categoria">Aderência por Categoria</option>
             <option value="adesao_score">Adesão (Score Questionário)</option>
             <option value="aderencia_opcoes">Aderência (Opções Monitoramento)</option>
             <option value="ficha_ram">Fichas RAM (Eventos Adversos)</option>
@@ -68,12 +72,38 @@ export default function Dashboard() {
       </ControlsPanel>
 
       <Grid>
-        {(graficoSelecionado === 'todos' || graficoSelecionado === 'termos') && (
+        {/* NOVOS COMPONENTES */}
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'total_pacientes') && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
-            <TermosChart chartData={data.termos.chart} reportData={data.termos.report} />
+            <TotalPacientesChart 
+              chartData={data.totalPacientes.chart} 
+              reportData={data.totalPacientes.report} 
+              total={data.totalPacientes.total} 
+            />
           </Card>
         )}
 
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_monitorados') && (
+          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
+            <PacientesMonitoradosChart 
+              chartData={data.pacientesMonitorados.chart} 
+              reportData={data.pacientesMonitorados.report} 
+              total={data.pacientesMonitorados.total} 
+            />
+          </Card>
+        )}
+
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_elegiveis') && (
+          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
+            <PacientesElegiveisChart 
+              chartData={data.pacientesElegiveis.chart} 
+              reportData={data.pacientesElegiveis.report} 
+              total={data.pacientesElegiveis.total} 
+            />
+          </Card>
+        )}
+
+        {/* COMPONENTES ANTIGOS */}
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'adesao_score') && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <AdesaoScoreChart chartData={data.adesaoScore.chart} reportData={data.adesaoScore.report} />
@@ -85,8 +115,6 @@ export default function Dashboard() {
             <AderenciaOpcoesChart chartData={data.aderenciaOpcoes.chart} reportData={data.aderenciaOpcoes.report} />
           </Card>
         )}
-
-
 
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'ficha_ram') && (
           <Card style={{ gridColumn: graficoSelecionado === 'todos' ? '1 / -1' : 'auto' }}>

@@ -47,9 +47,8 @@ export const FilterBar = styled.div`
   border: 1px solid ${({ theme }) => theme.colors?.border || '#ccc'};
 
   label {
-    color: ${({ theme }) => theme.colors.text};
+    color: ${({ theme }) => theme.colors?.text || '#333'};
     font-size: 0.9rem; font-weight: 600;
-    
   }
 `;
 
@@ -119,15 +118,15 @@ export const FormContainer = styled.div`
 
 export const Form = styled.form`
   display: grid; 
-  grid-template-columns: 1fr 1fr; /* Duas colunas para não ficar gigante */
+  grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 
   @media (max-width: 768px) {
-    grid-template-columns: 1fr; /* Uma coluna no mobile */
+    grid-template-columns: 1fr;
   }
 
   .full-width {
-    grid-column: 1 / -1; /* Ocupa a linha inteira */
+    grid-column: 1 / -1;
   }
 `;
 
@@ -200,5 +199,37 @@ export const ActionButton = styled.button`
         background-color: ${({ theme }) => theme.colors?.primary || '#007bff'}; 
         color: #fff;
     }
+  }
+`;
+
+/* NOVOS ESTILOS PARA PAGINAÇÃO */
+export const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 20px;
+  
+  span {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors?.text || '#333'};
+  }
+`;
+
+export const PageButton = styled.button`
+  padding: 0.6rem 1.2rem;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#ccc'};
+  background-color: ${({ disabled, theme }) => disabled ? (theme.colors?.inputBg || '#f1f1f1') : (theme.colors?.surface || '#ffffff')};
+  color: ${({ disabled, theme }) => disabled ? '#999' : (theme.colors?.text || '#333')};
+  border-radius: 6px;
+  cursor: ${({ disabled }) => disabled ? 'not-allowed' : 'pointer'};
+  font-weight: 600;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
+    color: #ffffff;
+    border-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
   }
 `;

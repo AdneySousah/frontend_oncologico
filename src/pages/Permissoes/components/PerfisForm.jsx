@@ -22,6 +22,7 @@ const modulosSistema = [
     { key: 'telemonitoramento', label: 'Telemonitoramento' },
     { key: 'reacao_adversa', label: 'Reação Adversa' },
     { key: 'dashboard', label: 'Dashboard' },
+    { key: 'audit-logs', label: 'Auditoria' },
 
 
 ];

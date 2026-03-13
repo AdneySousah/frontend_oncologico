@@ -44,7 +44,7 @@ export default function PacientesList({ data, loading, onEdit, onViewAnexos, onT
                 <td>{p.medicamento?.nome || '-'}</td>
 
                 <td style={{ textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                  {p.is_new_user && !isAdmin  && (
+                  {p.is_new_user && isAdmin ===true  && (
                     <ActionButton onClick={() => onConfirm(p)} title="Confirmar Cadastro" style={{ background: '#faad14', color: '#fff' }}>
                       <LuUserCheck size={18} />
                     </ActionButton>

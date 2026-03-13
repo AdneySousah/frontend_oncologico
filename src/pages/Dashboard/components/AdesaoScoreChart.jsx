@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader, ExportButton } from '../styles';
 
-const COLORS = ['#6df512', '#f3df2a', '#f30c0c']; // Azul, Roxo, Rosa
+const COLORS = ['#6df512', '#f3df2a', '#f30c0c']; // Cores mantidas: Verde, Amarelo, Vermelho
 
 const AdesaoScoreChart = ({ chartData, reportData }) => {
   const handleExport = () => {
@@ -13,6 +13,7 @@ const AdesaoScoreChart = ({ chartData, reportData }) => {
       { header: 'Score Total', key: 'score_total', width: 15 },
       { header: 'Nível Classificado', key: 'nivel_classificado', width: 25 },
       { header: 'Data Avaliação', key: 'data_avaliacao', width: 20 },
+      { header: 'Operadora', key: 'operadora', width: 20 },
     ];
     exportToXLSX(reportData, columns, 'Relatorio_Adesao_Score', 'Nível de Adesão (Questionário)');
   };
@@ -28,9 +29,11 @@ const AdesaoScoreChart = ({ chartData, reportData }) => {
         <PieChart>
           <Pie 
             data={chartData} 
+            innerRadius={60}    
             outerRadius={100} 
+            paddingAngle={5}    
             dataKey="value" 
-            labelLine={false} // Remove a linha feia que estava aparecendo
+            labelLine={false} 
             stroke="none"
           >
             {chartData.map((entry, index) => (
