@@ -1,6 +1,5 @@
 import styled, { keyframes } from 'styled-components';
 
-
 const slideDown = keyframes`
   from {
     opacity: 0;
@@ -17,13 +16,12 @@ const pulseAnimation = keyframes`
     box-shadow: 0 0 0 0 var(--pulse-color);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(0, 0, 0, 0); /* Expande e fica transparente */
+    box-shadow: 0 0 0 10px rgba(0, 0, 0, 0); 
   }
   100% {
     box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
   }
 `;
-
 
 export const Container = styled.div`
   background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
@@ -102,6 +100,25 @@ export const IconButton = styled.button`
   }
 `;
 
+// --- NOVO BOTÃO DE EXPORTAÇÃO ---
+export const ExportButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #107c41; /* Cor verde padrão do Excel */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: #e6f4ea;
+    color: #0b5a2e;
+  }
+`;
+
 // ==========================================
 // ESTILOS ADICIONADOS PARA A LINHA DO TEMPO
 // ==========================================
@@ -128,7 +145,6 @@ export const TimelineItem = styled.div`
     margin-bottom: 0;
   }
 
-  /* Linha vertical conectando os pontos */
   &::before {
     content: '';
     position: absolute;
@@ -140,7 +156,7 @@ export const TimelineItem = styled.div`
   }
 
   &:last-child::before {
-    display: none; /* Remove a linha do último item */
+    display: none; 
   }
 `;
 
@@ -176,7 +192,6 @@ export const TimelineContent = styled.div`
     font-size: 0.85rem;
   }
 `;
-
 
 export const Toolbar = styled.div`
   display: flex;

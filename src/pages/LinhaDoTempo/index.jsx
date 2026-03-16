@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+// IMPORTANTE: Ajuste o caminho abaixo conforme a estrutura de pastas do seu projeto
+import { exportToXLSX } from '../../utils/exportExcel'; 
 import {
     Container,
     Section,
@@ -7,6 +9,7 @@ import {
     ContentBox,
     Table,
     IconButton,
+    ExportButton, // <-- Novo styled component importado
     TimelineRow,
     TimelineWrapper,
     TimelineItem,
@@ -32,7 +35,6 @@ export default function TimelinePacientes() {
     useEffect(() => {
         async function fetchData() {
             try {
-                // Buscamos os pacientes com suas avaliações e a timeline de monitoramentos
                 const [respPacientes, respMonitoramento] = await Promise.all([
                     api.get('/avaliacoes'),
                     api.get('/monitoramento/timeline')
@@ -55,7 +57,6 @@ export default function TimelinePacientes() {
                         };
                     }
 
-                    // Se o paciente respondeu questionários, joga na timeline
                     if (paciente.avaliacoes && paciente.avaliacoes.length > 0) {
                         paciente.avaliacoes.forEach(avaliacao => {
                             grupos[paciente.id].timeline.push({
@@ -72,7 +73,6 @@ export default function TimelinePacientes() {
 
                 // 2. Processar Monitoramentos (Contatos Realizados e Futuros)
                 monitoramentos.forEach(mon => {
-                    // O id do paciente pode vir direto ou aninhado dependendo do include do backend
                     const pacId = mon.paciente ? mon.paciente.id : mon.paciente_id;
                     
                     if (!grupos[pacId]) {
@@ -99,14 +99,11 @@ export default function TimelinePacientes() {
                 });
 
                 const listaFinal = Object.values(grupos).map(pac => {
-                    // Ordena a timeline do paciente: do mais antigo para o mais novo
                     pac.timeline.sort((a, b) => new Date(a.data) - new Date(b.data));
                     return pac;
                 });
 
-                // Ordena a lista de pacientes por nome alfabeticamente
                 listaFinal.sort((a, b) => a.nome.localeCompare(b.nome));
-
                 setPacientesAgrupados(listaFinal);
             } catch (error) {
                 console.error("Erro ao carregar dados da timeline:", error);
@@ -122,41 +119,39 @@ export default function TimelinePacientes() {
         setExpandedId(expandedId === id ? null : id);
     };
 
-    // --- NOVA FUNÇÃO DE DATA AMIGÁVEL ---
-    const formatarDataAmigavel = (dataString) => {
+    // --- FUNÇÃO DE DATA PARA O EXCEL (Data absoluta, sem termos como "Amanhã") ---
+    const formatarDataParaExcel = (dataString) => {
         if (!dataString) return '-';
-        
-        // Se a data vier apenas como YYYY-MM-DD (sem hora), forçamos ela pro fuso local
         const isApenasData = dataString.length === 10;
         const data = isApenasData ? new Date(`${dataString}T12:00:00`) : new Date(dataString);
         
-        const agora = new Date();
+        return new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: isApenasData ? undefined : '2-digit',
+            minute: isApenasData ? undefined : '2-digit'
+        }).format(data);
+    };
 
-        // Zera as horas para comparar apenas os dias exatos
+    // --- NOVA FUNÇÃO DE DATA AMIGÁVEL (Tela) ---
+    const formatarDataAmigavel = (dataString) => {
+        if (!dataString) return '-';
+        const isApenasData = dataString.length === 10;
+        const data = isApenasData ? new Date(`${dataString}T12:00:00`) : new Date(dataString);
+        const agora = new Date();
         const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
         const dataEvento = new Date(data.getFullYear(), data.getMonth(), data.getDate());
-
         const diffTime = dataEvento - hoje;
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
 
-        // Formata a hora (ex: 14:30)
-        const horaFormatada = new Intl.DateTimeFormat('pt-BR', {
-            hour: '2-digit', minute: '2-digit'
-        }).format(data);
+        const horaFormatada = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(data);
+        const dataCurta = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(data);
 
-        // Formata data curta (ex: 05 de mar)
-        const dataCurta = new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit', month: 'short'
-        }).format(data);
-
-        // --- DATAS FUTURAS (Agendamentos) ---
         if (diffDays > 0) {
             if (diffDays === 1) return isApenasData ? 'Amanhã' : `Amanhã às ${horaFormatada}`;
             if (diffDays <= 7) return isApenasData ? `Em ${diffDays} dias` : `Em ${diffDays} dias às ${horaFormatada}`;
             return isApenasData ? `${dataCurta}` : `${dataCurta} às ${horaFormatada}`;
         }
 
-        // --- DATAS PASSADAS E HOJE ---
         if (diffDays === 0) {
             return isApenasData ? 'Hoje' : `Hoje às ${horaFormatada}`;
         } else if (diffDays === -1) {
@@ -164,13 +159,40 @@ export default function TimelinePacientes() {
         } else if (diffDays >= -7) {
             return isApenasData ? `Há ${Math.abs(diffDays)} dias` : `Há ${Math.abs(diffDays)} dias às ${horaFormatada}`;
         } else {
-            // Passou de uma semana, mostra a data legível completa
-            const dataCompleta = new Intl.DateTimeFormat('pt-BR', {
-                day: '2-digit', month: '2-digit', year: 'numeric'
-            }).format(data);
-            
+            const dataCompleta = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(data);
             return isApenasData ? dataCompleta : `${dataCompleta} às ${horaFormatada}`;
         }
+    };
+
+    // --- LÓGICA DE EXPORTAÇÃO PARA EXCEL ---
+    const handleExportarExcel = async (e, paciente) => {
+        e.stopPropagation(); // Impede que a linha expanda ao clicar no botão de download
+
+        if (!paciente.timeline || paciente.timeline.length === 0) {
+            alert("Não há eventos registrados para este paciente.");
+            return;
+        }
+
+        const columns = [
+            { header: "Data", key: "data", width: 20 },
+            { header: "Tipo de Evento", key: "tipo", width: 20 },
+            { header: "Título", key: "titulo", width: 40 },
+            { header: "Detalhes", key: "detalhe", width: 50 },
+            { header: "Status", key: "status", width: 15 },
+        ];
+
+        const dataToExport = paciente.timeline.map(evento => ({
+            data: formatarDataParaExcel(evento.data),
+            tipo: evento.tipo.toUpperCase(),
+            titulo: evento.titulo,
+            detalhe: evento.detalhe,
+            status: evento.status
+        }));
+
+        const nomeArquivo = `Timeline_${paciente.nome.replace(/\s+/g, '_')}`;
+        const tituloRelatorio = `Linha do Tempo - ${paciente.nome} (CPF: ${paciente.cpf})`;
+
+        await exportToXLSX(dataToExport, columns, nomeArquivo, tituloRelatorio);
     };
 
     // --- LÓGICA DE BUSCA ---
@@ -258,7 +280,22 @@ export default function TimelinePacientes() {
                                                             {paciente.operadora}
                                                         </span>
                                                     </td>
-                                                    <td>{paciente.timeline.length} registro(s)</td>
+                                                    <td>
+                                                        {/* --- CÉLULA DE EVENTOS ATUALIZADA COM BOTÃO --- */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            <span>{paciente.timeline.length} registro(s)</span>
+                                                            <ExportButton 
+                                                                onClick={(e) => handleExportarExcel(e, paciente)}
+                                                                title="Baixar linha do tempo em Excel"
+                                                            >
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                                </svg>
+                                                            </ExportButton>
+                                                        </div>
+                                                    </td>
                                                 </tr>
 
                                                 {expandedId === paciente.id && (
