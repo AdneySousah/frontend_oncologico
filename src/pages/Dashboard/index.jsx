@@ -8,6 +8,8 @@ import FichaRamChart from './components/FichaRamChart';
 import TotalPacientesChart from './components/TotalPacientesChart';
 import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
 import PacientesElegiveisChart from './components/PacientesElegiveisChart';
+// IMPORT NOVO
+import NpsChart from './components/NpsChart';
 
 import { Container, Title, Grid, Card, ControlsPanel, FilterGroup, SelectGroup } from './styles';
 
@@ -60,6 +62,8 @@ export default function Dashboard() {
           <label>Visualizar Gráfico:</label>
           <select value={graficoSelecionado} onChange={(e) => setGraficoSelecionado(e.target.value)}>
             <option value="todos">Ver Todos</option>
+            {/* NOVO OPTION DO NPS ADICIONADO AQUI */}
+            <option value="nps">NPS - Índice de Satisfação</option>
             <option value="total_pacientes">Total de Pacientes</option>
             <option value="pacientes_monitorados">Pacientes Monitorados</option>
             <option value="pacientes_elegiveis">Pacientes Elegíveis</option>
@@ -72,7 +76,16 @@ export default function Dashboard() {
       </ControlsPanel>
 
       <Grid>
-        {/* NOVOS COMPONENTES */}
+        {/* COMPONENTE DO NPS NO TOPO */}
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'nps') && data.nps && (
+          <Card $isFullWidth={true}>
+            <NpsChart 
+              chartData={data.nps?.chart || []} 
+              reportData={data.nps?.report || []} 
+            />
+          </Card>
+        )}
+
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'total_pacientes') && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <TotalPacientesChart 
@@ -103,7 +116,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* COMPONENTES ANTIGOS */}
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'adesao_score') && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <AdesaoScoreChart chartData={data.adesaoScore.chart} reportData={data.adesaoScore.report} />

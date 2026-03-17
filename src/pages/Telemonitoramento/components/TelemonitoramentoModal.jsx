@@ -11,6 +11,7 @@ import {
 import { AdherenceBadge } from '../styles'; 
 import { getAdherenceClassification } from '../index'; 
 import { getCustomSelectStyles } from '../../../utils/selectStyles'; 
+import NpsModal from './NpsModal'; // <-- IMPORTAÇÃO DO NOVO MODAL
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, onSucesso }) {
   const theme = useTheme();
@@ -24,13 +25,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
+  
+  // ESTADO PARA CONTROLAR A EXIBIÇÃO DO NPS
+  const [showNpsPrompt, setShowNpsPrompt] = useState(false);
 
   let idealRemaining = 0;
   let margemMin = 0;
   let margemMax = 0;
   let dataAberturaFormatada = '';
   
-  // 1. FORÇA OS DADOS A SEREM NÚMEROS PRA EVITAR CONCATENAÇÃO DE STRING
   const qtdTotalCaixa = Number(monitoramento?.medicamento?.qtd_capsula || 0);
   const posologia = Number(monitoramento?.posologia_diaria || 1);
 
@@ -49,7 +52,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     
     idealRemaining = Math.max(0, diffDays * posologia);
     
-    // Calcula as margens e garante que a Mínima será sempre menor que a Máxima
     const calcMin = Math.max(0, idealRemaining - posologia);
     const calcMax = Math.min(qtdTotalCaixa, idealRemaining + posologia);
     
@@ -65,6 +67,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setReacoesSelecionadas([]);
       setContatoEfetivo(true);
       setNivelAdesao('COMPLETAMENTE');
+      setShowNpsPrompt(false); // Reseta o estado do NPS ao abrir
 
       api.get('/reacao-adversa')
         .then(response => setListaReacoes(response.data))
@@ -86,17 +89,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       let percentual = 100;
       
       if (expectedTaken > 0) {
-        // 2. CORREÇÃO DO BUG DO PERCENTUAL: 
-        // Lida com casos em que o paciente tomou mais comprimidos do que deveria
         if (actualTaken > expectedTaken) {
-          // Tomou a mais (superdosagem penaliza o percentual)
           percentual = (expectedTaken / actualTaken) * 100;
         } else {
-          // Tomou a menos ou certinho
           percentual = (actualTaken / expectedTaken) * 100;
         }
       } else if (actualTaken > 0) {
-        // Se era esperado que tomasse 0, mas tomou algum
         percentual = 0;
       }
 
@@ -136,6 +134,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   if (!isOpen || !monitoramento) return null;
 
+  // Se o salvamento ocorreu, exibe APENAS o Modal de NPS
+  if (showNpsPrompt) {
+    return (
+      <NpsModal 
+        monitoramento={monitoramento} 
+        onClose={() => {
+          onClose(); // Fecha tudo definitivamente
+        }} 
+      />
+    );
+  }
+
   const score = monitoramento.avaliacao?.total_score;
   const adInfo = getAdherenceClassification(score);
   const dataHoje = new Date().toISOString().split('T')[0];
@@ -153,17 +163,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         toast.error('Preencha os dados da caixa do medicamento.');
         return;
       }
-      
       if (Number(qtdInformada) > qtdTotalCaixa) {
         toast.error(`A quantidade restante não pode ser maior que o total da caixa (${qtdTotalCaixa}).`);
         return;
       }
-
       if (dataAbertura < dataHoje) {
         toast.error('A data de abertura da nova caixa não pode ser no passado.');
         return;
       }
-
       if (isReacao && (!reacoesSelecionadas || reacoesSelecionadas.length === 0)) {
         toast.error('Selecione pelo menos uma reação adversa.');
         return;
@@ -172,7 +179,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
     try {
       setLoading(true);
-      
       const reacoesIds = reacoesSelecionadas ? reacoesSelecionadas.map(r => r.value) : [];
 
       await api.put(`/monitoramento-medicamentos/${monitoramento.id}`, {
@@ -185,9 +191,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       });
 
       toast.success('Contato registrado com sucesso!');
-      onSucesso(); 
-      onClose();   
+      onSucesso(); // Atualiza a tabela por baixo dos panos
       window.dispatchEvent(new Event('updateAlerts'));
+      
+      // EM VEZ DE FECHAR, ABRE O NPS
+      setShowNpsPrompt(true);
+
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
     } finally {

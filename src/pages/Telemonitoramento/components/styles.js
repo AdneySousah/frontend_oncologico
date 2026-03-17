@@ -138,3 +138,49 @@ export const CheckboxGroup = styled.div`
     font-size: 0.95rem;
   }
 `;
+
+export const NpsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+
+  h3 {
+    border-bottom: none;
+    margin-bottom: 10px;
+  }
+
+  p {
+    margin-bottom: 25px;
+    font-size: 1.1rem;
+    color: ${props => props.theme.colors.text};
+    opacity: 0.9;
+  }
+`;
+
+export const PulseText = styled.div`
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: ${props => props.theme.colors.primary};
+  animation: pulse 1.5s infinite;
+  margin: 30px 0;
+
+  @keyframes pulse {
+    0% { opacity: 0.5; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.02); }
+    100% { opacity: 0.5; transform: scale(0.98); }
+  }
+`;
+
+export const NpsScoreDisplay = styled.div`
+  font-size: 5rem;
+  font-weight: bold;
+  margin: 20px 0;
+  color: ${props => {
+    if (props.score >= 9) return '#28a745'; // Promotor (Verde)
+    if (props.score >= 7) return '#ffc107'; // Neutro (Amarelo)
+    return '#dc3545'; // Detrator (Vermelho)
+  }};
+  text-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+`;
