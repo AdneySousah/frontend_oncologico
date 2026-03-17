@@ -121,7 +121,6 @@ export default function ImportarPacientes({ onSuccess }) {
                     <li><strong>possui_cuidador</strong> (Sim/Não)</li>
                     <li><strong>nome_cuidador</strong></li>
                     <li><strong>contato_cuidador</strong></li>
-                    <li><strong>medicamento_id</strong></li>
                 </ul>
             </S.InstructionsBox>
 

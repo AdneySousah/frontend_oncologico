@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import AutoFillComponent from './AutoFillComponent'; // Importe o novo componente
 
 import { 
   Form, FormGroup, ButtonGroup, Button, ModalOverlay, ModalContent, ModalActions,
-  SectionTitle, StatusBadge, CheckboxGroup, AttachmentsContainer, AttachmentItem,
-  AutoFillContainer, AutoFillText, ResultBox
+  SectionTitle, StatusBadge, CheckboxGroup, AttachmentsContainer, AttachmentItem
 } from '../styles';
 
 export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isAdmin }) {
@@ -16,28 +16,10 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
   const [historicoNomes, setHistoricoNomes] = useState([]);
   const [anexos, setAnexos] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Estado para saber qual botão de submit foi clicado ('save' ou 'confirm')
   const [submitAction, setSubmitAction] = useState('save');
 
-  // --- ESTADOS PARA A IA ---
-  const [isAutoFillLoading, setIsAutoFillLoading] = useState(false);
-  const [autoFillModalOpen, setAutoFillModalOpen] = useState(false);
-  const [autoFillResult, setAutoFillResult] = useState(null);
-  const [pendingDocFile, setPendingDocFile] = useState(null);
-  
-  // Novos estados para a seleção de medicamento
-  const [medicamentoSelecionadoIA, setMedicamentoSelecionadoIA] = useState('');
+  // Estado para destacar o medicamento após a IA preencher o resto
   const [highlightMedicamento, setHighlightMedicamento] = useState(false);
-  const fileInputRef = useRef(null); 
-
-  const camposMapeados = {
-    nomeCompleto: "Nome Completo", cpf: "CPF", data_nascimento: "Data Nasc.",
-    sexo: "Sexo", celular: "Celular", telefone: "Telefone", cep: "CEP",
-    logradouro: "Logradouro", numero: "Número", complemento: "Complemento",
-    bairro: "Bairro", cidade: "Cidade", estado: "Estado", possui_cuidador: "Possui Cuidador",
-    nome_cuidador: "Nome Cuidador", contato_cuidador: "Contato Cuidador"
-  };
 
   const [formData, setFormData] = useState({
     nomeCompleto: '', cpf: '',
@@ -53,13 +35,9 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
   });
 
   useEffect(() => {
-    // 1. CHAMA A ROTA COM FILTRO (Igual ao ImportarPacientes)
     api.get('/operadoras/filtro').then(res => {
         const data = res.data;
         setOperadoras(data);
-        
-        // 2. AUTO PREENCHIMENTO DA OPERADORA
-        // Se retornar apenas 1 operadora e for um NOVO cadastro, já seta ela no formulário
         if (data.length === 1 && !pacienteToEdit) {
             setFormData(prev => ({ ...prev, operadora_id: data[0].id }));
         }
@@ -125,83 +103,41 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
     }
   };
 
-  const triggerAutoFillUpload = () => fileInputRef.current.click();
+  // --- NOVA FUNÇÃO QUE RECEBE OS DADOS DO COMPONENTE DE IA ---
+  const handleAutoFillSuccess = (extractedData, documentFile) => {
+    setFormData(prev => {
+      const isRestrito = operadoras.length === 1;
+      const operadoraDefinitiva = isRestrito ? operadoras[0].id : (extractedData.operadora_id || prev.operadora_id);
 
-  const handleAutoFillUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+      return {
+        ...prev,
+        ...extractedData,
+        operadora_id: operadoraDefinitiva,
+        possui_cuidador: extractedData.possui_cuidador === true || extractedData.possui_cuidador === 'true',
+        medicamento_id: prev.medicamento_id // Mantém o estado atual, forçando a seleção manual
+      };
+    });
 
-    const validTypes = [
-      'image/jpeg', 'image/png', 'image/webp', 
-      'application/pdf', 
-      'application/msword', 
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-
-    if (!validTypes.includes(file.type)) {
-      toast.error("Por favor, envie uma Imagem, PDF ou documento Word.");
-      return;
+    if (documentFile) {
+      setAnexos(prev => [
+        ...prev, 
+        { nome: 'Documento de cadastro da operadora', file: documentFile }
+      ]);
     }
-
-    setPendingDocFile(file);
-    const dataToSend = new FormData();
-    dataToSend.append('documento', file);
-
-    setIsAutoFillLoading(true);
-    setMedicamentoSelecionadoIA(''); 
     
-    try {
-      const response = await api.post('/pacientes/autofill', dataToSend, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setAutoFillResult(response.data);
-      setAutoFillModalOpen(true);
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Erro ao processar o documento com IA.");
-    } finally {
-      setIsAutoFillLoading(false);
-      e.target.value = null; 
-    }
-  };
-
-  const processarPreenchimento = (isManualMedication) => {
-    if (autoFillResult) {
-      setFormData(prev => {
-        // 3. TRAVA DA IA: Impede a IA de mudar a operadora se o usuário for restrito
-        const isRestrito = operadoras.length === 1;
-        const operadoraDefinitiva = isRestrito ? operadoras[0].id : (autoFillResult.operadora_id || prev.operadora_id);
-
-        return {
-          ...prev,
-          ...autoFillResult,
-          operadora_id: operadoraDefinitiva,
-          possui_cuidador: autoFillResult.possui_cuidador === true || autoFillResult.possui_cuidador === 'true',
-          medicamento_id: isManualMedication ? prev.medicamento_id : medicamentoSelecionadoIA
-        };
-      });
-
-      if (pendingDocFile) {
-        setAnexos(prev => [
-          ...prev, 
-          { nome: 'Documento de cadastro da operadora', file: pendingDocFile }
-        ]);
-      }
-      toast.success("Dados preenchidos!");
-      
-      if (isManualMedication) {
-        setHighlightMedicamento(true);
-        toast.info("Por favor, selecione o medicamento manualmente no formulário.");
-      }
-    }
-    setAutoFillModalOpen(false);
+    toast.success("Dados preenchidos!");
+    setHighlightMedicamento(true);
+    toast.info("Por favor, selecione o medicamento manualmente.");
   };
 
   const adicionarAnexo = () => setAnexos([...anexos, { nome: '', file: null }]);
+  
   const removerAnexo = (index) => {
     const novosAnexos = [...anexos];
     novosAnexos.splice(index, 1);
     setAnexos(novosAnexos);
   };
+  
   const handleAnexoChange = (index, field, value) => {
     const novosAnexos = [...anexos];
     if (field === 'nome') {
@@ -274,118 +210,15 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
 
   const nomeOperadoraSelecionada = operadoras.find(op => String(op.id) === String(formData.operadora_id))?.nome || 'Não informada';
   const primeiroNomePaciente = formData.nomeCompleto.trim().split(' ')[0] || 'este paciente';
-
-  const renderAutoFillModal = () => {
-    if (!autoFillResult) return null;
-    
-    const excludedKeys = ['medicamento_extraido', 'medicamentos_sugeridos'];
-    const encontrados = Object.keys(autoFillResult).filter(k => !excludedKeys.includes(k) && autoFillResult[k] !== '' && autoFillResult[k] !== null && autoFillResult[k] !== false);
-    const naoEncontrados = Object.keys(camposMapeados).filter(k => !encontrados.includes(k));
-
-    const medExtraido = autoFillResult.medicamento_extraido;
-    const medSugeridos = autoFillResult.medicamentos_sugeridos || [];
-
-    return (
-      <ModalOverlay style={{ zIndex: 1000 }}>
-        <ModalContent style={{ width: '550px', maxHeight: '85vh', overflowY: 'auto' }}>
-          <h3 style={{ color: '#007bff', marginBottom: '15px' }}>🚀 Análise de Documento Concluída</h3>
-          
-          {medExtraido && (
-            <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '5px', marginBottom: '15px', border: '1px solid #ced4da', textAlign: 'left' }}>
-              <h4 style={{ color: '#495057', marginBottom: '10px' }}>💊 Medicamento da Operadora: <strong style={{color: '#007bff'}}>{medExtraido}</strong></h4>
-              
-              {medSugeridos.length > 0 ? (
-                <>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#555', fontWeight: 'bold' }}>Medicamentos relacionados no banco:</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                    {medSugeridos.map(med => (
-                      <label key={med.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', color: '#333' }}>
-                        <input 
-                          type="radio" 
-                          name="med_sugerido" 
-                          value={med.id}
-                          checked={String(medicamentoSelecionadoIA) === String(med.id)}
-                          onChange={() => setMedicamentoSelecionadoIA(med.id)}
-                          style={{ width: '18px', height: '18px' }}
-                        />
-                        {med.nome} {med.dosagem ? `- ${med.dosagem}` : ''} 
-                        <span style={{ fontSize: '12px', background: '#e9ecef', padding: '2px 6px', borderRadius: '4px', marginLeft: 'auto' }}>
-                          {(med.rating * 100).toFixed(0)}% match
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p style={{ margin: 0, fontSize: '13px', color: '#856404', background: '#fff3cd', padding: '8px', borderRadius: '4px' }}>
-                  Nenhum medicamento com 70% ou mais de semelhança encontrado no banco. Escolha manual necessária.
-                </p>
-              )}
-            </div>
-          )}
-
-          <ResultBox className="success">
-            <h4>✅ Outros Dados Encontrados:</h4>
-            <ul>
-              {encontrados.length > 0 ? encontrados.map(k => (
-                <li key={k}><strong>{camposMapeados[k]}:</strong> {String(autoFillResult[k])}</li>
-              )) : <li>Nenhum dado extra legível encontrado.</li>}
-            </ul>
-          </ResultBox>
-
-          <ResultBox className="warning">
-            <h4>⚠️ Requer Preenchimento Manual:</h4>
-            <ul>
-              {naoEncontrados.length > 0 ? naoEncontrados.map(k => (
-                <li key={k}>{camposMapeados[k]}</li>
-              )) : <li>Todos os campos base foram encontrados!</li>}
-            </ul>
-          </ResultBox>
-
-          <ModalActions style={{ flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-              <Button type="button" onClick={() => setAutoFillModalOpen(false)} color="#6c757d">Cancelar</Button>
-              <Button type="button" onClick={() => processarPreenchimento(true)} color="#17a2b8">Escolher Manualmente</Button>
-            </div>
-            <Button 
-              type="button" 
-              onClick={() => processarPreenchimento(false)} 
-              color="#28a745" 
-              style={{ width: '100%' }}
-              disabled={medSugeridos.length > 0 && !medicamentoSelecionadoIA}
-            >
-              Confirmar Medicamento e Preencher
-            </Button>
-          </ModalActions>
-        </ModalContent>
-      </ModalOverlay>
-    );
-  };
-
-  // 4. VERIFICAÇÃO PARA O BLOQUEIO VISUAL
   const isOperadoraUnica = operadoras.length === 1;
 
   return (
     <>
       <Form onSubmit={handlePreSubmit}>
         
+        {/* Renderiza o componente isolado de Preenchimento Inteligente */}
         {!pacienteToEdit && (
-          <AutoFillContainer>
-            <AutoFillText>
-              <h4>Preenchimento Inteligente</h4>
-              <p>Envie um documento (imagem) para preencher os dados automaticamente.</p>
-            </AutoFillText>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              accept="image/jpeg, image/png, image/webp, application/pdf, .doc, .docx" 
-              onChange={handleAutoFillUpload} 
-            />
-            <Button type="button" onClick={triggerAutoFillUpload} disabled={isAutoFillLoading}>
-              {isAutoFillLoading ? '⏳ Lendo documento...' : '📄 Enviar Doc. de Auto Preenchimento'}
-            </Button>
-          </AutoFillContainer>
+          <AutoFillComponent onFillData={handleAutoFillSuccess} />
         )}
 
         <SectionTitle>
@@ -425,11 +258,8 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
             value={formData.operadora_id} 
             onChange={handleChange} 
             required
-            disabled={isOperadoraUnica} // DESABILITA SE FOR ÚNICA
-            style={{ 
-              
-              cursor: isOperadoraUnica ? 'not-allowed' : 'pointer' 
-            }}
+            disabled={isOperadoraUnica}
+            style={{ cursor: isOperadoraUnica ? 'not-allowed' : 'pointer' }}
           >
             <option value="">Selecione</option>
             {operadoras.map(op => <option key={op.id} value={op.id}>{op.nome}</option>)}
@@ -454,7 +284,7 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
               <option key={med.id} value={med.id}>{med.nome} {med.dosagem ? `- ${med.dosagem}` : ''}</option>
             ))}
           </select>
-          {highlightMedicamento && <span style={{color: '#dc3545', fontSize: '12px'}}>Seleção obrigatória</span>}
+          {highlightMedicamento && <span style={{color: '#dc3545', fontSize: '12px', fontWeight: 'bold'}}>Seleção obrigatória após o preenchimento inteligente</span>}
         </FormGroup>
 
         <FormGroup>
@@ -556,7 +386,7 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
             <Button type="submit" onClick={() => setSubmitAction('save')}>Atualizar Dados</Button>
           )}
 
-          {pacienteToEdit && pacienteToEdit.is_new_user && isAdmin ===true && (
+          {pacienteToEdit && pacienteToEdit.is_new_user && isAdmin === true && (
             <Button type="submit" onClick={() => setSubmitAction('confirm')} color="#faad14">Confirmar Cadastro</Button>
           )}
         </ButtonGroup>
@@ -574,8 +404,6 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
           </ModalContent>
         </ModalOverlay>
       )}
-
-      {autoFillModalOpen && renderAutoFillModal()}
     </>
   );
 }
