@@ -7,7 +7,8 @@ import {
     LuLoaderCircle,      
     LuTriangleAlert, 
     LuCircleCheck,   
-    LuCircleX        
+    LuCircleX,
+    LuInfo // <-- Novo ícone importado para o aviso
 } from "react-icons/lu";
 
 import * as S from './styles'; 
@@ -95,7 +96,6 @@ export default function ImportarPacientes({ onSuccess }) {
     setStep(1);
     setValidationResult(null);
     setFinalResult(null);
-    // document.getElementById('file-upload').value = null; // caso seja necessário resetar o input
   };
 
   return (
@@ -103,33 +103,56 @@ export default function ImportarPacientes({ onSuccess }) {
       
       {/* --- PASSO 1: SELEÇÃO --- */}
       {step === 1 && (
-        <S.UploadBox>
-            <S.SelectGroup>
-                <label>Vincular pacientes à Operadora:</label>
-                <S.Select 
-                    value={operadoraId} 
-                    onChange={(e) => setOperadoraId(e.target.value)}
-                    disabled={loadingOps || operadoras.length === 1}
-                >
-                    <option value="">Selecione uma operadora...</option>
-                    {operadoras.map(op => (
-                        <option key={op.id} value={op.id}>
-                            {op.nome}
-                        </option>
-                    ))}
-                </S.Select>
-            </S.SelectGroup>
+        <>
+            <S.InstructionsBox>
+                <h4><LuInfo size={22} /> Padrão da Planilha</h4>
+                <p>Para o envio ser bem-sucedido, a primeira linha da sua planilha deve conter os cabeçalhos <strong>exatamente</strong> com os nomes abaixo:</p>
+                <ul>
+                    <li><span className="mandatory">cpf</span> ou <span className="mandatory">CPF</span> (Obrigatório)</li>
+                    <li><span className="mandatory">nome</span> ou <span className="mandatory">Nome</span> (Obrigatório)</li>
+                    <li><strong>sobrenome</strong> ou Sobrenome</li>
+                    <li><strong>celular</strong> ou Celular</li>
+                    <li><strong>telefone</strong> ou Telefone</li>
+                    <li><strong>data_nascimento</strong></li>
+                    <li><strong>sexo</strong> ou Sexo</li>
+                    <li><strong>cep</strong> ou CEP</li>
+                    <li><strong>numero</strong> ou Numero</li>
+                    <li><strong>complemento</strong> ou Complemento</li>
+                    <li><strong>possui_cuidador</strong> (Sim/Não)</li>
+                    <li><strong>nome_cuidador</strong></li>
+                    <li><strong>contato_cuidador</strong></li>
+                    <li><strong>medicamento_id</strong></li>
+                </ul>
+            </S.InstructionsBox>
 
-            <LuCloudUpload size={48} color="#ccc" />
-            <p>Clique para selecionar a planilha (.xlsx ou .csv)</p>
-            <input 
-                id="file-upload"
-                type="file" 
-                accept=".xlsx, .csv" 
-                onChange={handleFileChange} 
-                disabled={!operadoraId}
-            />
-        </S.UploadBox>
+            <S.UploadBox>
+                <S.SelectGroup>
+                    <label>Vincular pacientes à Operadora:</label>
+                    <S.Select 
+                        value={operadoraId} 
+                        onChange={(e) => setOperadoraId(e.target.value)}
+                        disabled={loadingOps || operadoras.length === 1}
+                    >
+                        <option value="">Selecione uma operadora...</option>
+                        {operadoras.map(op => (
+                            <option key={op.id} value={op.id}>
+                                {op.nome}
+                            </option>
+                        ))}
+                    </S.Select>
+                </S.SelectGroup>
+
+                <LuCloudUpload size={48} color="#ccc" />
+                <p>Clique para selecionar a planilha (.xlsx ou .csv)</p>
+                <input 
+                    id="file-upload"
+                    type="file" 
+                    accept=".xlsx, .csv" 
+                    onChange={handleFileChange} 
+                    disabled={!operadoraId}
+                />
+            </S.UploadBox>
+        </>
       )}
 
       {/* --- PASSO 2: LOADER DE VALIDAÇÃO --- */}
@@ -198,7 +221,6 @@ export default function ImportarPacientes({ onSuccess }) {
                 <S.Button variant="secondary" onClick={reset}>Cancelar / Corrigir Planilha</S.Button>
                 <S.Button 
                     onClick={handleFinalImport} 
-                    // MUDANÇA: TRAVA 100% o botão se tiver 1 duplicado, 1 invalido ou 0 validos
                     disabled={
                         validationResult.resumo.duplicados > 0 || 
                         validationResult.resumo.invalidos > 0 || 

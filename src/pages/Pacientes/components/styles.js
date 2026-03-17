@@ -192,3 +192,49 @@ export const Select = styled.select`
   }
 `;
 
+export const InstructionsBox = styled.div`
+  background-color: ${({ theme }) => theme.title === 'dark' ? '#112233' : '#e6f7ff'};
+  border: 1px solid ${({ theme }) => theme.title === 'dark' ? '#1890ff' : '#91d5ff'};
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: left;
+  color: ${({ theme }) => theme.title === 'dark' ? '#e6f7ff' : '#0050b3'};
+  font-size: 0.9rem;
+  line-height: 1.5;
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: ${({ theme }) => theme.title === 'dark' ? '#40a9ff' : '#0050b3'};
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin-bottom: 10px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Divide a lista em duas colunas para economizar espaço */
+    gap: 4px 15px;
+    
+    @media (max-width: 600px) {
+      grid-template-columns: 1fr;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+  }
+
+  .mandatory {
+    font-weight: bold;
+    color: ${({ theme }) => theme.title === 'dark' ? '#ff4d4f' : '#cf1322'};
+  }
+`;
