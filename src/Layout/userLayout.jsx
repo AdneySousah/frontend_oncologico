@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Container, MainContent, ContainerOutlet, MobileHeader, MenuButton } from "./styles";
-import Sidebar from "../components/Sidebar"; // Ajuste o caminho conforme sua estrutura
+import Sidebar from "../components/SideBar"; // Ajuste o caminho conforme sua estrutura
 import { LuMenu } from "react-icons/lu";
 
 export function UserLayout(){
