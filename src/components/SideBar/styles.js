@@ -1,28 +1,56 @@
 import styled from "styled-components";
 
+// ==============================
+// OVERLAY PARA MOBILE (Fundo escuro)
+// ==============================
+export const MobileOverlay = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: ${(props) => (props.$isOpen ? "block" : "none")};
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 95; /* Atrás da sidebar (100) */
+    backdrop-filter: blur(2px);
+  }
+`;
+
 export const Container = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
   width: ${(props) => (props.isCollapsed ? "80px" : "280px")};
   height: 100vh;
   display: flex;
   flex-direction: column;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   box-shadow: 4px 0 10px rgba(0,0,0,0.05);
   color: ${({ theme }) => theme.colors.text};
   border-right: 1px solid ${({ theme }) => theme.colors.border};
   white-space: nowrap;
   z-index: 100;
+
+  /* RESPONSIVIDADE MOBILE */
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px; /* Ignora o estado de colapsado no mobile */
+    transform: ${(props) => (props.$isOpen ? "translateX(0)" : "translateX(-100%)")};
+    box-shadow: ${(props) => (props.$isOpen ? "4px 0 15px rgba(0,0,0,0.3)" : "none")};
+  }
 `;
 
 // ==============================
-// NOVO CONTAINER PARA A LOGO
+// CONTAINER PARA A LOGO
 // ==============================
 export const LogoArea = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Altura maior se aberto, menor se colapsado */
   height: ${(props) => (props.isCollapsed ? "80px" : "100px")};
   padding: ${(props) => (props.isCollapsed ? "15px" : "20px")};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -32,7 +60,6 @@ export const LogoArea = styled.div`
   img {
     width: 100%;
     height: 100%;
-    /* Aqui o segredo do tamanho: max-width fixa a largura máxima, e contain não distorce */
     max-width: ${(props) => (props.isCollapsed ? "40px" : "160px")};
     max-height: ${(props) => (props.isCollapsed ? "40px" : "60px")};
     object-fit: contain; 
@@ -46,7 +73,7 @@ export const Header = styled.div`
   align-items: center;
   gap: 15px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  height: 90px; /* Reduzi um pouco a altura já que agora temos a logo em cima */
+  height: 90px;
   flex-shrink: 0;
 
   .user-info {
@@ -123,6 +150,11 @@ export const ToggleButton = styled.button`
 
   &:hover {
     background-color: ${({ theme }) => theme.colors.inputBg};
+  }
+
+  /* Oculta no mobile, pois o overlay cuida do fechamento */
+  @media (max-width: 768px) {
+    display: none;
   }
 `;
 
@@ -260,13 +292,10 @@ export const Divider = styled.div`
   margin: 10px 15px;
 `;
 
-// (O RESTANTE DOS SEUS ESTILOS: AlertOverlay, AlertModalContent, AlertControls, FilterBtn, ScoreBadge, AlertCard PERMANECE EXATAMENTE IGUAL)
-
-
 export const AlertOverlay = styled.div`
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.6); z-index: 1000;
-  display: flex; justify-content: flex-end; /* Fica alinhado à direita para não tampar a sidebar */
+  display: flex; justify-content: flex-end; 
 `;
 
 export const AlertModalContent = styled.div`
@@ -336,6 +365,7 @@ export const AlertControls = styled.div`
     }
   }
 `;
+
 export const FilterBtn = styled.button`
   background: ${props => props.$active ? (props.theme.colors.primary || '#007D99') : 'transparent'};
   color: ${props => props.$active ? '#fff' : (props.theme.colors.textLight || '#666')};
@@ -352,21 +382,19 @@ export const FilterBtn = styled.button`
   }
 `;
 
-/* Adicione este novo componente para a pontuação dinâmica */
 export const ScoreBadge = styled.span`
   display: inline-block;
   font-size: 0.70rem;
   font-weight: 800;
   padding: 3px 8px;
   border-radius: 6px;
-  margin-left: 10px; /* Dá um espacinho do nome */
+  margin-left: 10px; 
   white-space: nowrap;
 
-  /* LÓGICA DE CORES DA LEGENDA */
   background-color: ${props => {
-    if (props.score <= 10) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; // Verde (Boa adesão)
-    if (props.score <= 14) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; // Laranja (Atenção)
-    return props.theme.colors.dangerLight || 'rgba(255, 77, 79, 0.15)'; // Vermelho (Risco)
+    if (props.score <= 10) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
+    if (props.score <= 14) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; 
+    return props.theme.colors.dangerLight || 'rgba(255, 77, 79, 0.15)'; 
   }};
 
   color: ${props => {
@@ -382,7 +410,6 @@ export const ScoreBadge = styled.span`
   }};
 `;
 
-/* Atualize o AlertCard existente para suportar o name-row */
 export const AlertCard = styled.div`
   display: flex;
   justify-content: space-between;
@@ -427,7 +454,6 @@ export const AlertCard = styled.div`
       }};
     }
 
-    /* Nova linha flexível para agrupar o nome e o score */
     .name-row {
       display: flex;
       align-items: center;

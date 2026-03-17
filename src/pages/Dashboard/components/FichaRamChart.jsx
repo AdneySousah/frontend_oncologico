@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 const FichaRamChart = ({ chartData, reportData }) => {
   const handleExport = () => {
@@ -19,33 +20,33 @@ const FichaRamChart = ({ chartData, reportData }) => {
     <>
       <ChartHeader>
         <h3>Pacientes por Ficha RAM (Top 10)</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
 
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} stroke="#888" />
-          
-          <XAxis 
-            dataKey="name" 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#888', fontSize: 11 }} 
-            dy={10} 
+
+          <XAxis
+            dataKey="name"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#888', fontSize: 11 }}
+            dy={10}
           />
-          <YAxis 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#888', fontSize: 12 }} 
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#888', fontSize: 12 }}
           />
-          <Tooltip 
+          <Tooltip
             cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
           />
-          <Bar 
-            dataKey="value" 
+          <Bar
+            dataKey="value"
             fill="#F43F5E" // Rose moderno
-            radius={[6, 6, 0, 0]} 
+            radius={[6, 6, 0, 0]}
             maxBarSize={60}
           />
         </BarChart>

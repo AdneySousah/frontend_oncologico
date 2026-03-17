@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 // Cores mais modernas e vibrantes
 const COLORS = ['#10B981', '#F59E0B', '#EF4444']; 
@@ -22,7 +23,7 @@ const TermosChart = ({ chartData, reportData }) => {
     <>
       <ChartHeader>
         <h3>Status dos Termos</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       
       <ResponsiveContainer width="100%" height={300}>

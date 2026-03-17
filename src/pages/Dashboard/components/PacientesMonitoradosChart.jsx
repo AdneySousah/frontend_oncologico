@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 const COLORS = ['#8B5CF6', '#D1D5DB']; // Roxo moderno para Monitorados, Cinza para o resto
 
@@ -20,7 +21,7 @@ const PacientesMonitoradosChart = ({ chartData, reportData, total }) => {
     <>
       <ChartHeader>
         <h3>Monitorados (Ativos): {total}</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       
       <ResponsiveContainer width="100%" height={300}>

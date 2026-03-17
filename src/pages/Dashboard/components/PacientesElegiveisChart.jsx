@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 const COLORS = ['#10B981', '#E5E7EB']; // Verde sucesso para Elegíveis, Cinza claro para não elegíveis
 
@@ -21,7 +22,7 @@ const PacientesElegiveisChart = ({ chartData, reportData, total }) => {
     <>
       <ChartHeader>
         <h3>Pacientes Elegíveis: {total}</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       
       <ResponsiveContainer width="100%" height={300}>

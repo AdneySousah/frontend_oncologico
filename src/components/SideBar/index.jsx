@@ -17,8 +17,8 @@ import AlertModal from "./AlertModal";
 // IMPORT DAS LOGOS (Ajuste o caminho se necessário)
 import logoBranca from "../../assets/logo_branca.png";
 
-
-export default function Sidebar() {
+// Recebendo as novas props isMobileMenuOpen e closeMobileMenu
+export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const { logout } = useContext(AuthContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
@@ -37,7 +37,6 @@ export default function Sidebar() {
   const [alertsList, setAlertsList] = useState([]);
 
   // Lógica de qual logo exibir baseada no tema atual
-
   const currentLogo = theme === 'light' ? logoBranca : logoBranca;
 
   const getInitials = (fullName) => {
@@ -198,6 +197,11 @@ export default function Sidebar() {
   const handleNavigation = (path) => {
     navigate(path);
     setIsAlertModalOpen(false);
+    
+    // NOVO: Fecha a sidebar no mobile automaticamente ao clicar em um link
+    if (closeMobileMenu) {
+      closeMobileMenu(); 
+    }
   };
 
   const getRoleText = () => {
@@ -217,17 +221,19 @@ export default function Sidebar() {
 
   return (
     <>
-      <S.Container isCollapsed={collapsed}>
+      {/* NOVO: Overlay que fica escuro atrás da sidebar no mobile */}
+      <S.MobileOverlay $isOpen={isMobileMenuOpen} onClick={closeMobileMenu} />
+
+      {/* NOVO: Passando a prop $isOpen para o Container */}
+      <S.Container isCollapsed={collapsed} $isOpen={isMobileMenuOpen}>
         <S.ToggleButton onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <LuChevronRight size={18} /> : <LuChevronLeft size={18} />}
         </S.ToggleButton>
 
-        {/* NOVA ÁREA DA LOGO */}
         <S.LogoArea isCollapsed={collapsed}>
           <img src={currentLogo} alt="Logo Onco Navegação" />
         </S.LogoArea>
 
-        {/* ÁREA DO USUÁRIO (Abaixo da logo) */}
         <S.Header isCollapsed={collapsed}>
           <S.AvatarContainer theme={theme}>
             {getInitials(userNameToShow)}
@@ -269,7 +275,6 @@ export default function Sidebar() {
 
           <S.Divider isCollapsed={collapsed} />
 
-          {/* MENU TABELAS CADASTRAIS */}
           {menusCadastroVisiveis.length > 0 && (
             <S.MenuItem isCollapsed={collapsed} label="Tabelas Cadastrais" isOpen={isRegisterOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsRegisterOpen(!isRegisterOpen); }}>
@@ -290,7 +295,6 @@ export default function Sidebar() {
             </S.MenuItem>
           )}
 
-          {/* MENU ADMINISTRATIVO */}
           {menusAdminVisiveis.length > 0 && (
             <S.MenuItem isCollapsed={collapsed} label="Administrativo" isOpen={isAdminMenuOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsAdminMenuOpen(!isAdminMenuOpen); }}>

@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 const AderenciaOpcoesChart = ({ chartData, reportData }) => {
   const handleExport = () => {
@@ -19,7 +20,8 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
     <>
       <ChartHeader>
         <h3>% Aderência (Monitoramento)</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        {/* SVG aplicado e title adicionado para acessibilidade */}
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
 
       <ResponsiveContainer width="100%" height={300}>

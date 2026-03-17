@@ -90,9 +90,9 @@ export const SelectGroup = styled.div`
 
 export const Card = styled.div`
   background: ${({ theme }) => theme.colors.surface || '#fff'};
-  border-radius: 12px; /* Aumentado para um visual mais suave */
+  border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); /* Sombra mais difusa e moderna */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid ${({ theme }) => theme.colors.border || 'transparent'};
   display: flex;
   flex-direction: column;
@@ -102,7 +102,6 @@ export const Card = styled.div`
   `}
 `;
 
-/* NOVOS COMPONENTES PARA OS GRÁFICOS */
 export const ChartHeader = styled.div`
   display: flex;
   justify-content: space-between;
@@ -119,28 +118,3 @@ export const ChartHeader = styled.div`
   }
 `;
 
-export const ExportButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background-color: ${({ theme }) => theme.colors.primary || '#00C49F'};
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-
-  &:hover {
-    filter: brightness(1.1);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-`;

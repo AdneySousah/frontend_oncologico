@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
-import { ChartHeader, ExportButton } from '../styles';
+import { ChartHeader } from '../styles';
+import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
 const COLORS = ['#6df512', '#f3df2a', '#f30c0c']; // Cores mantidas: Verde, Amarelo, Vermelho
 
@@ -22,7 +23,7 @@ const AdesaoScoreChart = ({ chartData, reportData }) => {
     <>
       <ChartHeader>
         <h3>% Adesão (Score Questionário)</h3>
-        <ExportButton onClick={handleExport}>📥 Exportar Excel</ExportButton>
+        <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       
       <ResponsiveContainer width="100%" height={300}>
