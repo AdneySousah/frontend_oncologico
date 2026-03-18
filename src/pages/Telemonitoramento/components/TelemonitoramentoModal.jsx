@@ -171,10 +171,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         toast.error('A data de abertura da nova caixa não pode ser no passado.');
         return;
       }
-      if (isReacao && (!reacoesSelecionadas || reacoesSelecionadas.length === 0)) {
-        toast.error('Selecione pelo menos uma reação adversa.');
-        return;
-      }
+      // REMOVIDA A VALIDAÇÃO QUE OBRIGAVA A SELEÇÃO DA REAÇÃO ADVERSA
     }
 
     try {
