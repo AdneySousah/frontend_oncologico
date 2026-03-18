@@ -493,3 +493,65 @@ export const AlertCard = styled.div`
     font-weight: ${props => props.diffDays <= 0 ? 'bold' : 'normal'} !important;
   }
 `;
+
+export const HealthStatus = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Aumentado o gap entre o ponto e os textos */
+  padding: 12px; /* Aumentado o padding para dar mais respiro */
+  margin-bottom: 12px;
+  background: ${({ theme }) => theme.colors.inputBg};
+  border-radius: 8px;
+  transition: all 0.3s;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  justify-content: ${(props) => (props.isCollapsed ? "center" : "flex-start")};
+
+  .status-dot {
+    width: 12px; /* Ponto levemente maior */
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background-color: ${(props) => {
+      if (props.quality === 'Green') return '#52c41a';
+      if (props.quality === 'Yellow') return '#faad14';
+      if (props.quality === 'Red') return '#ff4d4f';
+      return '#888';
+    }};
+    box-shadow: 0 0 10px ${(props) => {
+      if (props.quality === 'Green') return 'rgba(82, 196, 26, 0.4)';
+      if (props.quality === 'Yellow') return 'rgba(250, 173, 20, 0.4)';
+      if (props.quality === 'Red') return 'rgba(255, 77, 79, 0.4)';
+      return 'transparent';
+    }};
+  }
+
+  .health-info {
+    display: ${(props) => (props.isCollapsed ? "none" : "flex")};
+    flex-direction: column;
+    gap: 4px; /* Espaço entre o título e a qualidade */
+    overflow: hidden;
+
+    span {
+      color: ${({ theme }) => theme.colors.textLight};
+      font-size: 0.7rem; /* Fonte aumentada de 0.65 para 0.7 */
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    strong {
+      color: ${({ theme }) => theme.colors.text};
+      font-weight: 700;
+      font-size: 0.85rem; /* Fonte aumentada de 0.75 para 0.85 */
+    }
+
+    .balance-label {
+        margin-top: 4px;
+        font-size: 0.8rem;
+        color: ${({ theme }) => theme.colors.primary};
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+  }
+`;

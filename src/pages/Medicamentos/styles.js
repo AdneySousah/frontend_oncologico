@@ -1,5 +1,10 @@
-import styled from 'styled-components';
 
+import styled, { keyframes } from 'styled-components';
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
 export const Container = styled.div`
   padding: 2rem;
   background-color: ${({ theme }) => theme.colors?.background || '#f4f6f8'};
@@ -202,7 +207,6 @@ export const ActionButton = styled.button`
   }
 `;
 
-/* NOVOS ESTILOS PARA PAGINAÇÃO */
 export const PaginationContainer = styled.div`
   display: flex;
   justify-content: center;
@@ -231,5 +235,230 @@ export const PageButton = styled.button`
     background-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
     color: #ffffff;
     border-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
+  }
+`;
+
+/* --- ESTILOS DE IMPORTAÇÃO CORRIGIDOS COM THEME --- */
+
+
+
+export const ImportContainer = styled.div`
+  background: ${({ theme }) => theme.colors?.surface || 'transparent'};
+  padding: 2rem;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#333'};
+  color: ${({ theme }) => theme.colors?.text || '#fff'};
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+`;
+
+export const InstructionsBox = styled.div`
+  text-align: left;
+  background-color: ${({ theme }) => theme.colors?.inputBg || 'rgba(255, 255, 255, 0.03)'};
+  border: 1px solid ${({ theme }) => theme.colors?.primary || '#007bff'};
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: ${({ theme }) => theme.colors?.primary || '#4dabf7'};
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  p {
+    font-size: 0.9rem;
+    color: ${({ theme }) => theme.colors?.text || '#ccc'};
+    opacity: 0.8;
+    line-height: 1.5;
+  }
+`;
+
+export const UploadBox = styled.label`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  border: 2px dashed ${({ theme }) => theme.colors?.border || '#444'};
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: ${({ theme }) => theme.colors?.inputBg || 'rgba(255, 255, 255, 0.01)'};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
+    background-color: ${({ theme }) => theme.colors?.inputBg || 'rgba(255, 255, 255, 0.04)'};
+    transform: translateY(-2px);
+  }
+
+  input { display: none; }
+  
+  p { 
+    margin-top: 1.5rem; 
+    color: ${({ theme }) => theme.colors?.text || '#fff'};
+    font-weight: 500;
+  }
+
+  svg {
+    opacity: 0.6;
+    color: ${({ theme }) => theme.colors?.text || '#fff'};
+  }
+`;
+
+export const StatusBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 3rem;
+  color: ${({ theme }) => theme.colors?.text || '#fff'};
+  text-align: center;
+
+  span {
+    font-size: 1.1rem;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+`;
+
+export const Spinner = styled.div`
+  color: ${({ theme }) => theme.colors?.primary || '#007bff'};
+  animation: ${spin} 1s linear infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+export const SummaryGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+`;
+
+export const SummaryCard = styled.div`
+  padding: 1.2rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  background: ${({ theme }) => theme.colors?.inputBg || 'rgba(255,255,255,0.03)'};
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#333'};
+  border-left: 4px solid ${({ theme }) => theme.colors?.border || '#444'};
+
+  strong { 
+    font-size: 1.6rem; 
+    color: ${({ theme }) => theme.colors?.text || '#fff'};
+  }
+  
+  span { 
+    font-size: 0.8rem; 
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: ${({ theme }) => theme.colors?.text || '#fff'}; 
+    opacity: 0.5;
+    margin-top: 4px;
+  }
+
+  &.success { border-left-color: #52c41a; }
+  &.warning { border-left-color: #faad14; }
+`;
+
+export const LogContainer = styled.div`
+  max-height: 220px;
+  overflow-y: auto;
+  background: ${({ theme }) => theme.colors?.inputBg || 'rgba(0,0,0,0.2)'};
+  padding: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#333'};
+  text-align: left;
+
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { 
+    background: ${({ theme }) => theme.colors?.border || '#444'}; 
+    border-radius: 10px;
+  }
+`;
+
+export const LogItem = styled.div`
+  padding: 8px 12px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors?.border || 'rgba(255,255,255,0.05)'};
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: ${({ theme }) => theme.colors?.text || '#eee'};
+
+  &:last-child { border-bottom: none; }
+  small { opacity: 0.6; }
+
+  &.success { color: #73d13d; }
+  &.warning { color: #ffc53d; }
+`;
+
+
+export const Button = styled.button`
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  background-color: ${({ theme }) => theme.colors?.primary || '#007bff'};
+  color: #fff;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
+  
+  &:disabled { 
+    background-color: ${({ theme }) => theme.colors?.border || '#444'}; 
+    cursor: not-allowed; 
+    opacity: 0.5;
+  }
+
+  &.secondary {
+    background: transparent;
+    border: 1px solid ${({ theme }) => theme.colors?.border || '#444'};
+    color: ${({ theme }) => theme.colors?.text || '#fff'};
+    &:hover { background: rgba(255,255,255,0.05); }
+  }
+`;
+
+export const InfoGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`;
+
+export const InfoCard = styled.div`
+  background: ${({ theme }) => theme.colors?.surface || '#1e1e1e'};
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#333'};
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  span {
+    font-size: 0.85rem;
+    color: ${({ theme }) => theme.colors?.text || '#fff'};
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  strong {
+    font-size: 1.4rem;
+    color: ${({ theme }) => theme.colors?.primary || '#4dabf7'};
   }
 `;

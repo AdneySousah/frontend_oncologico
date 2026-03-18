@@ -7,7 +7,6 @@ import { Form, FormGroup, ButtonGroup, ActionButton, FormContainer } from '../st
 export default function MedicamentosForm({ medicamentoToEdit, onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false);
   
-  // Agrupando todos os campos em um único state
   const [formData, setFormData] = useState({
     codigo_tuss: '',
     nome_comercial: '',
@@ -18,7 +17,9 @@ export default function MedicamentosForm({ medicamentoToEdit, onSuccess, onCance
     dosagem: '',
     tipo_dosagem: '',
     qtd_capsula: '',
-    descricao: ''
+    descricao: '',
+    price: '',      // Novo campo
+    fornecedor: ''  // Novo campo
   });
 
   useEffect(() => {
@@ -33,7 +34,9 @@ export default function MedicamentosForm({ medicamentoToEdit, onSuccess, onCance
         dosagem: medicamentoToEdit.dosagem || '',
         tipo_dosagem: medicamentoToEdit.tipo_dosagem || '',
         qtd_capsula: medicamentoToEdit.qtd_capsula || '',
-        descricao: medicamentoToEdit.descricao || ''
+        descricao: medicamentoToEdit.descricao || '',
+        price: medicamentoToEdit.price || '',
+        fornecedor: medicamentoToEdit.fornecedor || ''
       });
     }
   }, [medicamentoToEdit]);
@@ -47,9 +50,9 @@ export default function MedicamentosForm({ medicamentoToEdit, onSuccess, onCance
     e.preventDefault();
     setLoading(true);
     
-    // Converte qtd_capsula para número caso não esteja vazio
     const payload = { ...formData };
     if (payload.qtd_capsula) payload.qtd_capsula = parseInt(payload.qtd_capsula, 10);
+    if (payload.price) payload.price = parseFloat(payload.price);
 
     try {
       if (medicamentoToEdit) {
@@ -151,6 +154,28 @@ export default function MedicamentosForm({ medicamentoToEdit, onSuccess, onCance
             type="number"
             placeholder="Ex: 30"
             value={formData.qtd_capsula} 
+            onChange={handleChange} 
+          />
+        </FormGroup>
+
+        <FormGroup>
+          <label>Preço Unitário (R$)</label>
+          <input 
+            name="price"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.price} 
+            onChange={handleChange} 
+          />
+        </FormGroup>
+
+        <FormGroup className="full-width">
+          <label>Fornecedor</label>
+          <input 
+            name="fornecedor"
+            placeholder="Nome do fornecedor principal..."
+            value={formData.fornecedor} 
             onChange={handleChange} 
           />
         </FormGroup>

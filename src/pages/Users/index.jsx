@@ -1,50 +1,69 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 
 import { Container, Header, TableContainer, Table, ActionButton } from './styles';
 import UserModal from './components/UserModal';
+import SearchBar from '../../components/SearchBar';
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
+  // Estados de Controle
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showInactives, setShowInactives] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const loadUsers = async () => {
+    setLoading(true);
     try {
       const response = await api.get('/users');
       setUsers(response.data);
-      setLoading(false);
     } catch (err) {
       toast.error('Erro ao carregar usuários.');
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
 
-  const handleNewUser = () => {
-    setEditingUser(null);
-    setIsModalOpen(true);
-  };
+  // Lógica de Filtro e Busca
+  const filteredData = useMemo(() => {
+    return users.filter(user => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        user.name.toLowerCase().includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower);
 
-  const handleEditUser = (user) => {
-    setEditingUser(user);
-    setIsModalOpen(true);
-  };
+      // Se showInactives for false, mostra apenas active === true
+      // Se showInactives for true, mostra todos
+      const matchesStatus = showInactives ? true : user.active === true;
 
-  const handleDeleteUser = async (id) => {
-    if (window.confirm('Tem certeza que deseja desativar este usuário?')) {
+      return matchesSearch && matchesStatus;
+    });
+  }, [users, searchTerm, showInactives]);
+
+  // Paginação
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedUsers = filteredData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleToggleStatus = async (user) => {
+    const actionText = user.active ? 'desativar' : 'reativar';
+    if (window.confirm(`Tem certeza que deseja ${actionText} este usuário?`)) {
       try {
-        await api.delete(`/users/${id}`);
-        toast.success('Usuário desativado.');
-        loadUsers(); 
+        await api.delete(`/users/${user.id}`);
+        toast.success(`Usuário ${user.active ? 'desativado' : 'ativado'} com sucesso.`);
+        loadUsers();
       } catch (err) {
-        toast.error('Erro ao desativar usuário.');
+        toast.error('Erro ao alterar status do usuário.');
       }
     }
   };
@@ -53,8 +72,17 @@ const UsersPage = () => {
     <Container>
       <Header>
         <h1>Gerenciamento de Usuários</h1>
-        <button onClick={handleNewUser}>+ Novo Usuário</button>
+        <button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}>
+          + Novo Usuário
+        </button>
       </Header>
+
+      <SearchBar
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        showInactives={showInactives}
+        setShowInactives={(val) => { setShowInactives(val); setCurrentPage(1); }}
+      />
 
       <TableContainer>
         <Table>
@@ -72,92 +100,93 @@ const UsersPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan="8" style={{ textAlign: 'center' }}>Carregando...</td>
-              </tr>
-            ) : users.length === 0 ? (
-               <tr>
-                <td colSpan="8" style={{ textAlign: 'center' }}>Nenhum usuário encontrado.</td>
-              </tr>
+              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Carregando...</td></tr>
+            ) : paginatedUsers.length === 0 ? (
+              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum usuário encontrado.</td></tr>
             ) : (
-              users.map((user) => (
-                <tr key={user.id}>
+              paginatedUsers.map((user) => (
+                <tr key={user.id} style={{ opacity: user.active ? 1 : 0.55 }}>
                   <td>#{user.id}</td>
                   <td>
-                    <strong>{user.name}</strong><br/>
+                    <strong>{user.name}</strong><br />
                     <small style={{ color: '#888' }}>{user.email}</small>
                   </td>
-                  
-                  {/* Mostra o Perfil vinculado ao usuário */}
                   <td>
-                    {user.perfil ? (
-                      <span style={{ fontWeight: 'bold', color: '#333' }}>{user.perfil.nome}</span>
-                    ) : (
-                      <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Sem Perfil</span>
-                    )}
-                    {user.is_admin && <span style={{ marginLeft: '5px', color: 'red', fontSize: '0.7rem' }}>(Admin)</span>}
+                    {user.perfil?.nome || <span style={{ color: '#aaa' }}>Sem Perfil</span>}
+                    {user.is_admin && <span style={{ marginLeft: '5px', color: '#d9534f', fontSize: '0.7rem', fontWeight: 'bold' }}>(ADMIN)</span>}
+                  </td>
+                  <td>{user.is_profissional ? <b style={{ color: '#13c2c2' }}>Sim</b> : 'Não'}</td>
+                  <td>
+                    {user.is_profissional && user.professional ? (
+                      <>
+                        <small><b>{user.professional.registry_type}</b>: {user.professional.registry_number}</small><br />
+                        <small style={{ fontSize: '0.7rem' }}>{user.professional.speciality?.name || 'Geral'}</small>
+                      </>
+                    ) : '-'}
                   </td>
 
-                  {/* Mostra se é Profissional */}
+                 
                   <td>
-                    {user.is_profissional ? (
-                      <span style={{ color: '#13c2c2', fontWeight: 'bold' }}>Sim</span>
-                    ) : (
-                      <span style={{ color: '#8c8c8c' }}>Não</span>
-                    )}
-                  </td>
-
-                  {/* Mostra os dados do CRM e Especialidade */}
-                  <td>
-                     {user.is_profissional && user.professional ? (
-                        <>
-                          <strong>{user.professional.registry_type}</strong>: {user.professional.registry_number} <br/>
-                          <small>{user.professional.speciality?.name || 'Sem especialidade'}</small>
-                        </>
-                     ) : (
-                       <span style={{ color: '#aaa' }}>-</span>
-                     )}
-                  </td>
-
-                  <td>
-                    {user.operadoras && user.operadoras.length > 0 ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {user.is_admin ? (
+                      /* Lógica para ADMIN - Exibe a matriz "Cic Oncologia" */
+                      <span style={{
+                        backgroundColor: '#e6f7ff', // Azul clarinho de fundo
+                        border: '1px solid #91d5ff',   // Borda azul um pouco mais escura
+                        color: '#0050b3',             // TEXTO AZUL ESCURO (para contraste perfeito)
+                        padding: '3px 10px',          // Mais respiro
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)', // Sombra sutil para "pular" do fundo preto
+                        display: 'inline-block'
+                      }}>
+                        Cic Oncologia
+                      </span>
+                    ) : user.operadoras && user.operadoras.length > 0 ? (
+                      /* Lógica para Usuário Comum - Lista as operadoras vinculadas */
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxWidth: '200px' }}>
                         {user.operadoras.map(op => (
                           <span key={op.id} style={{
-                            backgroundColor: '#e6f7ff',
-                            border: '1px solid #91d5ff',
-                            color: '#0050b3',
-                            padding: '2px 6px',
+                            backgroundColor: '#f5f5f5',  // Fundo cinza bem claro
+                            border: '1px solid #d9d9d9', // Borda cinza média
+                            color: '#262626',            // TEXTO QUASE PRETO (contraste garantido)
+                            padding: '2px 8px',
                             borderRadius: '4px',
-                            fontSize: '0.75rem'
+                            fontSize: '0.7rem',
+                            display: 'inline-block'
                           }}>
                             {op.nome}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Nenhuma</span>
+                      /* Se não houver vínculo */
+                      <span style={{ color: theme.colors.textLight || '#aaa', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                        Sem operadora
+                      </span>
                     )}
                   </td>
+
                   <td>
-                    {user.active ? (
-                      <span style={{ color: 'green', fontWeight: 'bold' }}>Ativo</span>
-                    ) : (
-                      <span style={{ color: 'red', fontWeight: 'bold' }}>Inativo</span>
-                    )}
+                    <span style={{
+                      color: user.active ? '#52c41a' : '#f5222d',
+                      fontWeight: 'bold',
+                      fontSize: '0.85rem'
+                    }}>
+                      {user.active ? '● Ativo' : '○ Inativo'}
+                    </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <ActionButton 
-                      className="edit" 
-                      onClick={() => handleEditUser(user)}
-                    >
+                    <ActionButton className="edit" onClick={() => { setEditingUser(user); setIsModalOpen(true); }}>
                       Editar
                     </ActionButton>
-                    <ActionButton 
-                      className="delete" 
-                      onClick={() => handleDeleteUser(user.id)}
+                    <ActionButton
+                      className="delete"
+                      onClick={() => handleToggleStatus(user)}
+                      style={!user.active ? { color: '#52c41a', borderColor: '#52c41a' } : {}}
                     >
-                      Excluir
+                      {user.active ? 'Inativar' : 'Reativar'}
                     </ActionButton>
                   </td>
                 </tr>
@@ -165,13 +194,34 @@ const UsersPage = () => {
             )}
           </tbody>
         </Table>
+
+        {/* Paginação Estilizada */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem', gap: '15px', borderTop: '1px solid #eee' }}>
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(c => c - 1)}
+              style={{ cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+            >
+              Anterior
+            </button>
+            <span style={{ fontSize: '0.9rem' }}>Página <strong>{currentPage}</strong> de {totalPages}</span>
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(c => c + 1)}
+              style={{ cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+            >
+              Próxima
+            </button>
+          </div>
+        )}
       </TableContainer>
 
-      <UserModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <UserModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         userToEdit={editingUser}
-        onSuccess={loadUsers} 
+        onSuccess={loadUsers}
       />
     </Container>
   );

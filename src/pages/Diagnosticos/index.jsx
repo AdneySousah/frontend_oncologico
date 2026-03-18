@@ -4,7 +4,7 @@ import api from '../../services/api';
 import { LuPencil, LuPlus } from "react-icons/lu";
 
 // Reutilizando seus estilos de tabela padronizados
-import { Container, Header, TableContainer, Table, ActionButton } from '../Users/styles'; 
+import { Container, Header, TableContainer, Table, ActionButton } from '../Users/styles';
 import DiagnosticoModal from './components/DiagnosticoModal';
 
 const DiagnosticosPage = () => {
@@ -41,7 +41,7 @@ const DiagnosticosPage = () => {
       <Header>
         <h1>Cadastros de Diagnósticos (CID)</h1>
         <button onClick={handleNew}>
-          <LuPlus style={{marginRight: '8px'}}/> Novo Diagnóstico
+          <LuPlus style={{ marginRight: '8px' }} /> Novo Diagnóstico
         </button>
       </Header>
 
@@ -56,16 +56,21 @@ const DiagnosticosPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="3" style={{textAlign:'center'}}>Carregando...</td></tr>
+              <tr><td colSpan="3" style={{ textAlign: 'center' }}>Carregando...</td></tr>
             ) : diagnosticos.length === 0 ? (
-              <tr><td colSpan="3" style={{textAlign:'center'}}>Nenhum diagnóstico cadastrado.</td></tr>
+              <tr><td colSpan="3" style={{ textAlign: 'center' }}>Nenhum diagnóstico cadastrado.</td></tr>
             ) : (
               diagnosticos.map((diag) => (
                 <tr key={diag.id}>
                   <td>#{diag.id}</td>
                   <td><strong>{diag.diagnostico}</strong></td>
+                  {/* Dentro do seu map de diagnósticos */}
                   <td style={{ textAlign: 'right' }}>
-                    <ActionButton onClick={() => handleEdit(diag)}>
+                    <ActionButton
+                      className="edit" // Adicionando a classe edit para pegar o estilo do seu Users/styles
+                      onClick={() => handleEdit(diag)}
+                      title="Editar Diagnóstico"
+                    >
                       <LuPencil size={18} />
                     </ActionButton>
                   </td>
@@ -76,11 +81,11 @@ const DiagnosticosPage = () => {
         </Table>
       </TableContainer>
 
-      <DiagnosticoModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <DiagnosticoModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         diagToEdit={diagToEdit}
-        onSuccess={loadDiagnosticos} 
+        onSuccess={loadDiagnosticos}
       />
     </Container>
   );

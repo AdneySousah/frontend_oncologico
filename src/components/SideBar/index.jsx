@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import * as S from "./styles";
 import {
   LuLogOut, LuChevronLeft, LuChevronRight, LuSun, LuMoon,
-  LuChevronDown, LuTable2, LuBell, LuSettings
+  LuChevronDown, LuTable2, LuBell, LuSettings, LuSmartphone
 } from "react-icons/lu";
 
 import { navOptions, registerOptions, adminOptions } from "./menu";
@@ -14,10 +14,9 @@ import api from "../../services/api";
 
 import AlertModal from "./AlertModal";
 
-// IMPORT DAS LOGOS (Ajuste o caminho se necessário)
+// IMPORT DAS LOGOS
 import logoBranca from "../../assets/logo_branca.png";
 
-// Recebendo as novas props isMobileMenuOpen e closeMobileMenu
 export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const { logout } = useContext(AuthContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -27,7 +26,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const [collapsed, setCollapsed] = useState(false);
   const [userStorage, setUserStorage] = useState(null);
   const [userProfileData, setUserProfileData] = useState(null);
-  
+
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
@@ -36,7 +35,9 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertsList, setAlertsList] = useState([]);
 
-  // Lógica de qual logo exibir baseada no tema atual
+  // NOVO: Estado para saúde do WhatsApp NPS
+  const [npsHealth, setNpsHealth] = useState(null);
+
   const currentLogo = theme === 'light' ? logoBranca : logoBranca;
 
   const getInitials = (fullName) => {
@@ -80,8 +81,9 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
   };
 
+  // Carrega os alertas (Navegação, Tele e Novos Pacientes)
   const loadAlerts = async () => {
-     try {
+    try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
@@ -96,7 +98,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       const novosPacientesData = Array.isArray(resNovosPacientes.data) ? resNovosPacientes.data : [];
 
       novosPacientesData.forEach(item => {
-        mostCritical = 0; 
+        mostCritical = 0;
         unifiedAlerts.push({
           id: `pac_new_${item.id}`,
           type: 'Novo Paciente',
@@ -162,13 +164,29 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
   };
 
+  // NOVO: Carregar saúde do WhatsApp NPS
+  const loadNpsHealth = async () => {
+    try {
+      const user = localStorage.getItem('oncologico:UserData');
+      const parsedUser = user ? JSON.parse(user) : null;
+
+      // Só tenta buscar se for admin ou tiver permissão (ajuste conforme seu checkPermission)
+      if (parsedUser?.user?.is_admin || temPermissaoDeAcesso('check-saude')) {
+        const response = await api.get('/nps/health');
+        setNpsHealth(response.data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar saúde do NPS", error);
+    }
+  };
+
   useEffect(() => {
     const user = localStorage.getItem('oncologico:UserData');
     if (user) {
       const parsedUser = JSON.parse(user);
       setUserStorage(parsedUser);
-      
-      if(parsedUser?.token) {
+
+      if (parsedUser?.token) {
         api.get('/users/me')
           .then(response => setUserProfileData(response.data))
           .catch(err => console.error("Erro ao buscar dados do perfil", err));
@@ -176,13 +194,18 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
 
     loadAlerts();
-    const interval = setInterval(() => loadAlerts(), 300000);
+    loadNpsHealth();
+
+    // Intervals para atualização automática
+    const alertInterval = setInterval(() => loadAlerts(), 300000);
+    const healthInterval = setInterval(() => loadNpsHealth(), 600000); // 10 min
 
     const handleUpdateAlerts = () => loadAlerts();
     window.addEventListener('updateAlerts', handleUpdateAlerts);
 
     return () => {
-      clearInterval(interval);
+      clearInterval(alertInterval);
+      clearInterval(healthInterval);
       window.removeEventListener('updateAlerts', handleUpdateAlerts);
     };
   }, []);
@@ -197,18 +220,14 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const handleNavigation = (path) => {
     navigate(path);
     setIsAlertModalOpen(false);
-    
-    // NOVO: Fecha a sidebar no mobile automaticamente ao clicar em um link
-    if (closeMobileMenu) {
-      closeMobileMenu(); 
-    }
+    if (closeMobileMenu) closeMobileMenu();
   };
 
   const getRoleText = () => {
     if (!userProfileData) return "Carregando...";
     if (userProfileData.is_admin) return "Cic Oncologia";
     if (userProfileData.operadoras && userProfileData.operadoras.length > 0) {
-      return userProfileData.operadoras.map(op => op.nome).join(', '); 
+      return userProfileData.operadoras.map(op => op.nome).join(', ');
     }
     return "Sem Operadora";
   };
@@ -221,10 +240,8 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
   return (
     <>
-      {/* NOVO: Overlay que fica escuro atrás da sidebar no mobile */}
       <S.MobileOverlay $isOpen={isMobileMenuOpen} onClick={closeMobileMenu} />
 
-      {/* NOVO: Passando a prop $isOpen para o Container */}
       <S.Container isCollapsed={collapsed} $isOpen={isMobileMenuOpen}>
         <S.ToggleButton onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <LuChevronRight size={18} /> : <LuChevronLeft size={18} />}
@@ -238,7 +255,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
           <S.AvatarContainer theme={theme}>
             {getInitials(userNameToShow)}
           </S.AvatarContainer>
-          
+
           <div className="user-info">
             <S.SystemName>Onco Navegação</S.SystemName>
             <S.UserName title={userNameToShow}>{userNameToShow}</S.UserName>
@@ -314,10 +331,34 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
               </S.SubMenuContent>
             </S.MenuItem>
           )}
-
         </S.MenuList>
 
         <S.Footer isCollapsed={collapsed}>
+          {/* SEÇÃO DINÂMICA DE SAÚDE DO WHATSAPP NPS */}
+          {npsHealth && (
+            <S.HealthStatus
+              isCollapsed={collapsed}
+              quality={npsHealth.qualidade}
+              title={collapsed ? `WhatsApp: ${npsHealth.qualidade} | Saldo: ${npsHealth.saldo}` : ""}
+            >
+              <div className="status-dot" />
+              <div className="health-info">
+                <span>Status NPS (WhatsApp)</span>
+                <strong>
+                  {npsHealth.qualidade === 'Green' ? 'Qualidade Alta' :
+                    npsHealth.qualidade === 'Yellow' ? 'Qualidade Média' :
+                      npsHealth.qualidade === 'Red' ? 'Qualidade Baixa' : 'Indisponível'}
+                </strong>
+
+                {/* Exibição do Saldo logo abaixo */}
+                <div className="balance-label">
+                  <LuSmartphone size={12} />
+                  Saldo: {npsHealth.saldo || '...'}
+                </div>
+              </div>
+            </S.HealthStatus>
+          )}
+
           <button onClick={toggleTheme} title={collapsed ? "Trocar Tema" : ""}>
             {theme === 'light' ? <LuMoon size={24} /> : <LuSun size={24} />}
             <span>{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>

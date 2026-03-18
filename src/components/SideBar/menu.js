@@ -1,8 +1,22 @@
 import {
-  LuLayoutDashboard, LuClipboardList, LuCompass, LuActivity,
-  LuHistory, LuUsers, LuShield, LuUser, LuAward, LuFileSearch,
-  LuBuilding2, LuStethoscope, LuHeartPulse, LuPill, LuFileQuestion,
-  LuLock, LuLogs, LuSettings
+  LuLayoutDashboard, 
+  LuCompass, 
+  LuActivity,
+  LuHistory, 
+  LuUsers, 
+  LuShield, 
+  LuUser, 
+  LuAward, 
+  LuFileSearch,
+  LuBuilding2, 
+  LuStethoscope, 
+  LuHeartPulse, 
+  LuPill, 
+  LuLock, 
+  LuLogs,
+  // Ícones com nomes de exportação MAIS ESTÁVEIS (Padrão Lucide)
+  LuClipboardList, 
+  LuFileWarning 
 } from "react-icons/lu";
 
 export const navOptions = [
@@ -23,11 +37,24 @@ export const registerOptions = [
   { id: "medicos", label: "Médicos", icon: LuStethoscope, path: "/medicos", modulo: "medicos" },
   { id: "comorbidades", label: "Comorbidades", icon: LuHeartPulse, path: "/comorbidades", modulo: "comorbidades" },
   { id: "medicamentos", label: "Medicamentos", icon: LuPill, path: "/medicamentos", modulo: "medicamentos" },
-  { id: "questoes", label: "Questionários", icon: LuFileQuestion, path: "/questionarios", modulo: "avaliacoes" },
-  { id: "ficha_ram", label: "Ficha RAM", icon: LuFileQuestion, path: "/ficha-ram", modulo: "reacao_adversa" },
+  
+  // ITENS COM NOVOS ÍCONES SEGUROS:
+  { 
+    id: "questoes", 
+    label: "Questionários", 
+    icon: LuClipboardList, // Prancheta de lista (Diferente de FileSearch)
+    path: "/questionarios", 
+    modulo: "avaliacoes" 
+  },
+  { 
+    id: "ficha_ram", 
+    label: "Ficha RAM", 
+    icon: LuFileWarning, // Arquivo com Alerta (Perfeito para Reação Adversa)
+    path: "/ficha-ram", 
+    modulo: "reacao_adversa" 
+  },
 ];
 
-// NOVO MENU ADMINISTRATIVO
 export const adminOptions = [
   { id: "auditoria", label: "Auditoria", icon: LuLogs, path: "/auditoria", modulo: "audit-logs" },
 ];

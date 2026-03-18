@@ -11,7 +11,7 @@ export default function ComorbidadesList({ data, loading, onEdit }) {
         <tr>
           <th>ID</th>
           <th>Nome da Comorbidade</th>
-          <th style={{ textAlign: 'right' }}>Ações</th>
+          <th >Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -26,7 +26,7 @@ export default function ComorbidadesList({ data, loading, onEdit }) {
             <tr key={item.id}>
               <td>{item.id}</td>
               <td><strong>{item.nome}</strong></td>
-              <td style={{ textAlign: 'right' }}>
+              <td style={{ textAlign: 'center' }}>
                 <ActionButton className="edit" onClick={() => onEdit(item)} title="Editar">
                   <LuPencil size={16} />
                 </ActionButton>
