@@ -15,9 +15,28 @@ import {
 
 export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
-  if (score <= 10) return { label: 'Alta Probabilidade de Adesão', level: 'alta' };
-  if (score <= 14) return { label: 'Adesão Moderada (Atenção)', level: 'media' };
-  return { label: 'Risco de Baixa Adesão', level: 'baixa' };
+
+  // Necessidade 1: 6 a 9 pontos (ou menos, assumindo que menor é melhor)
+  if (score <= 9) {
+    return { 
+      label: 'Paciente com alta tendência a adesão ao tratamento', 
+      level: 'alta' 
+    };
+  }
+
+  // Necessidade 2: 10 a 12 pontos
+  if (score <= 12) {
+    return { 
+      label: 'Paciente com tendência moderada a adesão ao tratamento', 
+      level: 'media' 
+    };
+  }
+
+  // Necessidade 3: 13 pontos e mais
+  return { 
+    label: 'Paciente com tendência baixa a adesão ao tratamento', 
+    level: 'baixa' 
+  };
 };
 
 export default function Telemonitoramento() {
