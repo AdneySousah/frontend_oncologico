@@ -153,8 +153,6 @@ export const Input = styled.input`
 export const ForgotPassword = styled.div`
   display: flex;
   justify-content: flex-end;
-  margin-top: -4px;
-  margin-bottom: 8px;
 
   a {
     color: ${({ theme }) => theme.colors.modernText};
@@ -236,5 +234,120 @@ export const FooterLinks = styled.div`
     &:hover {
       text-decoration: underline;
     }
+  }
+`;
+
+export const ErrorMessage = styled.div`
+  width: 100%;
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ef9a9a;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+`;
+
+export const PasswordToggle = styled.button`
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  
+  svg {
+    width: 20px;
+    height: 20px;
+    color: ${({ theme }) => theme.colors.modernTextLight};
+    transition: color 0.2s;
+  }
+
+  &:hover svg {
+    color: ${({ theme }) => theme.colors.modernText};
+  }
+`;
+
+export const OptionsRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: -4px;
+  margin-bottom: 8px;
+`;
+
+export const RememberContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  input[type="checkbox"] {
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    accent-color: ${({ theme }) => theme.colors.modernButtonBg};
+  }
+
+  label {
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.modernText};
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+`;
+
+export const StrengthContainer = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -8px;
+  margin-bottom: 8px;
+  padding: 0 4px;
+`;
+
+export const StrengthBar = styled.div`
+  width: 100%;
+  height: 6px;
+  background-color: ${({ theme }) => theme.colors.modernInputBorder};
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+export const StrengthFill = styled.div`
+  height: 100%;
+  /* Calcula a largura baseada na nota de 0 a 5 (cada ponto vale 20%) */
+  width: ${({ $strength }) => ($strength / 5) * 100}%;
+  
+  /* Define as cores com base na pontuação */
+  background-color: ${({ $strength }) => {
+    if ($strength <= 2) return '#ef4444'; // Vermelho (Fraca)
+    if ($strength === 3) return '#f59e0b'; // Laranja (Razoável)
+    if ($strength === 4) return '#84cc16'; // Verde claro (Boa)
+    return '#22c55e'; // Verde escuro (Forte)
+  }};
+  
+  transition: all 0.3s ease-in-out;
+`;
+
+export const StrengthText = styled.span`
+  font-size: 0.75rem;
+  color: ${({ theme }) => theme.colors.modernTextLight};
+  text-align: right;
+
+  strong {
+    color: ${({ $strength }) => {
+      if ($strength <= 2) return '#ef4444'; 
+      if ($strength === 3) return '#f59e0b'; 
+      if ($strength === 4) return '#84cc16'; 
+      return '#22c55e'; 
+    }};
   }
 `;

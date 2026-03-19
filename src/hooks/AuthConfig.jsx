@@ -26,17 +26,21 @@ function AuthProvider({ children }) {
         }
     }, []);
 
-    async function Login(email, password){
-        const {data} = await toast.promise(
-            api.post('/session', { email, password }),
-            {
-                pending: 'Verificando suas credenciais...',
-                success: 'Acesso liberado!',
-                error: 'Erro ao fazer login. Verifique suas credenciais.',
-            }
-        )
+    async function Login(email, password) {
+        try {
+            // Guardamos a resposta inteira em vez de tentar desestruturar { data } direto,
+            // pois se falhar, o código quebraria antes de chegar no catch
+            const response = await toast.promise(
+                api.post('/session', { email, password }),
+                {
+                    pending: 'Verificando suas credenciais...',
+                    success: 'Acesso liberado!',
+                    error: 'Erro ao fazer login. Verifique suas credenciais.',
+                }
+            );
 
-        try{
+            const { data } = response;
+            
             localStorage.setItem('oncologico:UserData', JSON.stringify(data));
             setUser(data);
             api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
@@ -49,7 +53,9 @@ function AuthProvider({ children }) {
             }
             
         } catch (error) {
-            console.error('Erro ao salvar os dados do usuário:', error);
+            console.error('Erro de autenticação:', error);
+            // Lança o erro novamente para o LoginPage capturar e exibir a mensagem na tela
+            throw error; 
         }
     }
 
