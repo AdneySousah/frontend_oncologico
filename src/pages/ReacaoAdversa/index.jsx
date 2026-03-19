@@ -1,47 +1,45 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { toast } from 'react-toastify';
-import { LuPencil, LuPower, LuPlus } from "react-icons/lu";
+import React, { useState, useEffect, useMemo } from 'react';
+import { LuList, LuPlus, LuUpload } from "react-icons/lu";
 import api from '../../services/api';
-import { Container, Header, TableContainer, Table } from './styles';
-import { ActionButton } from '../Users/styles'; // Reutilizando seu botão de ação
-import ReacaoAdversaModal from './components/ReacaoAdversaModal';
-import  SearchBar  from '../../components/SearchBar';
+import { toast } from 'react-toastify';
+import { 
+  Container, TabContainer, TabButton, Header // Reaproveite os estilos do seu MedicamentosPage
+} from './styles';
 
-const ReacoesAdversasPage = () => {
+import ReacoesAdversasList from './components/ReacoesAdversasList';
+import ReacoesAdversasForm from './components/ReacoesAdversasForm';
+import ImportarReacoesAdversas from './components/ImportarReacoesAdversas';
+import SearchBar from '../../components/SearchBar'; // Seu SearchBar existente
+
+export default function ReacoesAdversasPage() {
+  const [activeTab, setActiveTab] = useState('list');
   const [reacoes, setReacoes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedReacao, setSelectedReacao] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
   
-  // Estados de Filtro
+  // Filtros
   const [search, setSearch] = useState('');
   const [showInactives, setShowInactives] = useState(false);
 
   const loadReacoes = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/reacao-adversa');
-      setReacoes(response.data);
+      const res = await api.get('/reacao-adversa');
+      setReacoes(res.data);
     } catch (err) {
-      toast.error('Erro ao carregar dados.');
+      toast.error("Erro ao carregar reações adversas");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadReacoes(); }, []);
+  useEffect(() => { 
+    if (activeTab === 'list') loadReacoes(); 
+  }, [activeTab]);
 
-  // Filtro em tempo real
-  const filteredReacoes = useMemo(() => {
-    return reacoes.filter(r => {
-      const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = showInactives ? true : r.active;
-      return matchesSearch && matchesStatus;
-    });
-  }, [reacoes, search, showInactives]);
-
-  const handleEdit = (reacao) => {
-    setSelectedReacao(reacao);
-    setIsModalOpen(true);
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setActiveTab('form');
   };
 
   const handleToggleActive = async (reacao) => {
@@ -57,77 +55,62 @@ const ReacoesAdversasPage = () => {
     }
   };
 
+  const filteredReacoes = useMemo(() => {
+    return reacoes.filter(r => {
+      const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = showInactives ? true : r.active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [reacoes, search, showInactives]);
+
   return (
     <Container>
       <Header>
-        <h1>Fichas RAM - Reações Adversas</h1>
-        <button onClick={() => { setSelectedReacao(null); setIsModalOpen(true); }}>
-          <LuPlus size={20} style={{marginRight: 8}} /> Nova Reação
-        </button>
+        <h1>Gestão de Reações Adversas (RAM)</h1>
       </Header>
 
-      <SearchBar 
-        value={search} 
-        onChange={setSearch} 
-        showInactives={showInactives} 
-        onToggleInactives={setShowInactives} 
-      />
+      <TabContainer>
+        <TabButton active={activeTab === 'list'} onClick={() => {setActiveTab('list'); setEditingItem(null)}}>
+          <LuList size={18} style={{marginRight: '8px'}}/> Listagem
+        </TabButton>
+        <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')}>
+          <LuPlus size={18} style={{marginRight: '8px'}}/> {editingItem ? 'Editar' : 'Nova'} Reação
+        </TabButton>
+        <TabButton active={activeTab === 'import'} onClick={() => setActiveTab('import')}>
+          <LuUpload size={18} style={{marginRight: '8px'}}/> Importar Base (Excel)
+        </TabButton>
+      </TabContainer>
 
-      <TableContainer>
-        <Table>
-          <thead>
-            <tr>
-              <th style={{ width: '100px' }}>ID</th>
-              <th>Nome da Reação</th>
-              <th style={{ width: '150px' }}>Status</th>
-              <th style={{ textAlign: 'right', width: '150px' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="4" style={{textAlign: 'center'}}>Carregando...</td></tr>
-            ) : filteredReacoes.length === 0 ? (
-              <tr><td colSpan="4" style={{textAlign: 'center'}}>Nenhuma reação encontrada.</td></tr>
-            ) : (
-              filteredReacoes.map((reacao) => (
-                <tr key={reacao.id} style={{ opacity: reacao.active ? 1 : 0.6 }}>
-                  <td>#{reacao.id}</td>
-                  <td><strong>{reacao.name}</strong></td>
-                  <td>
-                    <span style={{ 
-                      color: reacao.active ? '#52c41a' : '#ff4d4f', 
-                      fontWeight: 'bold' 
-                    }}>
-                      {reacao.active ? '● Ativo' : '○ Inativo'}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <ActionButton className="edit" onClick={() => handleEdit(reacao)}>
-                      <LuPencil size={18} />
-                    </ActionButton>
-                    <ActionButton 
-                      className="delete" 
-                      onClick={() => handleToggleActive(reacao)}
-                      style={{ color: reacao.active ? '#ff4d4f' : '#52c41a', borderColor: reacao.active ? '#ff4d4f' : '#52c41a' }}
-                    >
-                      <LuPower size={18} />
-                    </ActionButton>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </Table>
-      </TableContainer>
+      {activeTab === 'list' && (
+        <>
+          <div style={{ marginBottom: '20px' }}>
+            <SearchBar 
+              value={search} 
+              onChange={setSearch} 
+              showInactives={showInactives} 
+              onToggleInactives={setShowInactives} 
+            />
+          </div>
+          <ReacoesAdversasList 
+            data={filteredReacoes} 
+            loading={loading} 
+            onEdit={handleEdit} 
+            onToggleActive={handleToggleActive} 
+          />
+        </>
+      )}
 
-      <ReacaoAdversaModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSuccess={loadReacoes}
-        dataToEdit={selectedReacao}
-      />
+      {activeTab === 'form' && (
+        <ReacoesAdversasForm 
+          reacaoToEdit={editingItem} 
+          onSuccess={() => {setActiveTab('list'); loadReacoes();}} 
+          onCancel={() => {setActiveTab('list'); setEditingItem(null);}} 
+        />
+      )}
+
+      {activeTab === 'import' && (
+        <ImportarReacoesAdversas onSuccess={() => loadReacoes()} />
+      )}
     </Container>
   );
-};
-
-export default ReacoesAdversasPage;
+}

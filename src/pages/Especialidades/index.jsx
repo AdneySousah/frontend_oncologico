@@ -1,62 +1,116 @@
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LuList, LuPlus, LuUpload } from "react-icons/lu";
 import api from '../../services/api';
-import { Container, Header, TableContainer, Table } from './styles';
-import SpecialtyModal from './components/SpecialtyModal';
+import { toast } from 'react-toastify';
+import { 
+  Container, TabContainer, TabButton, Header 
+} from './styles';
 
-const SpecialtiesPage = () => {
+import EspecialidadesList from './components/EspecialidadesList';
+import EspecialidadesForm from './components/EspecialidadesForm';
+import ImportarEspecialidades from './components/ImportarEspecialidades';
+import SearchBar from '../../components/SearchBar';
+
+export default function SpecialtiesPage() {
+  const [activeTab, setActiveTab] = useState('list');
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  // Filtros
+  const [search, setSearch] = useState('');
+  const [showInactives, setShowInactives] = useState(false);
 
   const loadSpecialties = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/specialities');
-      setSpecialties(response.data);
-      setLoading(false);
+      const res = await api.get('/specialities');
+      setSpecialties(res.data);
     } catch (err) {
-      toast.error('Erro ao carregar especialidades.');
+      toast.error("Erro ao carregar especialidades");
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadSpecialties(); }, []);
+  useEffect(() => { 
+    if (activeTab === 'list') loadSpecialties(); 
+  }, [activeTab]);
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setActiveTab('form');
+  };
+
+  const handleToggleActive = async (specialty) => {
+    const action = specialty.active ? 'desativar' : 'ativar';
+    if (window.confirm(`Deseja realmente ${action} esta especialidade?`)) {
+      try {
+        await api.delete(`/specialities/${specialty.id}`);
+        toast.success(`Especialidade ${specialty.active ? 'desativada' : 'ativada'}!`);
+        loadSpecialties();
+      } catch (err) {
+        toast.error('Erro ao alterar status.');
+      }
+    }
+  };
+
+  const filteredSpecialties = useMemo(() => {
+    return specialties.filter(s => {
+      const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = showInactives ? true : s.active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [specialties, search, showInactives]);
 
   return (
     <Container>
       <Header>
-        <h1>Especialidades</h1>
-        <button onClick={() => setIsModalOpen(true)}>+ Nova Especialidade</button>
+        <h1>Gestão de Especialidades</h1>
       </Header>
 
-      <TableContainer>
-        <Table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nome</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="2">Carregando...</td></tr>
-            ) : specialties.map((spec) => (
-              <tr key={spec.id}>
-                <td>#{spec.id}</td>
-                <td>{spec.name}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </TableContainer>
+      <TabContainer>
+        <TabButton active={activeTab === 'list'} onClick={() => {setActiveTab('list'); setEditingItem(null)}}>
+          <LuList size={18} style={{marginRight: '8px'}}/> Listagem
+        </TabButton>
+        <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')}>
+          <LuPlus size={18} style={{marginRight: '8px'}}/> {editingItem ? 'Editar' : 'Nova'} Especialidade
+        </TabButton>
+        <TabButton active={activeTab === 'import'} onClick={() => setActiveTab('import')}>
+          <LuUpload size={18} style={{marginRight: '8px'}}/> Importar Base (Excel)
+        </TabButton>
+      </TabContainer>
 
-      <SpecialtyModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSuccess={loadSpecialties} 
-      />
+      {activeTab === 'list' && (
+        <>
+          <div style={{ marginBottom: '20px' }}>
+            <SearchBar 
+              value={search} 
+              onChange={setSearch} 
+              showInactives={showInactives} 
+              onToggleInactives={setShowInactives} 
+            />
+          </div>
+          <EspecialidadesList 
+            data={filteredSpecialties} 
+            loading={loading} 
+            onEdit={handleEdit} 
+            onToggleActive={handleToggleActive} 
+          />
+        </>
+      )}
+
+      {activeTab === 'form' && (
+        <EspecialidadesForm 
+          specialtyToEdit={editingItem} 
+          onSuccess={() => {setActiveTab('list'); loadSpecialties();}} 
+          onCancel={() => {setActiveTab('list'); setEditingItem(null);}} 
+        />
+      )}
+
+      {activeTab === 'import' && (
+        <ImportarEspecialidades onSuccess={() => loadSpecialties()} />
+      )}
     </Container>
   );
-};
-
-export default SpecialtiesPage;
+}

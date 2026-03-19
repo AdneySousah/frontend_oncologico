@@ -1,94 +1,116 @@
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LuList, LuPlus, LuUpload } from "react-icons/lu";
 import api from '../../services/api';
-import { LuPencil, LuPlus } from "react-icons/lu";
+import { toast } from 'react-toastify';
+import { 
+  Container, TabContainer, TabButton, Header 
+} from './styles';
 
-// Reutilizando seus estilos de tabela padronizados
-import { Container, Header, TableContainer, Table, ActionButton } from '../Users/styles';
-import DiagnosticoModal from './components/DiagnosticoModal';
+import DiagnosticosList from './components/DiagnosticosList';
+import DiagnosticosForm from './components/DiagnosticosForm';
+import ImportarDiagnosticos from './components/ImportarDiagnosticos';
+import SearchBar from '../../components/SearchBar'; 
 
-const DiagnosticosPage = () => {
+export default function DiagnosticosPage() {
+  const [activeTab, setActiveTab] = useState('list');
   const [diagnosticos, setDiagnosticos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [diagToEdit, setDiagToEdit] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  const [search, setSearch] = useState('');
+  const [showInactives, setShowInactives] = useState(false);
 
   const loadDiagnosticos = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/diagnosticos');
-      setDiagnosticos(response.data);
-      setLoading(false);
+      const res = await api.get('/diagnosticos');
+      setDiagnosticos(res.data);
     } catch (err) {
-      toast.error('Erro ao carregar diagnósticos.');
+      toast.error("Erro ao carregar diagnósticos");
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadDiagnosticos(); }, []);
+  useEffect(() => { 
+    if (activeTab === 'list') loadDiagnosticos(); 
+  }, [activeTab]);
 
-  const handleNew = () => {
-    setDiagToEdit(null);
-    setIsModalOpen(true);
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setActiveTab('form');
   };
 
-  const handleEdit = (diag) => {
-    setDiagToEdit(diag);
-    setIsModalOpen(true);
+  const handleToggleActive = async (diag) => {
+    const action = diag.active ? 'desativar' : 'ativar';
+    if (window.confirm(`Deseja realmente ${action} este diagnóstico?`)) {
+      try {
+        await api.delete(`/diagnosticos/${diag.id}`);
+        toast.success(`Diagnóstico ${diag.active ? 'desativado' : 'ativado'}!`);
+        loadDiagnosticos();
+      } catch (err) {
+        toast.error('Erro ao alterar status.');
+      }
+    }
   };
+
+  const filteredDiagnosticos = useMemo(() => {
+    return diagnosticos.filter(d => {
+      // Importante: a chave no backend de diagnóstico é 'd.diagnostico', não 'd.name'
+      const matchesSearch = d.diagnostico?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = showInactives ? true : d.active;
+      return matchesSearch && matchesStatus;
+    });
+  }, [diagnosticos, search, showInactives]);
 
   return (
     <Container>
       <Header>
-        <h1>Cadastros de Diagnósticos (CID)</h1>
-        <button onClick={handleNew}>
-          <LuPlus style={{ marginRight: '8px' }} /> Novo Diagnóstico
-        </button>
+        <h1>Gestão de Diagnósticos (CID)</h1>
       </Header>
 
-      <TableContainer>
-        <Table>
-          <thead>
-            <tr>
-              <th style={{ width: '80px' }}>ID</th>
-              <th>Diagnóstico / CID</th>
-              <th style={{ textAlign: 'right', width: '120px' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="3" style={{ textAlign: 'center' }}>Carregando...</td></tr>
-            ) : diagnosticos.length === 0 ? (
-              <tr><td colSpan="3" style={{ textAlign: 'center' }}>Nenhum diagnóstico cadastrado.</td></tr>
-            ) : (
-              diagnosticos.map((diag) => (
-                <tr key={diag.id}>
-                  <td>#{diag.id}</td>
-                  <td><strong>{diag.diagnostico}</strong></td>
-                  {/* Dentro do seu map de diagnósticos */}
-                  <td style={{ textAlign: 'right' }}>
-                    <ActionButton
-                      className="edit" // Adicionando a classe edit para pegar o estilo do seu Users/styles
-                      onClick={() => handleEdit(diag)}
-                      title="Editar Diagnóstico"
-                    >
-                      <LuPencil size={18} />
-                    </ActionButton>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </Table>
-      </TableContainer>
+      <TabContainer>
+        <TabButton active={activeTab === 'list'} onClick={() => {setActiveTab('list'); setEditingItem(null)}}>
+          <LuList size={18} style={{marginRight: '8px'}}/> Listagem
+        </TabButton>
+        <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')}>
+          <LuPlus size={18} style={{marginRight: '8px'}}/> {editingItem ? 'Editar' : 'Novo'} Diagnóstico
+        </TabButton>
+        <TabButton active={activeTab === 'import'} onClick={() => setActiveTab('import')}>
+          <LuUpload size={18} style={{marginRight: '8px'}}/> Importar Base (Excel)
+        </TabButton>
+      </TabContainer>
 
-      <DiagnosticoModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        diagToEdit={diagToEdit}
-        onSuccess={loadDiagnosticos}
-      />
+      {activeTab === 'list' && (
+        <>
+          <div style={{ marginBottom: '20px' }}>
+            <SearchBar 
+              value={search} 
+              onChange={setSearch} 
+              showInactives={showInactives} 
+              onToggleInactives={setShowInactives} 
+            />
+          </div>
+          <DiagnosticosList 
+            data={filteredDiagnosticos} 
+            loading={loading} 
+            onEdit={handleEdit} 
+            onToggleActive={handleToggleActive} 
+          />
+        </>
+      )}
+
+      {activeTab === 'form' && (
+        <DiagnosticosForm 
+          diagToEdit={editingItem} 
+          onSuccess={() => {setActiveTab('list'); loadDiagnosticos();}} 
+          onCancel={() => {setActiveTab('list'); setEditingItem(null);}} 
+        />
+      )}
+
+      {activeTab === 'import' && (
+        <ImportarDiagnosticos onSuccess={() => loadDiagnosticos()} />
+      )}
     </Container>
   );
-};
-
-export default DiagnosticosPage;
+}
