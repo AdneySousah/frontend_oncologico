@@ -1,0 +1,96 @@
+[
+  {
+    "id": "cadastros-basicos",
+    "icon": "LuBookOpen",
+    "title": "1. Cadastros básicos",
+    "content": [
+      { "type": "text", "value": "O sistema funciona em modo cascata, para realizar os cadastros básicos. É necessário começar de especialidades e ir até ficha RAM (isso vale apenas para o primeiro cadastro de todos os itens) após isso a ordem pode ser feita da maneira que achar melhor." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/1.png", "alt": "Modo cascata" },
+      { "type": "text", "value": "Cada aba do cadastro tem seus campos únicos e modos de cadastros, sendo alguns deles disponível importação via excel. Um exemplo de cadastro básico é a gestão de especialidades, temos a lista:" },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/2.png", "alt": "Lista de especialidades" },
+      { "type": "text", "value": "O formulário de cadastro:" },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/3.png", "alt": "Formulário de cadastro" },
+      { "type": "text", "value": "E a importação do excel:" },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/4.png", "alt": "Importação Excel" },
+      { "type": "text", "value": "Para importação do excel basta seguir as orientações dos campos, importar uma planilha e clicar no botão de importação." }
+    ]
+  },
+  {
+    "id": "cadastros-usuarios",
+    "icon": "LuUsers",
+    "title": "2. Cadastros de usuários",
+    "content": [
+      { "type": "text", "value": "Vamos passar alguns cadastros mais enxutos onde é necessário ter um pouco mais de atenção, começando pelo cadastro de usuários." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/5.png", "alt": "Lista de usuários" },
+      { "type": "text", "value": "Aqui temos opções de inativar, editar e salvar um novo usuário. A tela de edição é exatamente idêntica à tela de salvar." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/6.png", "alt": "Formulário de usuário" },
+      { "type": "text", "value": "Quando clicado, é necessário inserir um perfil como obrigatório, sem ele não é possível o usuário ter acesso ao sistema, além disso é necessário Nome completo, Email para acesso e Senha. Onde temos acesso às operadoras, é possível marcar uma ou mais." },
+      { "type": "highlight", "value": "Atenção: caso o usuário seja um colaborador do CIC FARMA, não é necessário selecionar todas as operadoras, basta clicar no botão 'Ver todas as operadoras'." },
+      { "type": "text", "value": "Após isso clicar em salvar e mandar os acessos para o usuário." }
+    ]
+  },
+  {
+    "id": "cadastro-pacientes",
+    "icon": "LuUserPlus",
+    "title": "3. Cadastro de pacientes",
+    "content": [
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/7.png", "alt": "Lista de pacientes" },
+      { "type": "text", "value": "O cadastro de pacientes também tem suas particularidades e diferenças, dentro dele temos várias formas de cadastro ao clicar em novo paciente." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/8.png", "alt": "Opções de novo paciente" },
+      { "type": "text", "value": "Podemos cadastrar manualmente como mostra no formulário, ou enviar um anexo do tipo imagem com as informações do paciente, o sistema faz a busca automática dos dados da imagem e cria um auto preenchimento. Ao clicar no botão ele abre uma janela para que selecione a imagem, ao selecionar ele manda para uma IA que faz a leitura e exibe dessa forma:" },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/9.png", "alt": "Leitura da IA" },
+      { "type": "text", "value": "Após isso basta conferir os dados, se estão ok, e clicar em confirmar e preencher." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/10.png", "alt": "Confirmação de dados" },
+      { "type": "text", "value": "O sistema cria um auto preenchimento no sistema, sendo necessário escolher a operadora (caso seja colaborador da CIC FARMA, caso não for ele preenche sozinho) e escolher o medicamento que o beneficiário faz uso." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/11.png", "alt": "Preenchimento do medicamento" },
+      { "type": "text", "value": "Existe logo abaixo no formulário um campo de anexos, onde podem ser inseridos receitas, prontuários, dentre outros documentos necessários para o acompanhamento. O anexo é acessível na tela da lista de pacientes. Também é possível fazer o envio de cadastros do paciente via excel." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/12.png", "alt": "Importação Excel Pacientes" },
+      { "type": "text", "value": "Basta seguir as orientações do padrão de preenchimento. O campo de seleção 'Vincular pacientes à Operadora', caso o envio da planilha venha do colaborador da operadora é preenchido automaticamente, caso não, é necessário escolher. O sistema valida a planilha e te dá os erros da validação e por padrão bloqueia para que não haja um erro do envio de dados." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/13.png", "alt": "Validação de erros Excel" }
+    ]
+  },
+  {
+    "id": "utilizacao-sistema",
+    "icon": "LuMonitorPlay",
+    "title": "4. Utilização do sistema",
+    "content": [
+      { "type": "title", "value": "Necessidade de navegação" },
+      { "type": "text", "value": "Quando vamos para a necessidade de navegação, os pacientes aparecem numa tabela com a classificação como prioridade através do preço do medicamento." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/14.png", "alt": "Tabela de pacientes por prioridade" },
+      { "type": "text", "value": "Ao clicar em avaliar o sistema te abre um modal para o envio de termo de responsabilidade." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/15.png", "alt": "Modal de termo" },
+      { "type": "text", "value": "Ao clicar no botão de enviar o link via whatsapp, a tela aguarda uma resposta vinda do link enviado para o paciente." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/16.png", "alt": "Aguardando resposta do termo" },
+      { "type": "text", "value": "O Link chega para o whatsapp do paciente onde é necessário clicar no link para acessar o termo." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/17.png", "alt": "Link no Whatsapp" },
+      { "type": "text", "value": "Caso o paciente aceite, a tela mostrará essa informação e vai te encaminhar para responder o questionário." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/18.png", "alt": "Termo aceito" },
+      { "type": "text", "value": "O questionário é aberto e nele vemos diversos pontos: o progresso das respostas, o score atual baseado no que foi respondido, os dados do paciente." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/19.png", "alt": "Questionário e Score" },
+      { "type": "text", "value": "Após responder envia a avaliação e é exibido o score." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/20.png", "alt": "Score Final" },
+      { "type": "text", "value": "Após isso basta clicar em continuar e será exibido um modal perguntando a posologia do medicamento que o paciente usa." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/21.png", "alt": "Posologia do medicamento" },
+      { "type": "text", "value": "Basta incluir a quantidade de comprimidos dia, e esse beneficiário vai pro telemonitoramento." },
+      
+      { "type": "title", "value": "Telemonitoramento" },
+      { "type": "text", "value": "Após passar pela entrevista médica o beneficiário é inserido no telemonitoramento. Aqui é possível ver o resumo de todos os pacientes em relação ao seu tratamento, a aderência do tratamento, e a adesão ao medicamento." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/23.png", "alt": "Resumo de telemonitoramento" },
+      { "type": "text", "value": "Quando clicamos em detalhes, é possível ver todos os teles já feito com aquele paciente." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/24.png", "alt": "Detalhes de contatos" },
+      { "type": "text", "value": "No status do contato mostra um alerta de quando é necessário um novo contato (ele é contado baseado na quantidade de comprimidos que o beneficiário tem). Clique em registrar contato. O sistema vai te mostrar a tela abaixo, aqui vamos registrar se o contato existiu ou não, caso tenha existido as perguntas seguintes precisam ser respondidas." },
+      { "type": "highlight", "value": "A opção 'Quantos comprimidos restam na caixa do paciente?' e a opção 'Qual a data informada para abertura da NOVA caixa?' são entrelaçadas. De acordo com a quantidade de comprimidos que o paciente tem na caixa, a data desta última opção é preenchida, assim como a opção 'O quanto ele adere?' também é calculada automaticamente de acordo com a resposta da quantidade de comprimidos restante." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/25.png", "alt": "Registro de contato" },
+      { "type": "text", "value": "Após inserir as informações basta clicar em salvar o registro. Ao salvar o sistema vai abrir uma avaliação de NPS e perguntar se deseja fazer o envio." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/26.png", "alt": "Envio de NPS" },
+      { "type": "text", "value": "Ao clicar em sim, enviar NPS, o sistema envia o NPS e aguarda retorno do beneficiário." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/27.png", "alt": "Aguardando NPS" },
+      { "type": "text", "value": "Assim que ele responder pelo whatsapp, a nota é calculada e exibida na tela." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/28.png", "alt": "Nota do NPS" },
+      
+      { "type": "title", "value": "Linha do tempo" },
+      { "type": "text", "value": "Após o envio das informações, tudo o que foi feito com o paciente fica dentro de uma linha do tempo, nela é possível ver todos os registros já feitos e os futuros e uma opção de download." },
+      { "type": "image", "src": "../../assets/imagens_manual/cadastros_basicos/29.png", "alt": "Linha do tempo" }
+    ]
+  }
+]

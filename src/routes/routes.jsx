@@ -22,6 +22,7 @@ import ReacoesAdversasPage from '../pages/ReacaoAdversa';
 import Dashboard from '../pages/Dashboard';
 import ForgotPasswordPage from '../pages/LoginPage/ForgotPasswordPage';
 import AuditoriaPage from '../pages/Auditoria';
+import ManualPage from '../pages/GuiaUso';
 
 
 export default function Routes() {
@@ -58,6 +59,7 @@ export default function Routes() {
                 <Route path='/telemonitoramento' element={<Telemonitoramento />} /> 
                 <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
                 <Route path='/auditoria' element={<AuditoriaPage />} />
+                <Route path='/manual' element={<ManualPage />} />
                 
                 
 

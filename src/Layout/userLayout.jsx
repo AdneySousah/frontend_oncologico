@@ -1,12 +1,28 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Container, MainContent, ContainerOutlet, MobileHeader, MenuButton } from "./styles";
+import { Outlet, useNavigate } from "react-router-dom";
+import { 
+  Container, 
+  MainContent, 
+  ContainerOutlet, 
+  MobileHeader, 
+  MenuButton,
+  FloatingHelpContainer,
+  HelpTooltip,
+  HelpButton
+} from "./styles";
 import Sidebar from "../components/SideBar"; // Ajuste o caminho conforme sua estrutura
-import { LuMenu } from "react-icons/lu";
+import { LuMenu, LuCircleAlert } from "react-icons/lu";
 
-export function UserLayout(){
-  // Estado para controlar a abertura da sidebar no mobile
+export function UserLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Hook para fazer o roteamento ao clicar no botão
+  const navigate = useNavigate();
+
+  const handleOpenManual = () => {
+    // Altere '/manual' para a rota exata onde o seu manual foi configurado
+    navigate('/manual');
+  };
 
   return(
     <Container>
@@ -29,6 +45,15 @@ export function UserLayout(){
            <Outlet />
         </ContainerOutlet>
       </MainContent>
+
+      {/* NOVO: Botão Flutuante de Ajuda */}
+      <FloatingHelpContainer onClick={handleOpenManual}>
+        <HelpTooltip className="tooltip">Quer ajuda com uso do sistema?</HelpTooltip>
+        <HelpButton title="Acessar o Manual">
+          <LuCircleAlert size={32} />
+        </HelpButton>
+      </FloatingHelpContainer>
+
     </Container>
   )
 }
