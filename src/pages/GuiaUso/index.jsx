@@ -36,17 +36,6 @@ export default function ManualPage() {
   // Filtra o conteúdo da aba selecionada
   const activeSection = manualData.find(section => section.id === activeTab);
 
-  // Função para renderizar as imagens (ver nota abaixo sobre imagens no Vite/Webpack)
-  const renderImage = (src) => {
-    try {
-      // Se usar Vite e as imagens estiverem fora de 'public', 
-      // pode ser necessário ajustar essa URL de importação:
-      return new URL(src, import.meta.url).href;
-    } catch (e) {
-      return src; 
-    }
-  };
-
   return (
     <Container>
       <Header>
@@ -83,7 +72,8 @@ export default function ManualPage() {
             case 'image':
               return (
                 <ManualImageContainer key={index}>
-                  <img src={renderImage(item.src)} alt={item.alt} loading="lazy" />
+                  {/* Como as imagens estão em /public, o src nativo já resolve o caminho */}
+                  <img src={item.src} alt={item.alt} loading="lazy" />
                   <span>{item.alt}</span>
                 </ManualImageContainer>
               );
