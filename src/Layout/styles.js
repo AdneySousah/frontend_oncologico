@@ -74,22 +74,21 @@ export const FloatingHelpContainer = styled.div`
   z-index: 1000;
   display: flex;
   align-items: center;
-  cursor: pointer;
+  
+  /* Permite que o clique "atravesse" a div e a tooltip invisível */
+  pointer-events: none; 
 
-  /* Aplica o pulo de forma contínua no container */
   animation: ${bounce} 2.5s infinite;
 
   &:hover {
-    animation: none; /* Para de pular ao focar */
+    animation: none;
     
-    /* Mostra o balão de texto */
     .tooltip {
       opacity: 1;
       visibility: visible;
       transform: translateX(0);
     }
     
-    /* Gira e dá um leve zoom no botão */
     button {
       transform: rotate(360deg) scale(1.1);
     }
@@ -116,6 +115,10 @@ export const HelpTooltip = styled.span`
 `;
 
 export const HelpButton = styled.button`
+  /* Reativa o clique apenas no botão */
+  pointer-events: auto; 
+  cursor: pointer;
+
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -126,9 +129,7 @@ export const HelpButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   
-  /* Transição suave para o giro e a cor */
   transition: transform 0.5s ease, background-color 0.3s ease;
 
   &:hover {

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { 
-  Container, 
-  MainContent, 
-  ContainerOutlet, 
-  MobileHeader, 
+import {
+  Container,
+  MainContent,
+  ContainerOutlet,
+  MobileHeader,
   MenuButton,
   FloatingHelpContainer,
   HelpTooltip,
@@ -15,7 +15,7 @@ import { LuMenu, LuCircleAlert } from "react-icons/lu";
 
 export function UserLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   // Hook para fazer o roteamento ao clicar no botão
   const navigate = useNavigate();
 
@@ -24,13 +24,13 @@ export function UserLayout() {
     navigate('/manual');
   };
 
-  return(
+  return (
     <Container>
-      <Sidebar 
-        isMobileMenuOpen={isMobileMenuOpen} 
-        closeMobileMenu={() => setIsMobileMenuOpen(false)} 
+      <Sidebar
+        isMobileMenuOpen={isMobileMenuOpen}
+        closeMobileMenu={() => setIsMobileMenuOpen(false)}
       />
-      
+
       <MainContent>
         {/* Header exclusivo para telas menores */}
         <MobileHeader>
@@ -42,14 +42,15 @@ export function UserLayout() {
         </MobileHeader>
 
         <ContainerOutlet>
-           <Outlet />
+          <Outlet />
         </ContainerOutlet>
       </MainContent>
 
+  
       {/* NOVO: Botão Flutuante de Ajuda */}
-      <FloatingHelpContainer onClick={handleOpenManual}>
+      <FloatingHelpContainer>
         <HelpTooltip className="tooltip">Quer ajuda com uso do sistema?</HelpTooltip>
-        <HelpButton title="Acessar o Manual">
+        <HelpButton title="Acessar o Manual" onClick={handleOpenManual}>
           <LuCircleAlert size={32} />
         </HelpButton>
       </FloatingHelpContainer>
