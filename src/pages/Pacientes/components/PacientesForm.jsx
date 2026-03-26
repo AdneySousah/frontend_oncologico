@@ -175,12 +175,12 @@ export default function PacientesForm({ pacienteToEdit, onSuccess, onCancel, isA
         if (!['nomeCompleto', 'nome', 'sobrenome'].includes(key)) {
           let value = formData[key];
           if (key === 'cpf') value = value.replace(/\D/g, '');
-          dataToSend.append(key, value === null ? '' : value);
+          dataToSend.set(key, value === null ? '' : value);
         }
       });
 
       if (pacienteToEdit && submitAction === 'confirm') {
-        dataToSend.append('is_new_user', 'false');
+        dataToSend.set('is_new_user', 'false');
       }
 
       anexos.forEach((anexo) => {
