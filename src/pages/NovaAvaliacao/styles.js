@@ -111,13 +111,13 @@ export const Select = styled.select`
 
 export const Form = styled.form`
   margin-top: 30px;
+  margin-right: 50px;
   background: ${props => props.theme.colors.surface};
   padding: 40px;
   border-radius: 8px;
   border: 1px solid ${props => props.theme.colors.border};
   box-shadow: 0 4px 15px rgba(0,0,0,0.05);
   margin-bottom: 100px; /* Espaço para o FloatingScore não cobrir botões */
-
   @media (max-width: 768px) {
     padding: 20px;
   }
