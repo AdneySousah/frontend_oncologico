@@ -385,7 +385,7 @@ export const SuccessCheck = styled.svg`
 export const FloatingScore = styled.div`
   position: fixed;
   bottom: 40px;
-  right: 20px;
+  right: 80px;
   background-color: ${props => props.theme.colors.primary};
   color: white;
   padding: 15px 25px;
