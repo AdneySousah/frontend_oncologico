@@ -111,7 +111,7 @@ export const Select = styled.select`
 
 export const Form = styled.form`
   margin-top: 30px;
-  margin-right: 50px;
+
   background: ${props => props.theme.colors.surface};
   padding: 40px;
   border-radius: 8px;
@@ -385,7 +385,7 @@ export const SuccessCheck = styled.svg`
 export const FloatingScore = styled.div`
   position: fixed;
   bottom: 40px;
-  right: 40px;
+  right: 20px;
   background-color: ${props => props.theme.colors.primary};
   color: white;
   padding: 15px 25px;
