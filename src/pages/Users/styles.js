@@ -1,3 +1,4 @@
+// src/.../styles.js (ou o caminho correto do seu arquivo)
 import styled from 'styled-components';
 
 export const Container = styled.div`
@@ -38,7 +39,7 @@ export const TableContainer = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  overflow: hidden; // Para os cantos arredondados
+  overflow: hidden;
 `;
 
 export const Table = styled.table`
@@ -46,7 +47,6 @@ export const Table = styled.table`
   border-collapse: collapse;
 
   thead {
-    /* Usando a cor primária no cabeçalho garante contraste e beleza nos dois temas */
     background-color: ${({ theme }) => theme.colors.primary};
     
     th {
@@ -63,8 +63,10 @@ export const Table = styled.table`
       border-bottom: 1px solid ${({ theme }) => theme.colors.border};
       transition: background 0.1s;
 
+      /* A prop 'isActive' é passada pelo componente React */
+      opacity: ${({ isActive }) => (isActive === false ? 0.55 : 1)};
+
       &:hover {
-        /* Fundo de destaque suave ao passar o mouse */
         background-color: ${({ theme }) => theme.colors.inputBg};
       }
 
@@ -105,5 +107,119 @@ export const ActionButton = styled.button`
       background-color: ${({ theme }) => theme.colors.danger || '#ff4d4f'};
       color: #ffffff;
     }
+  }
+
+  /* Variação para botão de Reativar (quando inativo) */
+  &.reactivate {
+    color: #52c41a;
+    border-color: #52c41a;
+
+    &:hover {
+      background-color: #52c41a;
+      color: #ffffff;
+    }
+  }
+`;
+
+// --- NOVOS COMPONENTES ESTILIZADOS EXTRAÍDOS DO INLINE ---
+
+export const UserEmail = styled.small`
+  color: ${({ theme }) => theme.colors.textLight};
+`;
+
+export const AdminBadge = styled.span`
+  margin-left: 5px;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 0.7rem;
+  font-weight: bold;
+`;
+
+export const ProfissionalYes = styled.b`
+  color: #13c2c2;
+`;
+
+export const RegistryInfo = styled.div`
+  small {
+    display: block;
+    line-height: 1.2;
+  }
+  .speciality {
+    font-size: 0.7rem;
+    color: ${({ theme }) => theme.colors.textLight};
+  }
+`;
+
+export const AdminMatrixBadge = styled.span`
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #0050b3;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  display: inline-block;
+`;
+
+export const OperadorasList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 200px;
+`;
+
+export const OperadoraBadge = styled.span`
+  background-color: ${({ theme }) => theme.colors.inputBg}; /* Adapta ao tema escuro/claro */
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.text};
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  display: inline-block;
+`;
+
+export const NoOperadoraText = styled.span`
+  color: ${({ theme }) => theme.colors.textLight};
+  font-size: 0.8rem;
+  font-style: italic;
+`;
+
+export const StatusBadge = styled.span`
+  color: ${({ isActive }) => (isActive ? '#52c41a' : '#f5222d')};
+  font-weight: bold;
+  font-size: 0.85rem;
+`;
+
+export const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  gap: 15px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  
+  button {
+    background-color: transparent;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    color: ${({ theme }) => theme.colors.text};
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    
+    &:not(:disabled):hover {
+      background-color: ${({ theme }) => theme.colors.inputBg};
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  span {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 0.9rem;
   }
 `;

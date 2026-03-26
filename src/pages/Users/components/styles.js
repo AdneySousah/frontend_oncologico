@@ -1,225 +1,160 @@
-// src/.../styles.js (ou o caminho correto do seu arquivo)
 import styled from 'styled-components';
 
-export const Container = styled.div`
-  padding: 2rem;
-  background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
-  min-height: 100vh;
-`;
-
-export const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 1.8rem;
-  }
-
-  button {
-    background-color: ${({ theme }) => theme.colors.primary};
-    color: #ffffff;
-    border: none;
-    padding: 0.8rem 1.5rem;
-    border-radius: 4px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-
-    &:hover {
-      background-color: ${({ theme }) => theme.colors.primaryHover};
-    }
-  }
-`;
-
-export const TableContainer = styled.div`
-  background-color: ${({ theme }) => theme.colors.surface};
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  overflow: hidden;
-`;
-
-export const Table = styled.table`
+export const Overlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
-  border-collapse: collapse;
-
-  thead {
-    background-color: ${({ theme }) => theme.colors.primary};
-    
-    th {
-      color: #ffffff;
-      padding: 1rem;
-      text-align: left;
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-  }
-
-  tbody {
-    tr {
-      border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-      transition: background 0.1s;
-
-      /* A prop 'isActive' é passada pelo componente React */
-      opacity: ${({ isActive }) => (isActive === false ? 0.55 : 1)};
-
-      &:hover {
-        background-color: ${({ theme }) => theme.colors.inputBg};
-      }
-
-      td {
-        padding: 1rem;
-        color: ${({ theme }) => theme.colors.text};
-        font-size: 0.95rem;
-      }
-    }
-  }
-`;
-
-export const ActionButton = styled.button`
-  background: transparent;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-right: 0.5rem;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-
-  &.edit {
-    color: ${({ theme }) => theme.colors.primary};
-    border-color: ${({ theme }) => theme.colors.primary};
-    
-    &:hover {
-      background-color: ${({ theme }) => theme.colors.primary};
-      color: #ffffff;
-    }
-  }
-
-  &.delete {
-    color: ${({ theme }) => theme.colors.danger || '#ff4d4f'};
-    border-color: ${({ theme }) => theme.colors.danger || '#ff4d4f'};
-
-    &:hover {
-      background-color: ${({ theme }) => theme.colors.danger || '#ff4d4f'};
-      color: #ffffff;
-    }
-  }
-
-  /* Variação para botão de Reativar (quando inativo) */
-  &.reactivate {
-    color: #52c41a;
-    border-color: #52c41a;
-
-    &:hover {
-      background-color: #52c41a;
-      color: #ffffff;
-    }
-  }
-`;
-
-// --- NOVOS COMPONENTES ESTILIZADOS EXTRAÍDOS DO INLINE ---
-
-export const UserEmail = styled.small`
-  color: ${({ theme }) => theme.colors.textLight};
-`;
-
-export const AdminBadge = styled.span`
-  margin-left: 5px;
-  color: ${({ theme }) => theme.colors.danger};
-  font-size: 0.7rem;
-  font-weight: bold;
-`;
-
-export const ProfissionalYes = styled.b`
-  color: #13c2c2;
-`;
-
-export const RegistryInfo = styled.div`
-  small {
-    display: block;
-    line-height: 1.2;
-  }
-  .speciality {
-    font-size: 0.7rem;
-    color: ${({ theme }) => theme.colors.textLight};
-  }
-`;
-
-export const AdminMatrixBadge = styled.span`
-  background-color: #e6f7ff;
-  border: 1px solid #91d5ff;
-  color: #0050b3;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  display: inline-block;
-`;
-
-export const OperadorasList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-width: 200px;
-`;
-
-export const OperadoraBadge = styled.span`
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Adapta ao tema escuro/claro */
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  color: ${({ theme }) => theme.colors.text};
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  display: inline-block;
-`;
-
-export const NoOperadoraText = styled.span`
-  color: ${({ theme }) => theme.colors.textLight};
-  font-size: 0.8rem;
-  font-style: italic;
-`;
-
-export const StatusBadge = styled.span`
-  color: ${({ isActive }) => (isActive ? '#52c41a' : '#f5222d')};
-  font-weight: bold;
-  font-size: 0.85rem;
-`;
-
-export const PaginationContainer = styled.div`
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Mantido assim pois funciona perfeito em light/dark */
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 1rem;
-  gap: 15px;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-  
-  button {
-    background-color: transparent;
-    border: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.text};
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    
-    &:not(:disabled):hover {
-      background-color: ${({ theme }) => theme.colors.inputBg};
-    }
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+`;
 
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+export const ModalContainer = styled.div`
+  background-color: ${({ theme }) => theme.colors.surface};
+  width: 100%;
+  max-width: 500px;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  position: relative;
+
+  h2 {
+    color: ${({ theme }) => theme.colors.primary}; /* Trocado de primaryDark para melhor contraste no dark mode */
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    padding-bottom: 0.5rem;
+  }
+`;
+
+export const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+export const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    font-size: 0.9rem;
+    color: ${({ theme }) => theme.colors.textLight};
+    font-weight: 500;
   }
 
-  span {
+  input {
+    padding: 0.75rem;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 4px;
+    font-size: 1rem;
     color: ${({ theme }) => theme.colors.text};
+    background-color: ${({ theme }) => theme.colors.inputBg}; /* Ajustado para inputBg */
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:focus {
+      border-color: ${({ theme }) => theme.colors.primary};
+      outline: none;
+      box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.primary}33; /* Glow suave opcional */
+    }
+  }
+`;
+
+export const ButtonGroup = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+`;
+
+export const Button = styled.button`
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.2s, background-color 0.2s;
+
+  &.cancel {
+    background-color: ${({ theme }) => theme.colors.inputBg}; /* Usando inputBg como alternativa ao backgroundAlt */
+    color: ${({ theme }) => theme.colors.text};
+    border: 1px solid ${({ theme }) => theme.colors.border}; /* Adicionado borda sutil para não sumir no fundo */
+  }
+
+  &.save {
+    background-color: ${({ theme }) => theme.colors.primary};
+    color: #ffffff;
+  }
+
+  &:hover {
+    opacity: 0.9;
+  }
+`;
+
+export const CheckboxGroup = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  margin: 0.5rem 0;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: ${({ theme }) => theme.colors.text};
+  }
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: ${({ theme }) => theme.colors.primary};
+    cursor: pointer;
+  }
+
+  .info-adm{
+    font-size: 0.8rem;
+    color: ${({ theme }) => theme.colors.textLight};
+    margin-left: 4px;
+    margin-top: 4px;
+  }
+`;
+
+export const Select = styled.select`
+  padding: 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 4px;
+  font-size: 1rem;
+  color: ${({ theme }) => theme.colors.text};
+  background-color: ${({ theme }) => theme.colors.inputBg}; /* Ajustado para inputBg */
+  width: 100%;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    outline: none;
+  }
+`;
+
+export const ProfessionalSection = styled.div`
+  background-color: ${({ theme }) => theme.colors.inputBg}; /* Ajustado para se mesclar melhor no dark mode */
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  
+  h4 {
+    color: ${({ theme }) => theme.colors.primary}; /* Trocado de primaryDark */
     font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
   }
 `;
