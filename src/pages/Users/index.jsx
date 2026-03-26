@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
+import { theme } from '../../themes/theme'; // Ajuste o caminho conforme seu projeto
 
 import { Container, Header, TableContainer, Table, ActionButton } from './styles';
 import UserModal from './components/UserModal';
