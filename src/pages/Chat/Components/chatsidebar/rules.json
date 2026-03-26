@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "title": "A Janela de 24 Horas",
+    "description": "Sempre que o paciente enviar uma mensagem, o WhatsApp abre uma janela de 24 horas. Durante esse período, o campo de digitação fica liberado."
+  },
+  {
+    "id": 2,
+    "title": "Mensagens Livres (Sem Custo Extra)",
+    "description": "Com a janela de 24h aberta, você pode conversar, tirar dúvidas e orientar o paciente à vontade. Nenhuma dessas mensagens avulsas vai gerar cobrança adicional."
+  },
+  {
+    "id": 3,
+    "title": "Chat Bloqueado (Janela Expirada)",
+    "description": "Se passarem 24 horas sem que o paciente mande nada, a Meta (dona do WhatsApp) bloqueia o envio de textos livres por segurança."
+  },
+  {
+    "id": 4,
+    "title": "Atenção: Custo de Desbloqueio",
+    "description": "Para reabrir um chat bloqueado, o sistema precisa enviar um Template automático (ex: Link do Termo). Cada clique no botão de 'Desbloquear' gera uma cobrança no saldo da CIC FARMA. Use com consciência e apenas quando precisar fazer um contato ativo!"
+  }
+]

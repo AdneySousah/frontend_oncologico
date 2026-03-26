@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import {
   Container,
@@ -8,20 +8,47 @@ import {
   MenuButton,
   FloatingHelpContainer,
   HelpTooltip,
-  HelpButton
+  HelpButton,
+  FloatingChatContainer,
+  ChatTooltip,
+  ChatButton,
+  NotificationBadge // Certifique-se de que exportou isso no styles.js do layout
 } from "./styles";
-import Sidebar from "../components/SideBar"; // Ajuste o caminho conforme sua estrutura
-import { LuMenu, LuCircleAlert } from "react-icons/lu";
+import Sidebar from "../components/SideBar"; 
+import { LuMenu, LuCircleAlert, LuMessageCircle } from "react-icons/lu";
+import api from "../services/api";
 
 export function UserLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Hook para fazer o roteamento ao clicar no botão
+  const [totalUnread, setTotalUnread] = useState(0);
   const navigate = useNavigate();
 
+  // Polling para contar mensagens não lidas a cada 10 segundos
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const userAuth = localStorage.getItem('oncologico:UserData');
+        // Só busca se o usuário estiver logado
+        if (userAuth) {
+          const response = await api.get('/chat/unread');
+          setTotalUnread(response.data.total);
+        }
+      } catch (error) {
+        // Falha silenciosa para não atrapalhar o fluxo
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleOpenManual = () => {
-    // Altere '/manual' para a rota exata onde o seu manual foi configurado
     navigate('/manual');
+  };
+
+  const handleOpenChat = () => {
+    window.open('/chat', '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -32,13 +59,12 @@ export function UserLayout() {
       />
 
       <MainContent>
-        {/* Header exclusivo para telas menores */}
         <MobileHeader>
           <MenuButton onClick={() => setIsMobileMenuOpen(true)}>
             <LuMenu size={28} />
           </MenuButton>
           <h3>Onco Navegação</h3>
-          <div style={{ width: 28 }}></div> {/* Spacer para centralizar o título */}
+          <div style={{ width: 28 }}></div> 
         </MobileHeader>
 
         <ContainerOutlet>
@@ -46,8 +72,19 @@ export function UserLayout() {
         </ContainerOutlet>
       </MainContent>
 
-  
-      {/* NOVO: Botão Flutuante de Ajuda */}
+      {/* Botão Flutuante do CHAT (Topo Direito) */}
+      <FloatingChatContainer>
+        <ChatTooltip className="tooltip">Abrir Chat de Pacientes</ChatTooltip>
+        <ChatButton title="Abrir Chat" onClick={handleOpenChat} style={{ position: 'relative' }}>
+          <LuMessageCircle size={32} />
+          {/* Badge de Notificação */}
+          {totalUnread > 0 && (
+            <NotificationBadge>{totalUnread > 99 ? '99+' : totalUnread}</NotificationBadge>
+          )}
+        </ChatButton>
+      </FloatingChatContainer>
+
+      {/* Botão Flutuante de Ajuda Original (Rodapé Direito) */}
       <FloatingHelpContainer>
         <HelpTooltip className="tooltip">Quer ajuda com uso do sistema?</HelpTooltip>
         <HelpButton title="Acessar o Manual" onClick={handleOpenManual}>

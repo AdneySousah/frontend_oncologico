@@ -1,4 +1,5 @@
-import { Routes as Switch, Route } from 'react-router-dom';
+import { Routes as Switch, Route, Navigate, Outlet } from 'react-router-dom';
+
 import LoginPage from '../pages/LoginPage';
 import { UserLayout } from '../Layout/userLayout';
 import UsersPage from '../pages/Users';
@@ -23,45 +24,60 @@ import Dashboard from '../pages/Dashboard';
 import ForgotPasswordPage from '../pages/LoginPage/ForgotPasswordPage';
 import AuditoriaPage from '../pages/Auditoria';
 import ManualPage from '../pages/GuiaUso';
+import ChatModule from '../pages/Chat';
 
+// ==========================================
+// NOVO: COMPONENTE DE PROTEÇÃO DE ROTA
+// ==========================================
+// Ele checa se existe usuário no localStorage. Se não tiver, manda pro /login.
+const PrivateRoute = () => {
+    const userAuth = localStorage.getItem('oncologico:UserData');
+    return userAuth ? <Outlet /> : <Navigate to="/login" replace />;
+};
 
 export default function Routes() {
     return (
         <Switch>
-            {/* Rota Pública */}
+            {/* ============================== */}
+            {/* ROTAS PÚBLICAS                 */}
+            {/* ============================== */}
             <Route path='/login' element={<LoginPage />} />
             <Route path='/reset' element={<ForgotPasswordPage />} />
             <Route path="/paciente/termo/:id" element={<TelaAceiteTermo />} />
             <Route path='/primeiro-acesso' element={<FirstAccess />} />
-            {/* Rotas Privadas (Com Sidebar/Layout) */}
-            <Route path='/' element={<UserLayout />}>
             
-                <Route index element={<Dashboard />} />
-                {/* Menu Principal */}
+            {/* ============================== */}
+            {/* BLOCO DE ROTAS PRIVADAS        */}
+            {/* ============================== */}
+            <Route element={<PrivateRoute />}>
                 
-                <Route path='/necessidade-navegacao' element={<DetalhesEntrevista />} />
-                <Route path="/avaliacao/new" element={<NovaAvaliacao />} />
-          
+                {/* 1. ROTA DO CHAT - Fica protegida, mas FORA do UserLayout (Sem Sidebar) */}
+                <Route path='/chat' element={<ChatModule />} />
 
-                {/* Menu de Cadastros */}
-                <Route path='/users' element={<UsersPage />} />
-                <Route path='/pacientes' element={<PacientesPage />} />
-                <Route path='/questionarios' element={<QuestionariosPage />} />
-                <Route path='/especialidades' element={<SpecialtiesPage />} />
-                <Route path='/operadoras' element={<OperadorasPage />} />
-                <Route path='/diagnosticos' element={<DiagnosticosPage />} />
-                <Route path='/prestadores' element={<PrestadoresPage />} />
-                <Route path='/medicos' element={<Medicos />} />
-                <Route path='/comorbidades' element={<ComorbidadesPage />} />
-                <Route path='/medicamentos' element={<MedicamentosPage />} />
-                <Route path='/linha-do-tempo' element={<TimelinePacientes />} />
-                <Route path='/permissoes' element={<PerfisPage />} />
-                <Route path='/telemonitoramento' element={<Telemonitoramento />} /> 
-                <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
-                <Route path='/auditoria' element={<AuditoriaPage />} />
-                <Route path='/manual' element={<ManualPage />} />
-                
-                
+                {/* 2. ROTAS DO SISTEMA - Ficam protegidas e DENTRO do UserLayout (Com Sidebar) */}
+                <Route path='/' element={<UserLayout />}>
+                    <Route index element={<Dashboard />} />
+                    
+                    <Route path='/necessidade-navegacao' element={<DetalhesEntrevista />} />
+                    <Route path="/avaliacao/new" element={<NovaAvaliacao />} />
+
+                    <Route path='/users' element={<UsersPage />} />
+                    <Route path='/pacientes' element={<PacientesPage />} />
+                    <Route path='/questionarios' element={<QuestionariosPage />} />
+                    <Route path='/especialidades' element={<SpecialtiesPage />} />
+                    <Route path='/operadoras' element={<OperadorasPage />} />
+                    <Route path='/diagnosticos' element={<DiagnosticosPage />} />
+                    <Route path='/prestadores' element={<PrestadoresPage />} />
+                    <Route path='/medicos' element={<Medicos />} />
+                    <Route path='/comorbidades' element={<ComorbidadesPage />} />
+                    <Route path='/medicamentos' element={<MedicamentosPage />} />
+                    <Route path='/linha-do-tempo' element={<TimelinePacientes />} />
+                    <Route path='/permissoes' element={<PerfisPage />} />
+                    <Route path='/telemonitoramento' element={<Telemonitoramento />} /> 
+                    <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
+                    <Route path='/auditoria' element={<AuditoriaPage />} />
+                    <Route path='/manual' element={<ManualPage />} />
+                </Route>
 
             </Route>
         </Switch>

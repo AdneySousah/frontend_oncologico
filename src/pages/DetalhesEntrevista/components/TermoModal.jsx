@@ -9,7 +9,6 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   const [step, setStep] = useState('initial'); // 'initial' | 'sending' | 'waiting' | 'accepted' | 'rejected'
   const [countdown, setCountdown] = useState(3);
 
-  // Reseta os estados toda vez que o modal é aberto
   useEffect(() => {
     if (isOpen) {
       setStep('initial');
@@ -17,7 +16,6 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
     }
   }, [isOpen]);
 
-  // Efeito de Polling (Fica perguntando pro backend se o status mudou)
   useEffect(() => {
     let intervalId;
 
@@ -29,24 +27,22 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
 
           if (statusAtual === 'Aceito') {
             setStep('accepted');
-            clearInterval(intervalId); // Para de perguntar
+            clearInterval(intervalId);
           } else if (statusAtual === 'Recusado') {
             setStep('rejected');
-            clearInterval(intervalId); // Para de perguntar
+            clearInterval(intervalId);
           }
         } catch (err) {
           console.error("Erro ao checar status do termo", err);
         }
-      }, 3000); // Checa a cada 3 segundos
+      }, 3000); 
     }
 
-    // Limpa o intervalo se o modal fechar ou mudar de step
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [step, paciente]);
 
-  // Efeito da Contagem Regressiva quando é aceito
   useEffect(() => {
     let timerId;
 
@@ -55,7 +51,6 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timerId);
-            // Agora passamos o paciente atualizado no onSuccess
             onSuccess(paciente); 
             return 0;
           }
@@ -69,12 +64,17 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
     };
   }, [step, paciente, onSuccess]);
 
-
   const handleSendLink = async () => {
     setStep('sending');
     try {
       await api.post('/termos/send', { paciente_id: paciente.id });
-      setStep('waiting'); // Link enviado, agora entra no modo "escuta"
+      
+      // ✅ CORREÇÃO: Dá um respiro de 1 segundo antes de entrar em "waiting"
+      // para garantir que o backend salvou o status como "Pendente"
+      setTimeout(() => {
+        setStep('waiting'); 
+      }, 1000);
+      
     } catch (error) {
       alert(error.response?.data?.error || 'Erro ao enviar link');
       setStep('initial');
@@ -82,11 +82,9 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   };
 
   const handleClose = () => {
-    // Se estiver esperando e o usuário fechar, avisamos o componente pai pra recarregar a lista
     onClose();
   };
 
-  // Correção principal: validamos se paciente existe, em vez de entrevista
   if (!isOpen || !paciente) return null;
 
   return (

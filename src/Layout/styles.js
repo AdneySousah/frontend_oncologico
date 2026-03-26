@@ -136,3 +136,71 @@ export const HelpButton = styled.button`
     background-color: ${({ theme }) => theme.colors?.primaryHover || '#286090'};
   }
 `;
+
+
+// NOVO: Container do Chat Flutuante (Posicionado logo acima do botão de ajuda)
+export const FloatingChatContainer = styled.div`
+  position: fixed;
+  bottom: 110px; /* 30px (bottom do help) + 60px (altura do help) + 20px (espaçamento) */
+  right: 30px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  
+  /* Permite que o clique "atravesse" a div e a tooltip invisível */
+  pointer-events: none; 
+
+  /* Animação com um leve atraso para os dois botões não pularem exatamente juntos (dá um efeito mais natural) */
+  animation: ${bounce} 2.5s infinite;
+  animation-delay: 0.3s; 
+
+  &:hover {
+    animation: none;
+    
+    .tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+    
+    button {
+      transform: scale(1.1); 
+    }
+  }
+
+  /* Ajuste no mobile acompanhando o botão de baixo */
+  @media (max-width: 768px) {
+    bottom: 110px; 
+    right: 15px; /* Se o seu botão de ajuda não tiver esse ajuste de right no mobile, pode deixar 30px mesmo */
+  }
+`;
+
+// Reutiliza a base do HelpTooltip
+export const ChatTooltip = styled(HelpTooltip)`
+  background-color: ${({ theme }) => theme.colors?.success || '#25D366'}; 
+  color: #fff;
+  border: none;
+`;
+
+// Reutiliza a base do HelpButton
+export const ChatButton = styled(HelpButton)`
+  background-color: ${({ theme }) => theme.colors?.success || '#25D366'};
+  
+  &:hover {
+    background-color: ${({ theme }) => theme.colors?.successHover || '#1DA851'};
+  }
+`;
+
+export const NotificationBadge = styled.span`
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: ${({ theme }) => theme.colors?.danger || '#ff4d4f'};
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 12px;
+  border: 2px solid ${({ theme }) => theme.colors?.surface || '#fff'};
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+`;
