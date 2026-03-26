@@ -1,9 +1,24 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
-import { theme } from '../../themes/theme'; // Ajuste o caminho conforme seu projeto
 
-import { Container, Header, TableContainer, Table, ActionButton } from './styles';
+import { 
+  Container, 
+  Header, 
+  TableContainer, 
+  Table, 
+  ActionButton,
+  UserEmail,
+  AdminBadge,
+  ProfissionalYes,
+  RegistryInfo,
+  AdminMatrixBadge,
+  OperadorasList,
+  OperadoraBadge,
+  NoOperadoraText,
+  StatusBadge,
+  PaginationContainer
+} from './styles';
 import UserModal from './components/UserModal';
 import SearchBar from '../../components/SearchBar';
 
@@ -41,8 +56,6 @@ const UsersPage = () => {
         user.name.toLowerCase().includes(searchLower) ||
         user.email.toLowerCase().includes(searchLower);
 
-      // Se showInactives for false, mostra apenas active === true
-      // Se showInactives for true, mostra todos
       const matchesStatus = showInactives ? true : user.active === true;
 
       return matchesSearch && matchesStatus;
@@ -106,86 +119,54 @@ const UsersPage = () => {
               <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum usuário encontrado.</td></tr>
             ) : (
               paginatedUsers.map((user) => (
-                <tr key={user.id} style={{ opacity: user.active ? 1 : 0.55 }}>
+                <tr key={user.id} isActive={user.active}>
                   <td>#{user.id}</td>
                   <td>
                     <strong>{user.name}</strong><br />
-                    <small style={{ color: '#888' }}>{user.email}</small>
+                    <UserEmail>{user.email}</UserEmail>
                   </td>
                   <td>
                     {user.perfil?.nome || <span style={{ color: '#aaa' }}>Sem Perfil</span>}
-                    {user.is_admin && <span style={{ marginLeft: '5px', color: '#d9534f', fontSize: '0.7rem', fontWeight: 'bold' }}>(ADMIN)</span>}
+                    {user.is_admin && <AdminBadge>(ADMIN)</AdminBadge>}
                   </td>
-                  <td>{user.is_profissional ? <b style={{ color: '#13c2c2' }}>Sim</b> : 'Não'}</td>
+                  <td>{user.is_profissional ? <ProfissionalYes>Sim</ProfissionalYes> : 'Não'}</td>
                   <td>
                     {user.is_profissional && user.professional ? (
-                      <>
-                        <small><b>{user.professional.registry_type}</b>: {user.professional.registry_number}</small><br />
-                        <small style={{ fontSize: '0.7rem' }}>{user.professional.speciality?.name || 'Geral'}</small>
-                      </>
+                      <RegistryInfo>
+                        <small><b>{user.professional.registry_type}</b>: {user.professional.registry_number}</small>
+                        <small className="speciality">{user.professional.speciality?.name || 'Geral'}</small>
+                      </RegistryInfo>
                     ) : '-'}
                   </td>
 
-                 
                   <td>
                     {user.is_admin ? (
-                      /* Lógica para ADMIN - Exibe a matriz "Cic Oncologia" */
-                      <span style={{
-                        backgroundColor: '#e6f7ff', // Azul clarinho de fundo
-                        border: '1px solid #91d5ff',   // Borda azul um pouco mais escura
-                        color: '#0050b3',             // TEXTO AZUL ESCURO (para contraste perfeito)
-                        padding: '3px 10px',          // Mais respiro
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)', // Sombra sutil para "pular" do fundo preto
-                        display: 'inline-block'
-                      }}>
-                        Cic Oncologia
-                      </span>
+                      <AdminMatrixBadge>Cic Oncologia</AdminMatrixBadge>
                     ) : user.operadoras && user.operadoras.length > 0 ? (
-                      /* Lógica para Usuário Comum - Lista as operadoras vinculadas */
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxWidth: '200px' }}>
+                      <OperadorasList>
                         {user.operadoras.map(op => (
-                          <span key={op.id} style={{
-                            backgroundColor: '#f5f5f5',  // Fundo cinza bem claro
-                            border: '1px solid #d9d9d9', // Borda cinza média
-                            color: '#262626',            // TEXTO QUASE PRETO (contraste garantido)
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.7rem',
-                            display: 'inline-block'
-                          }}>
+                          <OperadoraBadge key={op.id}>
                             {op.nome}
-                          </span>
+                          </OperadoraBadge>
                         ))}
-                      </div>
+                      </OperadorasList>
                     ) : (
-                      /* Se não houver vínculo */
-                      <span style={{ color: theme.colors.textLight || '#aaa', fontSize: '0.8rem', fontStyle: 'italic' }}>
-                        Sem operadora
-                      </span>
+                      <NoOperadoraText>Sem operadora</NoOperadoraText>
                     )}
                   </td>
 
                   <td>
-                    <span style={{
-                      color: user.active ? '#52c41a' : '#f5222d',
-                      fontWeight: 'bold',
-                      fontSize: '0.85rem'
-                    }}>
+                    <StatusBadge isActive={user.active}>
                       {user.active ? '● Ativo' : '○ Inativo'}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <ActionButton className="edit" onClick={() => { setEditingUser(user); setIsModalOpen(true); }}>
                       Editar
                     </ActionButton>
                     <ActionButton
-                      className="delete"
+                      className={user.active ? "delete" : "reactivate"}
                       onClick={() => handleToggleStatus(user)}
-                      style={!user.active ? { color: '#52c41a', borderColor: '#52c41a' } : {}}
                     >
                       {user.active ? 'Inativar' : 'Reativar'}
                     </ActionButton>
@@ -196,25 +177,22 @@ const UsersPage = () => {
           </tbody>
         </Table>
 
-        {/* Paginação Estilizada */}
         {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem', gap: '15px', borderTop: '1px solid #eee' }}>
+          <PaginationContainer>
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(c => c - 1)}
-              style={{ cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
             >
               Anterior
             </button>
-            <span style={{ fontSize: '0.9rem' }}>Página <strong>{currentPage}</strong> de {totalPages}</span>
+            <span>Página <strong>{currentPage}</strong> de {totalPages}</span>
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(c => c + 1)}
-              style={{ cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
             >
               Próxima
             </button>
-          </div>
+          </PaginationContainer>
         )}
       </TableContainer>
 
