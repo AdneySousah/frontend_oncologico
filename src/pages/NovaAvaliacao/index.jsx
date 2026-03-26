@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
-import { 
-  LuUser, LuCalculator, LuMapPin, LuPhone, 
-  LuChevronRight, LuChevronLeft, LuCheck, LuInfo 
+import {
+  LuUser, LuCalculator, LuMapPin, LuPhone,
+  LuChevronRight, LuChevronLeft, LuCheck, LuInfo
 } from "react-icons/lu";
 
 import AvaliacaoModal from './component/AvaliacaoModal';
@@ -13,8 +13,8 @@ import {
   Container, Title, Form, QuestionCard, Select, Button,
   Input, AlertBox, ButtonCancel, SectionWrapper, SummaryCard,
   SummaryHeader, SummaryGrid, InfoGroup, InfoItem,
-  SummaryDivider, FloatingScore, 
-  ProgressBarContainer, ProgressBarFill, ProgressText, 
+  SummaryDivider, FloatingScore,
+  ProgressBarContainer, ProgressBarFill, ProgressText,
   CategoryTitle, FormFooter, StepperHeader, OrientacaoText
 } from './styles';
 
@@ -88,19 +88,24 @@ export default function NovaAvaliacao() {
 
   const activeTemplate = pendingTemplates.find(t => t.id === Number(selectedTemplateId));
 
-  // --- LÓGICA DE AGRUPAMENTO E PROGRESSO --- //
-  
+
+
   // Agrupa as perguntas por categoria
   const groupedCategories = useMemo(() => {
     if (!activeTemplate || !activeTemplate.questions) return [];
-    
+
+    // 1. Criamos uma cópia para não mutar o estado original e ordenamos por ID crescente
+    const sortedQuestions = [...activeTemplate.questions].sort((a, b) => a.id - b.id);
+
     const groups = {};
-    activeTemplate.questions.forEach(q => {
+
+    // 2. Usamos o array já ordenado para montar os grupos
+    sortedQuestions.forEach(q => {
       const cat = q.categoria || 'Geral';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(q);
     });
-    
+
     // Retorna um array de objetos { name: 'Nome da Categoria', questions: [...] }
     return Object.entries(groups).map(([name, qs]) => ({ name, questions: qs }));
   }, [activeTemplate]);
@@ -108,12 +113,12 @@ export default function NovaAvaliacao() {
   // Calcula o progresso global (ignorando tipo "orientacao")
   const { totalAnswerable, answeredCount, progressPercentage } = useMemo(() => {
     if (!activeTemplate || !activeTemplate.questions) return { totalAnswerable: 0, answeredCount: 0, progressPercentage: 0 };
-    
+
     const answerable = activeTemplate.questions.filter(q => q.tipo !== 'orientacao');
     const answered = answerable.filter(q => answers[q.id] && (answers[q.id].option_selected_id || (answers[q.id].text_answer && answers[q.id].text_answer.trim() !== '')));
-    
+
     const progress = answerable.length > 0 ? Math.round((answered.length / answerable.length) * 100) : 0;
-    
+
     return { totalAnswerable: answerable.length, answeredCount: answered.length, progressPercentage: progress };
   }, [activeTemplate, answers]);
 
@@ -121,10 +126,10 @@ export default function NovaAvaliacao() {
   const canAdvance = () => {
     const currentCat = groupedCategories[currentCategoryIndex];
     if (!currentCat) return false;
-    
+
     const answerableInCat = currentCat.questions.filter(q => q.tipo !== 'orientacao');
     const answeredInCat = answerableInCat.filter(q => answers[q.id] && (answers[q.id].option_selected_id || (answers[q.id].text_answer && answers[q.id].text_answer.trim() !== '')));
-    
+
     return answeredInCat.length === answerableInCat.length;
   };
 
@@ -306,7 +311,7 @@ export default function NovaAvaliacao() {
               </div>
               <div className="progress-area">
                 <ProgressText>
-                  Progresso: {progressPercentage}% 
+                  Progresso: {progressPercentage}%
                   <span>({answeredCount} de {totalAnswerable} respondidas)</span>
                 </ProgressText>
                 <ProgressBarContainer>
@@ -365,7 +370,7 @@ export default function NovaAvaliacao() {
                   </Button>
                 )}
               </div>
-              
+
               <div style={{ display: 'flex', gap: '10px' }}>
                 <ButtonCancel type="button" onClick={() => navigate('/necessidade-navegacao')}>
                   Sair
