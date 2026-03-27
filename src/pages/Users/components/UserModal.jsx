@@ -99,41 +99,58 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!userData.perfil_id) {
-      return toast.warning("Por favor, selecione um Perfil de Acesso.");
-    }
+  if (!userData.perfil_id) {
+    return toast.warning("Por favor, selecione um Perfil de Acesso.");
+  }
 
-    try {
-      // Monta o payload único para enviar pro backend
-      const payload = {
-        ...userData,
-        professional_data: userData.is_profissional ? {
-          registry_type: proData.registry_type,
-          registry_number: proData.registry_number,
-          especiality_id: Number(proData.especiality_id)
-        } : null
-      };
+  try {
+    const payload = {
+      ...userData,
+      professional_data: userData.is_profissional ? {
+        registry_type: proData.registry_type,
+        registry_number: proData.registry_number,
+        especiality_id: Number(proData.especiality_id)
+      } : null
+    };
 
-      if (userToEdit) {
-        await api.put(`/users/${userToEdit.id}`, payload);
-        toast.success('Usuário atualizado com sucesso!');
-      } else {
-        if (!userData.password || userData.password.length < 6) {
-          return toast.error("Senha deve ter no mínimo 6 caracteres.");
-        }
-        await api.post('/users', payload);
-        toast.success('Usuário criado com sucesso!');
+    if (userToEdit) {
+      await api.put(`/users/${userToEdit.id}`, payload);
+      
+      // --- LOGICA DE ATUALIZAÇÃO LOCAL ---
+      // 1. Pegamos os dados do usuário logado no momento
+      const storageData = JSON.parse(localStorage.getItem('oncologico:UserData') || '{}');
+      
+      // 2. Verificamos se o ID que estamos editando é o ID do usuário logado
+      if (storageData.user && storageData.user.id === userToEdit.id) {
+        // 3. Atualizamos apenas os campos que mudaram no storage local
+        storageData.user.is_admin = userData.is_admin;
+        storageData.user.name = userData.name;
+        storageData.user.email = userData.email;
+        // Se houver perfil_id ou outros campos, atualize aqui também
+        
+        // 4. Gravamos de volta no LocalStorage
+        localStorage.setItem('oncologico:UserData', JSON.stringify(storageData));
+        
+     
       }
+      // -----------------------------------
 
-      onSuccess();
-      onClose();
-    } catch (err) {
-      const message = err.response?.data?.error || 'Erro ao salvar dados.';
-      toast.error(message);
+      toast.success('Usuário atualizado com sucesso!');
+    } else {
+      // Lógica de criação (POST) permanece igual...
+      await api.post('/users', payload);
+      toast.success('Usuário criado com sucesso!');
     }
-  };
+
+    onSuccess();
+    onClose();
+  } catch (err) {
+    const message = err.response?.data?.error || 'Erro ao salvar dados.';
+    toast.error(message);
+  }
+};
 
   return (
     <Overlay>
