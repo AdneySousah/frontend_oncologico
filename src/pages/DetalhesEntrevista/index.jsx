@@ -9,7 +9,6 @@ import { LuArrowUpDown, LuEye } from "react-icons/lu";
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
-  // Mudamos o padrão para 'desc' para priorizar os mais caros primeiro
   const [sortOrder, setSortOrder] = useState('desc'); 
   
   const [selectedPaciente, setSelectedPaciente] = useState(null);
@@ -45,16 +44,19 @@ export default function ListaEntrevistas() {
 
   const handleSort = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
 
-  // Nova regra de ordenação baseada no price
+  // --- ATUALIZADO: FILTRANDO is_new_user ANTES DE ORDENAR ---
   const sortedPacientes = useMemo(() => {
-    return [...pacientesNavegacao].sort((a, b) => {
+    // 1. Oculta os pacientes que são "novos" (aguardando confirmação)
+    const pacientesValidos = pacientesNavegacao.filter(p => p.is_new_user === false || !p.is_new_user);
+
+    // 2. Aplica a ordenação por custo em cima dos pacientes válidos
+    return pacientesValidos.sort((a, b) => {
       const priceA = Number(a.price) || 0;
       const priceB = Number(b.price) || 0;
       return sortOrder === 'desc' ? priceB - priceA : priceA - priceB;
     });
   }, [pacientesNavegacao, sortOrder]);
 
-  // Função para formatar o valor monetário
   const formatPrice = (price) => {
     if (!price) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
@@ -73,6 +75,9 @@ export default function ListaEntrevistas() {
             <th>ID</th>
             <th>Paciente</th>
             <th>Contato</th>
+            <th>Cuidador?</th>
+            <th>Nome Cuidador</th>
+            <th>Contato Cuidador</th>
             <th>Operadora</th>
             <th className="sortable" onClick={handleSort}>
               Medicamento / Custo <LuArrowUpDown size={14} />
@@ -102,9 +107,18 @@ export default function ListaEntrevistas() {
                   </div>
                 </td>
                 <td>{paciente.celular || paciente.telefone || '-'}</td>
+                
+                {/* COLUNAS DO CUIDADOR */}
+                <td>
+                  <S.StatusBadge bg={paciente.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'} color={paciente.possui_cuidador ? '#17a2b8' : '#6c757d'}>
+                    {paciente.possui_cuidador ? 'Sim' : 'Não'}
+                  </S.StatusBadge>
+                </td>
+                <td>{paciente.nome_cuidador || '-'}</td>
+                <td>{paciente.contato_cuidador || '-'}</td>
+
                 <td>{nomeOperadora}</td>
                 
-                {/* Coluna Atualizada: Nome do Medicamento e Preço */}
                 <td>
                   <div style={{ lineHeight: '1.4' }}>
                     <strong>{nomeMedicamento}</strong><br />

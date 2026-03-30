@@ -16,7 +16,6 @@ import {
 export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
 
-  // Necessidade 1: 6 a 9 pontos (ou menos, assumindo que menor é melhor)
   if (score <= 9) {
     return { 
       label: 'Paciente com alta tendência a adesão ao tratamento', 
@@ -24,7 +23,6 @@ export const getAdherenceClassification = (score) => {
     };
   }
 
-  // Necessidade 2: 10 a 12 pontos
   if (score <= 12) {
     return { 
       label: 'Paciente com tendência moderada a adesão ao tratamento', 
@@ -32,7 +30,6 @@ export const getAdherenceClassification = (score) => {
     };
   }
 
-  // Necessidade 3: 13 pontos e mais
   return { 
     label: 'Paciente com tendência baixa a adesão ao tratamento', 
     level: 'baixa' 
@@ -44,7 +41,6 @@ export default function Telemonitoramento() {
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
 
-  // Estados de Paginação e Busca
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,7 +48,6 @@ export default function Telemonitoramento() {
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
 
-  // Controle de Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
   const [selectedMonitoramento, setSelectedMonitoramento] = useState(null);
@@ -60,7 +55,6 @@ export default function Telemonitoramento() {
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
 
-  // Debounce para a barra de pesquisa
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
@@ -167,26 +161,17 @@ export default function Telemonitoramento() {
         return grupo;
       });
 
-      // NOVA ORDENAÇÃO: Prioridade total para risco de não adesão
       agrupadosArray.sort((a, b) => {
-        // 1º Prioridade: Score da Avaliação (Quanto MAIOR o score, MENOR a adesão, MAIOR a prioridade)
         const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
         const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
 
-        if (scoreA !== scoreB) {
-          return scoreB - scoreA; // Decrescente (Ex: 17 vem antes de 10)
-        }
+        if (scoreA !== scoreB) return scoreB - scoreA; 
 
-        // 2º Prioridade: Média de Adesão Histórica (Quanto MENOR a %, MENOR a adesão, MAIOR a prioridade)
-        // Se não tiver média histórica (null), consideramos 999 para ir pro final desse desempate
         const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
         const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
 
-        if (mediaA !== mediaB) {
-          return mediaA - mediaB; // Crescente (Ex: 0% vem antes de 100%)
-        }
+        if (mediaA !== mediaB) return mediaA - mediaB; 
 
-        // 3º Prioridade (Desempate): Data do próximo contato (mais atrasados primeiro)
         if (!a.proximoContatoData) return 1;
         if (!b.proximoContatoData) return -1;
         
@@ -272,6 +257,11 @@ export default function Telemonitoramento() {
                 <thead>
                   <tr>
                     <th>Paciente e Adesão</th>
+                    {/* --- COLUNAS DO CUIDADOR ADICIONADAS AQUI --- */}
+                    <th>Cuidador?</th>
+                    <th>Nome Cuidador</th>
+                    <th>Contato Cuidador</th>
+
                     <th>Operadora</th>
                     <th>Medicamento</th>
                     <th>Próximo Contato</th>
@@ -323,6 +313,18 @@ export default function Telemonitoramento() {
                             )}
                           </td>
                           
+                          {/* --- DADOS DO CUIDADOR NA TABELA --- */}
+                          <td>
+                            <StatusBadge 
+                              bg={grupo.paciente?.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'} 
+                              color={grupo.paciente?.possui_cuidador ? '#17a2b8' : '#6c757d'}
+                            >
+                              {grupo.paciente?.possui_cuidador ? 'Sim' : 'Não'}
+                            </StatusBadge>
+                          </td>
+                          <td>{grupo.paciente?.nome_cuidador || '-'}</td>
+                          <td>{grupo.paciente?.contato_cuidador || '-'}</td>
+
                           <td>{grupo.paciente?.operadoras?.nome}</td>
                           
                           <td>
@@ -372,7 +374,7 @@ export default function Telemonitoramento() {
 
                         {expandedRows[grupo.key] && (
                           <tr className="details-row">
-                            <td colSpan="6">
+                            <td colSpan="9"> {/* Aumentei o colSpan para englobar todas as colunas novas */}
                               <SubTableWrapper>
                                 <SubTable>
                                   <thead>
