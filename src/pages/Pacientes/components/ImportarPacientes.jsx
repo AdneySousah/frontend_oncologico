@@ -8,7 +8,8 @@ import {
     LuTriangleAlert, 
     LuCircleCheck,   
     LuCircleX,
-    LuInfo // <-- Novo ícone importado para o aviso
+    LuInfo,
+    LuDownload
 } from "react-icons/lu";
 
 import * as S from './styles'; 
@@ -22,6 +23,9 @@ export default function ImportarPacientes({ onSuccess }) {
   const [operadoras, setOperadoras] = useState([]);
   const [operadoraId, setOperadoraId] = useState('');
   const [loadingOps, setLoadingOps] = useState(true);
+  
+  // Estado para a barra de progresso
+  const [progress, setProgress] = useState(0); 
 
   useEffect(() => {
     async function loadOperadoras() {
@@ -72,23 +76,77 @@ export default function ImportarPacientes({ onSuccess }) {
   };
 
   const handleFinalImport = async () => {
-    if (!file || !operadoraId) return;
-    setStep(4); 
+    if (!validationResult?.detalhes?.validos || !operadoraId) return;
+    
+    setStep(4);
+    setProgress(0);
 
-    const formData = new FormData();
-    formData.append('operadora_id', operadoraId);
-    formData.append('file', file);
+    const pacientesValidos = validationResult.detalhes.validos;
+    const total = pacientesValidos.length;
+    const chunkSize = 50; // Envia de 50 em 50
+    
+    let allSuccesses = [];
+    let allErrors = [];
+    let importadosAteAgora = 0;
 
-    try {
-      const response = await api.post('/pacientes/import', formData);
-      setFinalResult(response.data);
-      setStep(5); 
-      toast.success("Processamento finalizado!");
-      if(onSuccess) onSuccess();
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Erro ao importar dados.");
-      setStep(3); 
+    for (let i = 0; i < total; i += chunkSize) {
+        const chunk = pacientesValidos.slice(i, i + chunkSize);
+        
+        try {
+            const response = await api.post('/pacientes/import-batch', {
+                operadora_id: operadoraId,
+                pacientes: chunk
+            });
+            
+            allSuccesses.push(...response.data.successes);
+            allErrors.push(...response.data.errors);
+        } catch (err) {
+            toast.error(`Erro ao processar o lote ${Math.floor(i / chunkSize) + 1}. Importação parcialmente interrompida.`);
+            break; 
+        }
+
+        importadosAteAgora += chunk.length;
+        const calcProgress = Math.round((importadosAteAgora / total) * 100);
+        setProgress(calcProgress > 100 ? 100 : calcProgress);
     }
+
+    setFinalResult({ 
+        summary: {
+            importados: allSuccesses.length,
+            erros: allErrors.length
+        },
+        detalhes: {
+            erros: allErrors
+        }
+    });
+
+    setStep(5); 
+    toast.success("Processamento em lotes finalizado!");
+    if(onSuccess) onSuccess();
+  };
+
+  const handleDownloadLogs = () => {
+      if (!finalResult || finalResult.summary.erros === 0) return;
+
+      let conteudo = "RELATÓRIO DE ERROS DE IMPORTAÇÃO (BANCO DE DADOS)\n";
+      conteudo += "=================================================\n\n";
+
+      finalResult.detalhes.erros.forEach((err, index) => {
+          conteudo += `Erro #${index + 1}\n`;
+          conteudo += `Paciente: ${err.nome}\n`;
+          conteudo += `CPF: ${err.cpf}\n`;
+          conteudo += `Motivo: ${err.erro}\n`;
+          conteudo += `-------------------------------------------------\n\n`;
+      });
+
+      const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `erros_importacao_bd_${new Date().getTime()}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const reset = () => {
@@ -96,6 +154,7 @@ export default function ImportarPacientes({ onSuccess }) {
     setStep(1);
     setValidationResult(null);
     setFinalResult(null);
+    setProgress(0);
   };
 
   return (
@@ -116,8 +175,12 @@ export default function ImportarPacientes({ onSuccess }) {
                     <li><strong>data_nascimento</strong></li>
                     <li><strong>sexo</strong> ou Sexo</li>
                     <li><strong>cep</strong> ou CEP</li>
+                    <li><strong>logradouro</strong> ou Logradouro</li>
                     <li><strong>numero</strong> ou Numero</li>
                     <li><strong>complemento</strong> ou Complemento</li>
+                    <li><strong>bairro</strong> ou Bairro</li>
+                    <li><strong>cidade</strong> ou Cidade</li>
+                    <li><strong>estado</strong> ou Estado</li>
                     <li><strong>possui_cuidador</strong> (Sim/Não)</li>
                     <li><strong>nome_cuidador</strong></li>
                     <li><strong>contato_cuidador</strong></li>
@@ -185,10 +248,10 @@ export default function ImportarPacientes({ onSuccess }) {
                 </S.SummaryCard>
             </S.SummaryGrid>
 
-            {/* AVISO DE BLOQUEIO DE IMPORTAÇÃO SE TIVER DUPLICADO/INVÁLIDO */}
+            {/* AVISO DE PARCIALIDADE SE TIVER DUPLICADO/INVÁLIDO */}
             {(validationResult.resumo.duplicados > 0 || validationResult.resumo.invalidos > 0) && (
-                <div style={{ padding: '15px', background: '#fff1f0', border: '1px solid #cf1322', borderRadius: '6px', color: '#cf1322', marginBottom: '15px' }}>
-                    <strong>⚠️ Importação Bloqueada:</strong> Foram encontrados CPFs que já pertencem a outros usuários no sistema ou linhas vazias. Verifique o relatório abaixo, corrija a planilha e tente novamente.
+                <div style={{ padding: '15px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: '6px', color: '#d46b08', marginBottom: '15px' }}>
+                    <strong>⚠️ Atenção:</strong> Foram encontrados problemas em algumas linhas da planilha. Apenas os <strong>{validationResult.resumo.validos}</strong> pacientes corretos serão importados. Você pode prosseguir e corrigir os demais depois.
                 </div>
             )}
 
@@ -197,51 +260,68 @@ export default function ImportarPacientes({ onSuccess }) {
                 {validationResult.detalhes.duplicados.map((item, idx) => (
                     <S.LogItem key={`dup-${idx}`} className="warning">
                         <LuTriangleAlert size={16} />
-                        <span><strong>Planilha: {item.nome}</strong> (CPF: {item.cpf})<br/>Motivo: {item.motivo}</span>
+                        <span><strong>Linha {item.linha}: {item.nome}</strong> (CPF: {item.cpf})<br/>Motivo: {item.motivo}</span>
                     </S.LogItem>
                 ))}
 
                 {validationResult.detalhes.invalidos.map((item, idx) => (
                     <S.LogItem key={`inv-${idx}`} className="error">
                         <LuCircleX size={16} />
-                        <span>Linha inválida: {item.motivo}</span>
+                        <span><strong>Linha {item.linha}:</strong> {item.motivo} {item.cpf ? `(CPF: ${item.cpf})` : ''}</span>
                     </S.LogItem>
                 ))}
 
                 {validationResult.detalhes.validos.length > 0 && (
                     <S.LogItem className="success">
                         <LuCircleCheck size={16} />
-                        <span>{validationResult.detalhes.validos.length} pacientes prontos para importação. Nenhum conflito de CPF detectado.</span>
+                        <span>{validationResult.detalhes.validos.length} pacientes prontos para importação. Nenhum conflito detectado nestes registros.</span>
                     </S.LogItem>
                 )}
             </S.LogContainer>
 
-            <S.ButtonGroup>
-                <S.Button variant="secondary" onClick={reset}>Cancelar / Corrigir Planilha</S.Button>
+            <S.ButtonGroup style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                <S.Button variant="secondary" onClick={reset}>Cancelar / Escolher outra</S.Button>
                 <S.Button 
                     onClick={handleFinalImport} 
-                    disabled={
-                        validationResult.resumo.duplicados > 0 || 
-                        validationResult.resumo.invalidos > 0 || 
-                        validationResult.resumo.validos === 0
-                    }
+                    disabled={validationResult.resumo.validos === 0}
                     style={{ flex: 2 }}
                 >
-                    Confirmar Importação
+                    Confirmar Importação de {validationResult.resumo.validos} pacientes
                 </S.Button>
             </S.ButtonGroup>
         </div>
       )}
 
-      {/* --- PASSO 4: LOADER DE GRAVAÇÃO --- */}
+      {/* --- PASSO 4: LOADER COM BARRA DE PROGRESSO REAL --- */}
       {step === 4 && (
-        <S.StatusBox>
-            <S.Spinner><LuLoaderCircle size={24} /></S.Spinner>
-            <span>Gravando dados no sistema... Aguarde.</span>
+        <S.StatusBox style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <S.Spinner><LuLoaderCircle size={40} /></S.Spinner>
+            <h3 style={{ marginTop: '20px' }}>Importando pacientes...</h3>
+            
+            {/* Barra de Progresso visual */}
+            <div style={{ width: '100%', backgroundColor: '#e0e0df', borderRadius: '8px', marginTop: '15px', overflow: 'hidden' }}>
+                <div style={{ 
+                    height: '24px', 
+                    width: `${progress}%`, 
+                    backgroundColor: '#1677ff', 
+                    transition: 'width 0.3s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px'
+                }}>
+                    {progress}%
+                </div>
+            </div>
+            <span style={{ display: 'block', marginTop: '10px', color: '#666' }}>
+                Enviando lotes para o banco de dados. Por favor, aguarde.
+            </span>
         </S.StatusBox>
       )}
 
-      {/* --- PASSO 5: RELATÓRIO FINAL COM ERROS DE BANCO DE DADOS --- */}
+      {/* --- PASSO 5: RELATÓRIO FINAL COM ERROS DE BANCO E DOWNLOAD TXT --- */}
       {step === 5 && finalResult && (
         <div style={{ padding: '20px', textAlign: 'left' }}>
             <div style={{ textAlign: 'center' }}>
@@ -250,12 +330,19 @@ export default function ImportarPacientes({ onSuccess }) {
                 <p>Foram importados com sucesso <strong>{finalResult.summary.importados}</strong> novos pacientes.</p>
             </div>
             
-            {/* SE O BANCO REJEITAR ALGUM DADO, APARECERÁ AQUI */}
+            {/* SE O BANCO REJEITAR ALGUM DADO */}
             {finalResult.summary.erros > 0 && (
                 <div style={{ marginTop: '20px' }}>
-                    <h4 style={{ color: '#cf1322' }}>Atenção: Falhas na Gravação ({finalResult.summary.erros}):</h4>
-                    <p style={{ fontSize: '0.85rem', color: '#666' }}>Estes pacientes passaram na validação do CPF, mas foram rejeitados internamente pelo banco de dados na hora de salvar (ex: campos fora do padrão, banco fora do ar).</p>
-                    <S.LogContainer>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <h4 style={{ color: '#cf1322', margin: 0 }}>Falhas na Gravação ({finalResult.summary.erros}):</h4>
+                        <S.Button onClick={handleDownloadLogs} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '14px' }}>
+                            <LuDownload size={16} /> Baixar Logs (.txt)
+                        </S.Button>
+                    </div>
+                    
+                    <p style={{ fontSize: '0.85rem', color: '#666' }}>Estes pacientes passaram na validação da planilha, mas o banco de dados recusou na hora de salvar (ex: tamanho de campo, formato inesperado).</p>
+                    
+                    <S.LogContainer style={{ maxHeight: '250px', overflowY: 'auto' }}>
                         {finalResult.detalhes.erros.map((err, idx) => (
                             <S.LogItem key={`err-db-${idx}`} className="error">
                                 <LuCircleX size={16} />

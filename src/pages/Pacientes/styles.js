@@ -385,3 +385,103 @@ export const ResultBox = styled.div`
     color: inherit;
   }
 `;
+
+
+export const ListHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px 20px;
+  background-color: ${({ theme }) => theme.colors.inputBg || '#fff'};
+  border: 1px solid ${({ theme }) => theme.colors.border || '#e2e8f0'};
+  border-radius: 8px;
+  color: ${({ theme }) => theme.colors.text};
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+
+  span {
+    font-size: 1rem;
+  }
+
+  div {
+    display: flex;
+    align-items: center;
+  }
+
+  label {
+    font-size: 0.9rem;
+    margin-right: 10px;
+    font-weight: 500;
+  }
+  
+  @media (max-width: 600px) {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+`;
+
+
+export const SelectItemsPerPage = styled.select`
+  padding: 6px 36px 6px 12px; 
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border || '#ccc'};
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit; 
+  background-color: ${({ theme }) => theme.colors.inputBg || (theme.title === 'dark' ? 'rgba(0,0,0,0.2)' : '#fff')};
+  color: ${({ theme }) => theme.colors.text};
+
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  & > option {
+    background-color: ${({ theme }) => theme.colors.inputBg || (theme.title === 'dark' ? '#2d2d2d' : '#fff')};
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+export const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 25px;
+  padding: 10px;
+  color: ${({ theme }) => theme.colors.text};
+
+  span {
+    font-size: 0.95rem;
+  }
+`;
+
+export const PageButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background-color: ${({ theme }) => theme.colors.inputBg || '#fff'};
+  color: ${({ theme }) => theme.colors.text};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background-color: ${({ theme }) => theme.colors.primary};
+    color: #fff;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background-color: ${({ theme }) => theme.title === 'dark' ? '#222' : '#f5f5f5'};
+  }
+`;
