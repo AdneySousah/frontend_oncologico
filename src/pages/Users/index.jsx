@@ -127,7 +127,7 @@ const UsersPage = () => {
                   </td>
                   <td>
                     {user.perfil?.nome || <span style={{ color: '#aaa' }}>Sem Perfil</span>}
-                    {user.is_admin && <AdminBadge>(ADMIN)</AdminBadge>}
+                   
                   </td>
                   <td>{user.is_profissional ? <ProfissionalYes>Sim</ProfissionalYes> : 'Não'}</td>
                   <td>

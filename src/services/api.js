@@ -35,7 +35,7 @@ api.interceptors.response.use(
             // Se não for a rota de login, significa que o token de um usuário logado expirou.
             // Aqui sim, fazemos o logout e recarregamos/redirecionamos a página.
             localStorage.removeItem('oncologico:UserData');
-            window.location.href = '/login';
+            /* window.location.href = '/login'; */
         }
 
         return Promise.reject(error);

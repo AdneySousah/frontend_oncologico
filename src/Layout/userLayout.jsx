@@ -14,7 +14,7 @@ import {
   ChatButton,
   NotificationBadge 
 } from "./styles";
-import Sidebar from "../components/SideBar";
+import Sidebar from "../components/SideBar"; // Confirme se o B maiúsculo está correto no seu arquivo
 import { LuMenu, LuCircleAlert, LuMessageCircle } from "react-icons/lu";
 import api from "../services/api";
 
@@ -24,8 +24,8 @@ export function UserLayout() {
   const [userData, setUserData] = useState(null);
   const navigate = useNavigate();
 
-  // 1. Extraímos o isAdmin do estado de forma segura
-  const isAdmin = userData?.user?.is_admin === true;
+  // 1. Em vez de is_admin, verificamos se existe a permissão real de chat no Perfil
+  const hasChatPermission = userData?.user?.perfil?.permissoes?.chat?.acessar === true;
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -35,13 +35,20 @@ export function UserLayout() {
         
         setUserData(parsedData);
 
-        // Só busca se o usuário estiver logado E for admin
-        if (parsedData?.user?.is_admin) {
+        // Verifica a permissão dentro do useEffect para evitar dependência de estado atrasado
+        const canAccessChat = parsedData?.user?.perfil?.permissoes?.chat?.acessar === true;
+
+        // Só faz a requisição se o usuário TIVER permissão configurada para o chat
+        if (canAccessChat) {
           const response = await api.get('/chat/unread');
           setTotalUnread(response.data.total);
         }
       } catch (error) {
-        // Falha silenciosa
+        // 2. Falha silenciosa: Se ainda assim o servidor retornar 403, ignoramos sem sujar o console
+        if (error.response && error.response.status === 403) {
+          return; 
+        }
+        console.error("Erro ao buscar mensagens do chat:", error);
       }
     };
 
@@ -50,7 +57,6 @@ export function UserLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  // FUNÇÕES QUE ESTAVAM FALTANDO:
   const handleOpenManual = () => {
     navigate('/manual');
   };
@@ -80,8 +86,8 @@ export function UserLayout() {
         </ContainerOutlet>
       </MainContent>
 
-      {/* Botão do CHAT: Só aparece para ADMIN */}
-      {isAdmin && (
+      {/* Botão do CHAT: Agora só aparece se 'hasChatPermission' for true */}
+      {hasChatPermission && (
         <FloatingChatContainer>
           <ChatTooltip className="tooltip">Abrir Chat de Pacientes</ChatTooltip>
           <ChatButton title="Abrir Chat" onClick={handleOpenChat} style={{ position: 'relative' }}>

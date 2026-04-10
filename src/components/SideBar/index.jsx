@@ -52,9 +52,8 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     return initials;
   };
 
-  const temPermissaoDeAcesso = (modulo, userData = userStorage?.user) => {
+  const temPermissaoDeAcesso = (modulo, userData = userProfileData || userStorage?.user) => {
     if (!modulo) return true;
-    if (userData?.is_admin) return true;
     if (!userData?.perfil?.permissoes) return false;
     return userData.perfil.permissoes[modulo]?.acessar === true;
   };
@@ -82,32 +81,21 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   };
 
   // Carrega os alertas (Navegação, Tele e Novos Pacientes)
-  const loadAlerts = async () => {
+ const loadAlerts = async () => {
     try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
-      const [resNavegacao, resTele, resNovosPacientes] = await Promise.all([
+      // 1. Removida a chamada para /pacientes/pendentes
+      const [resNavegacao, resTele] = await Promise.all([
         api.get('/evaluations/responses').catch(() => ({ data: [] })),
-        api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] })),
-        api.get('/pacientes/pendentes').catch(() => ({ data: [] }))
+        api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }))
       ]);
 
       const navData = Array.isArray(resNavegacao.data) ? resNavegacao.data : (resNavegacao.data?.data || []);
       const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
-      const novosPacientesData = Array.isArray(resNovosPacientes.data) ? resNovosPacientes.data : [];
 
-      novosPacientesData.forEach(item => {
-        mostCritical = 0;
-        unifiedAlerts.push({
-          id: `pac_new_${item.id}`,
-          type: 'Novo Paciente',
-          patientName: `${item.nome || ''} ${item.sobrenome || ''}`.trim(),
-          description: 'Aguardando revisão e confirmação',
-          diffDays: 0,
-          route: `/pacientes?confirmar=${item.id}`
-        });
-      });
+      // 2. Removido o bloco "novosPacientesData.forEach"
 
       navData.forEach(item => {
         const status = item.status_avaliacao ? String(item.status_avaliacao).toUpperCase() : '';

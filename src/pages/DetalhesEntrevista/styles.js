@@ -100,3 +100,135 @@ export const ActionButton = styled.button`
     transform: translateY(0);
   }
 `;
+
+// Adicione isso no final do seu arquivo styles.js
+export const SyncPanel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: ${({ theme }) => theme.colors.surface};
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+
+  span.status-text {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  span.status-text.checking { color: ${({ theme }) => theme.colors.textLight}; }
+  span.status-text.pending { color: #faad14; }
+  span.status-text.synced { color: #52c41a; }
+  span.status-text.error { color: #f5222d; }
+`;
+
+export const FilterContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  background-color: ${({ theme }) => theme.colors.surface};
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+export const InputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 200px;
+
+  label {
+    font-size: 12px;
+    color: ${({ theme }) => theme.colors.textLight};
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  input, select {
+    background-color: ${({ theme }) => theme.colors.inputBg || '#1e1e1e'};
+    color: ${({ theme }) => theme.colors.text};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &:focus {
+      border-color: ${({ theme }) => theme.colors.primary};
+    }
+  }
+`;
+
+export const ClearButton = styled.button`
+  background: transparent;
+  color: #f5222d;
+  border: 1px solid #f5222d;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  height: 40px;
+  align-self: flex-end;
+
+  &:hover {
+    background: rgba(245, 34, 45, 0.1);
+  }
+`;
+
+// --- ESTILOS DA PAGINAÇÃO ---
+export const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: ${({ theme }) => theme.colors.surface};
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .info {
+    color: ${({ theme }) => theme.colors.textLight};
+    font-size: 14px;
+  }
+
+  select {
+    background-color: ${({ theme }) => theme.colors.inputBg || '#1e1e1e'};
+    color: ${({ theme }) => theme.colors.text};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    padding: 6px 10px;
+    border-radius: 4px;
+    outline: none;
+  }
+`;
+
+export const PageButton = styled.button`
+  background-color: ${({ theme, active }) => active ? theme.colors.primary : theme.colors.inputBg || '#1e1e1e'};
+  color: ${({ theme, active }) => active ? '#fff' : theme.colors.text};
+  border: 1px solid ${({ theme, active }) => active ? theme.colors.primary : theme.colors.border};
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.primary};
+    filter: brightness(1.2);
+  }
+`;
