@@ -81,42 +81,17 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   };
 
   // Carrega os alertas (Navegação, Tele e Novos Pacientes)
- const loadAlerts = async () => {
+ // Carrega apenas os alertas de Telemonitoramento
+  const loadAlerts = async () => {
     try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
-      // 1. Removida a chamada para /pacientes/pendentes
-      const [resNavegacao, resTele] = await Promise.all([
-        api.get('/evaluations/responses').catch(() => ({ data: [] })),
-        api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }))
-      ]);
-
-      const navData = Array.isArray(resNavegacao.data) ? resNavegacao.data : (resNavegacao.data?.data || []);
+      // 1. Busca apenas os monitoramentos pendentes
+      const resTele = await api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }));
       const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
 
-      // 2. Removido o bloco "novosPacientesData.forEach"
-
-      navData.forEach(item => {
-        const status = item.status_avaliacao ? String(item.status_avaliacao).toUpperCase() : '';
-        const isConcluido = ['CONCLUÍDA', 'CONCLUIDA', 'CONCLUÍDO', 'CONCLUIDO', 'CANCELADO'].includes(status);
-
-        if (!isConcluido && item.data_proximo_contato) {
-          const diffDays = processDate(item.data_proximo_contato);
-          if (diffDays <= 5) {
-            if (diffDays < mostCritical) mostCritical = diffDays;
-            unifiedAlerts.push({
-              id: `nav_${item.id}`,
-              type: 'Navegação',
-              patientName: `${item.paciente?.nome || 'Sem Nome'} ${item.paciente?.sobrenome || ''}`.trim(),
-              description: 'Avaliação Pendente',
-              diffDays,
-              route: `/necessidade-navegacao?highlight=${item.id}`
-            });
-          }
-        }
-      });
-
+      // 2. Processa os dados de telemonitoramento
       teleData.forEach(item => {
         const status = item.status ? String(item.status).toUpperCase() : '';
         const isConcluido = ['CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'FINALIZADA', 'CANCELADO'].includes(status);
@@ -138,14 +113,16 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
         }
       });
 
+      // 3. Ordena e atualiza os estados
       unifiedAlerts.sort((a, b) => a.diffDays - b.diffDays);
       setAlertsList(unifiedAlerts);
       setAlertCount(unifiedAlerts.length);
 
+      // 4. Define a cor do sino com base na criticidade
       if (unifiedAlerts.length === 0) setAlertColor('inherit');
-      else if (mostCritical <= 1) setAlertColor('#ff4d4f');
-      else if (mostCritical <= 3) setAlertColor('#faad14');
-      else setAlertColor('#52c41a');
+      else if (mostCritical <= 1) setAlertColor('#ff4d4f'); // Vermelho (hoje ou atrasado)
+      else if (mostCritical <= 3) setAlertColor('#faad14'); // Amarelo (próximos dias)
+      else setAlertColor('#52c41a'); // Verde
 
     } catch (error) {
       console.error("Erro ao carregar alertas", error);
