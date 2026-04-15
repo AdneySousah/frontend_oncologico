@@ -76,7 +76,7 @@ export default function TelaAceiteTermo() {
             <div style={{ maxWidth: '600px', margin: '50px auto', padding: '30px 20px', textAlign: 'center', fontFamily: 'sans-serif', border: '1px solid #f5c6cb', borderRadius: '8px', backgroundColor: '#f8d7da' }}>
                 <h2 style={{ color: '#721c24' }}>Tem certeza que não quer aceitar o termo?</h2>
                 <p style={{ fontSize: '16px', lineHeight: '1.6', color: '#721c24' }}>
-                    Ao recusar, nós não poderemos prosseguir com o seu acompanhamento oncológico.
+                    Ao recusar, nós não poderemos prosseguir com a sua navegação.
                 </p>
 
                 <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '30px', flexWrap: 'wrap' }}>
@@ -100,9 +100,9 @@ export default function TelaAceiteTermo() {
     // 6. Renderização padrão (Pergunta Inicial)
     return (
         <div style={{ maxWidth: '600px', margin: '50px auto', padding: '20px', textAlign: 'center', fontFamily: 'sans-serif', border: '1px solid #ccc', borderRadius: '8px' }}>
-            <h2 style={{ color: '#0056b3' }}>Acompanhamento Oncológico</h2>
+            <h2 style={{ color: '#0056b3' }}>Navegação</h2>
             <p style={{ fontSize: '18px', lineHeight: '1.6' }}>
-                A Clínica CIC Oncologia solicita sua permissão para realizar contatos telefônicos 
+                A CICFARMA solicita sua permissão para realizar contatos telefônicos 
                 com o objetivo de acompanhar a evolução do seu tratamento.
             </p>
             <p>Você aceita os termos para este acompanhamento?</p>

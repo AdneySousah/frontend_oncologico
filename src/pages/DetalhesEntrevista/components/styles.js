@@ -277,3 +277,30 @@ export const SuccessBox = styled.div`
   h2 { color: #28a745; }
   h1 { font-size: 48px; margin: 15px 0; color: #28a745; }
 `;
+
+
+export const Input = styled.input`
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  font-size: 1rem;
+  color: var(--text-color, #333);
+  background-color: var(--input-bg, #fff);
+  transition: all 0.2s ease-in-out;
+  outline: none;
+
+  &:focus {
+    border-color: var(--primary-color, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  }
+
+  &::placeholder {
+    color: #aaa;
+  }
+
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+  }
+`;

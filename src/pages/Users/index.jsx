@@ -141,7 +141,7 @@ const UsersPage = () => {
 
                   <td>
                     {user.is_admin ? (
-                      <AdminMatrixBadge>Cic Oncologia</AdminMatrixBadge>
+                      <AdminMatrixBadge>CiCFARMA</AdminMatrixBadge>
                     ) : user.operadoras && user.operadoras.length > 0 ? (
                       <OperadorasList>
                         {user.operadoras.map(op => (

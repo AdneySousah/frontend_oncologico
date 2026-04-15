@@ -4,13 +4,13 @@ import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
 
-import { 
+import {
   ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox, ProjectedStockBox
-} from './styles'; 
+} from './styles';
 
-import { AdherenceBadge } from '../styles'; 
-import { getAdherenceClassification } from '../index'; 
-import { getCustomSelectStyles } from '../../../utils/selectStyles'; 
+import { AdherenceBadge } from '../styles';
+import { getAdherenceClassification } from '../index';
+import { getCustomSelectStyles } from '../../../utils/selectStyles';
 import NpsModal from './NpsModal'; // <-- IMPORTAÇÃO DO NOVO MODAL
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, onSucesso }) {
@@ -19,13 +19,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [qtdInformada, setQtdInformada] = useState('');
   const [dataAbertura, setDataAbertura] = useState('');
   const [isReacao, setIsReacao] = useState(false);
-  const [reacoesSelecionadas, setReacoesSelecionadas] = useState([]); 
+  const [reacoesSelecionadas, setReacoesSelecionadas] = useState([]);
   const [listaReacoes, setListaReacoes] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
-  
+
   // ESTADO PARA CONTROLAR A EXIBIÇÃO DO NPS
   const [showNpsPrompt, setShowNpsPrompt] = useState(false);
 
@@ -33,14 +33,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   let margemMin = 0;
   let margemMax = 0;
   let dataAberturaFormatada = '';
-  
+
   const qtdTotalCaixa = Number(monitoramento?.medicamento?.qtd_capsula || 0);
   const posologia = Number(monitoramento?.posologia_diaria || 1);
 
   if (monitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = monitoramento.data_calculada_fim_caixa.split('-');
     const dataFim = new Date(ano, mes - 1, dia);
-    
+
     const diasDuracao = Math.floor(qtdTotalCaixa / posologia);
     const dataAberturaAnterior = new Date(dataFim);
     dataAberturaAnterior.setDate(dataAberturaAnterior.getDate() - diasDuracao);
@@ -49,12 +49,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
-    
-    idealRemaining = Math.max(0, diffDays * posologia);
-    
+
+    let calculado = Math.max(0, diffDays * posologia);
+
+    // TRAVA: O estoque projetado não pode ultrapassar o tamanho da caixa
+    idealRemaining = Math.min(qtdTotalCaixa, calculado);
+
     const calcMin = Math.max(0, idealRemaining - posologia);
     const calcMax = Math.min(qtdTotalCaixa, idealRemaining + posologia);
-    
+
     margemMin = Math.min(calcMin, calcMax);
     margemMax = Math.max(calcMin, calcMax);
   }
@@ -87,7 +90,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       const actualTaken = qtdTotalCaixa - qtdInformadaNum;
 
       let percentual = 100;
-      
+
       if (expectedTaken > 0) {
         if (actualTaken > expectedTaken) {
           percentual = (expectedTaken / actualTaken) * 100;
@@ -98,7 +101,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         percentual = 0;
       }
 
-      if (percentual >= 70) {
+      // --- MUDANÇA AQUI: DE 70 PARA 80 ---
+      if (percentual >= 80) {
         setNivelAdesao('PARCIALMENTE');
       } else {
         setNivelAdesao('NAO_ADERE');
@@ -115,20 +119,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       dataNovaCaixa.setHours(0, 0, 0, 0);
       dataNovaCaixa.setDate(dataNovaCaixa.getDate() + diasRestantes);
 
-      const diaSemana = dataNovaCaixa.getDay(); 
-      if (diaSemana === 6) { 
-        dataNovaCaixa.setDate(dataNovaCaixa.getDate() + 2); 
-      } else if (diaSemana === 0) { 
-        dataNovaCaixa.setDate(dataNovaCaixa.getDate() + 1); 
+      const diaSemana = dataNovaCaixa.getDay();
+      if (diaSemana === 6) {
+        dataNovaCaixa.setDate(dataNovaCaixa.getDate() + 2);
+      } else if (diaSemana === 0) {
+        dataNovaCaixa.setDate(dataNovaCaixa.getDate() + 1);
       }
 
       const ano = dataNovaCaixa.getFullYear();
       const mes = String(dataNovaCaixa.getMonth() + 1).padStart(2, '0');
       const dia = String(dataNovaCaixa.getDate()).padStart(2, '0');
-      
+
       setDataAbertura(`${ano}-${mes}-${dia}`);
     } else {
-      setDataAbertura(''); 
+      setDataAbertura('');
     }
   }, [qtdInformada, posologia]);
 
@@ -137,11 +141,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // Se o salvamento ocorreu, exibe APENAS o Modal de NPS
   if (showNpsPrompt) {
     return (
-      <NpsModal 
-        monitoramento={monitoramento} 
+      <NpsModal
+        monitoramento={monitoramento}
         onClose={() => {
           onClose(); // Fecha tudo definitivamente
-        }} 
+        }}
       />
     );
   }
@@ -184,13 +188,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         qtd_informada_caixa: contatoEfetivo ? Number(qtdInformada) : null,
         data_abertura_nova_caixa: contatoEfetivo ? dataAbertura : null,
         is_reacao: contatoEfetivo ? isReacao : null,
-        reacoes_adversas: contatoEfetivo && isReacao ? reacoesIds : [] 
+        reacoes_adversas: contatoEfetivo && isReacao ? reacoesIds : []
       });
 
       toast.success('Contato registrado com sucesso!');
       onSucesso(); // Atualiza a tabela por baixo dos panos
       window.dispatchEvent(new Event('updateAlerts'));
-      
+
       // EM VEZ DE FECHAR, ABRE O NPS
       setShowNpsPrompt(true);
 
@@ -205,7 +209,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     <ModalOverlay>
       <ModalContent>
         <h3>Registrar Contato - {monitoramento.paciente?.nome} {monitoramento.paciente?.sobrenome} </h3>
-        
+
         <InfoBox>
           <p><strong>Medicamento:</strong> {monitoramento.medicamento?.nome}</p>
           <p className="sub-text">
@@ -235,7 +239,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         </InfoBox>
 
         <form onSubmit={handleSubmit}>
-          
+
           <FormGroup>
             <label>O contato foi efetivado com sucesso?</label>
             <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
@@ -252,14 +256,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             <>
               <FormGroup>
                 <label>Quantos comprimidos restam na caixa do paciente?</label>
-                <Input 
-                  type="number" 
-                  min="0" 
+                <Input
+                  type="number"
+                  min="0"
                   max={qtdTotalCaixa}
-                  value={qtdInformada} 
-                  onChange={(e) => setQtdInformada(e.target.value)} 
-                  placeholder={`Máx: ${qtdTotalCaixa}`} 
-                  required 
+                  value={qtdInformada}
+                  onChange={(e) => setQtdInformada(e.target.value)}
+                  placeholder={`Máx: ${qtdTotalCaixa}`}
+                  required
                 />
               </FormGroup>
 
@@ -267,8 +271,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 <label>O quanto ele adere? (Calculado automaticamente)</label>
                 <Input as="select" value={nivelAdesao} disabled required>
                   <option value="COMPLETAMENTE">Completamente (Dentro da Média)</option>
-                  <option value="PARCIALMENTE">Parcialmente (Entre 70% e a Margem Ideal)</option>
-                  <option value="NAO_ADERE">Não Adere (Abaixo de 70% ou Superdosagem)</option>
+                  {/* --- MUDANÇA AQUI: DE 70% PARA 80% --- */}
+                  <option value="PARCIALMENTE">Parcialmente (Entre 80% e a Margem Ideal)</option>
+                  <option value="NAO_ADERE">Não Adere (Abaixo de 80% ou Superdosagem)</option>
                 </Input>
               </FormGroup>
 
@@ -292,7 +297,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                     options={opcoesReacoes}
                     value={reacoesSelecionadas}
                     onChange={setReacoesSelecionadas}
-                    styles={getCustomSelectStyles(theme)} 
+                    styles={getCustomSelectStyles(theme)}
                     placeholder="Selecione as reações..."
                     noOptionsMessage={() => "Nenhuma reação encontrada"}
                   />
@@ -301,12 +306,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
               <FormGroup>
                 <label>Qual a data informada para abertura da NOVA caixa?</label>
-                <Input 
-                  type="date" 
-                  min={dataHoje} 
-                  value={dataAbertura} 
-                  onChange={(e) => setDataAbertura(e.target.value)} 
-                  required 
+                <Input
+                  type="date"
+                  min={dataHoje}
+                  value={dataAbertura}
+                  onChange={(e) => setDataAbertura(e.target.value)}
+                  required
                 />
               </FormGroup>
             </>

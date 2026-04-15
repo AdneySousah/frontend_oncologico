@@ -190,7 +190,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
   const getRoleText = () => {
     if (!userProfileData) return "Carregando...";
-    if (userProfileData.is_admin) return "Cic Oncologia";
+    if (userProfileData.is_admin) return "CICFARMA";
     if (userProfileData.operadoras && userProfileData.operadoras.length > 0) {
       return userProfileData.operadoras.map(op => op.nome).join(', ');
     }

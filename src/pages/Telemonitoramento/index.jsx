@@ -17,22 +17,22 @@ export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
 
   if (score <= 9) {
-    return { 
-      label: 'Paciente com alta tendência a adesão ao tratamento', 
-      level: 'alta' 
+    return {
+      label: 'Paciente com alta tendência a adesão ao tratamento',
+      level: 'alta'
     };
   }
 
   if (score <= 12) {
-    return { 
-      label: 'Paciente com tendência moderada a adesão ao tratamento', 
-      level: 'media' 
+    return {
+      label: 'Paciente com tendência moderada a adesão ao tratamento',
+      level: 'media'
     };
   }
 
-  return { 
-    label: 'Paciente com tendência baixa a adesão ao tratamento', 
-    level: 'baixa' 
+  return {
+    label: 'Paciente com tendência baixa a adesão ao tratamento',
+    level: 'baixa'
   };
 };
 
@@ -58,7 +58,7 @@ export default function Telemonitoramento() {
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1); 
+      setCurrentPage(1);
     }, 500);
 
     return () => clearTimeout(handler);
@@ -84,7 +84,7 @@ export default function Telemonitoramento() {
   async function fetchMonitoramentos() {
     try {
       setLoading(true);
-      
+
       const response = await api.get('/monitoramento-medicamentos/pendentes', {
         params: {
           page: currentPage,
@@ -94,7 +94,7 @@ export default function Telemonitoramento() {
       });
 
       const { data, total, totalPages: fetchedTotalPages } = response.data;
-      
+
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
@@ -108,11 +108,11 @@ export default function Telemonitoramento() {
             medicamento: item.medicamento,
             avaliacao: item.avaliacao,
             historico: [],
-            niveisAdesao: [], 
+            niveisAdesao: [],
             qtdConcluido: 0,
             qtdPendente: 0,
             proximoContatoData: null,
-            estoqueProjetado: null 
+            estoqueProjetado: null
           };
         }
 
@@ -120,7 +120,7 @@ export default function Telemonitoramento() {
         if (item.status === 'CONCLUIDO') {
           acc[key].qtdConcluido++;
           if (item.nivel_adesao) {
-            acc[key].niveisAdesao.push(item.nivel_adesao); 
+            acc[key].niveisAdesao.push(item.nivel_adesao);
           }
         }
         if (item.status === 'PENDENTE') acc[key].qtdPendente++;
@@ -129,12 +129,12 @@ export default function Telemonitoramento() {
       }, {});
 
       const agrupadosArray = Object.values(agrupados).map(grupo => {
-        
+
         if (grupo.niveisAdesao.length > 0) {
           const somaPercentual = grupo.niveisAdesao.reduce((totalValor, nivel) => {
             if (nivel === 'COMPLETAMENTE') return totalValor + 100;
             if (nivel === 'PARCIALMENTE') return totalValor + 50;
-            return totalValor; 
+            return totalValor;
           }, 0);
           grupo.mediaAdesao = Math.round(somaPercentual / grupo.niveisAdesao.length);
         } else {
@@ -145,7 +145,7 @@ export default function Telemonitoramento() {
         if (pendentes.length > 0) {
           pendentes.sort((a, b) => new Date(a.data_proximo_contato) - new Date(b.data_proximo_contato));
           const contatoAtual = pendentes[0];
-          
+
           grupo.proximoContatoData = contatoAtual.data_proximo_contato;
 
           if (contatoAtual.data_calculada_fim_caixa && contatoAtual.posologia_diaria) {
@@ -153,9 +153,13 @@ export default function Telemonitoramento() {
             const dataFim = new Date(ano, mes - 1, dia);
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
-            
+
             const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
-            grupo.estoqueProjetado = Math.max(0, diffDays * contatoAtual.posologia_diaria);
+            let calculado = Math.max(0, diffDays * contatoAtual.posologia_diaria);
+
+            // TRAVA: O estoque não pode ser maior que a quantidade total da caixa
+            const qtdCaixa = grupo.medicamento?.qtd_capsula || calculado;
+            grupo.estoqueProjetado = Math.min(qtdCaixa, calculado);
           }
         }
         return grupo;
@@ -165,16 +169,16 @@ export default function Telemonitoramento() {
         const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
         const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
 
-        if (scoreA !== scoreB) return scoreB - scoreA; 
+        if (scoreA !== scoreB) return scoreB - scoreA;
 
         const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
         const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
 
-        if (mediaA !== mediaB) return mediaA - mediaB; 
+        if (mediaA !== mediaB) return mediaA - mediaB;
 
         if (!a.proximoContatoData) return 1;
         if (!b.proximoContatoData) return -1;
-        
+
         return new Date(a.proximoContatoData) - new Date(b.proximoContatoData);
       });
 
@@ -235,9 +239,9 @@ export default function Telemonitoramento() {
           </p>
           <SearchInputContainer>
             <LuSearch size={18} />
-            <SearchInput 
-              type="text" 
-              placeholder="Buscar paciente por nome..." 
+            <SearchInput
+              type="text"
+              placeholder="Buscar paciente por nome..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -285,14 +289,14 @@ export default function Telemonitoramento() {
                         >
                           <td>
                             <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
-                            
+
                             <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <span>Score Atual: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
-                              
+
                               {grupo.mediaAdesao !== null && (
                                 <>
                                   <span style={{ color: '#ccc' }}>|</span>
-                                  <span style={{ 
+                                  <span style={{
                                     color: grupo.mediaAdesao >= 80 ? '#27ae60' : grupo.mediaAdesao >= 50 ? '#f39c12' : '#e74c3c',
                                     fontWeight: 'bold',
                                     backgroundColor: 'rgba(0,0,0,0.04)',
@@ -305,18 +309,18 @@ export default function Telemonitoramento() {
                                 </>
                               )}
                             </div>
-                            
+
                             {grupo.avaliacao?.total_score != null && (
                               <AdherenceBadge level={adInfo.level}>
                                 {adInfo.label}
                               </AdherenceBadge>
                             )}
                           </td>
-                          
+
                           {/* --- DADOS DO CUIDADOR NA TABELA --- */}
                           <td>
-                            <StatusBadge 
-                              bg={grupo.paciente?.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'} 
+                            <StatusBadge
+                              bg={grupo.paciente?.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'}
                               color={grupo.paciente?.possui_cuidador ? '#17a2b8' : '#6c757d'}
                             >
                               {grupo.paciente?.possui_cuidador ? 'Sim' : 'Não'}
@@ -326,15 +330,15 @@ export default function Telemonitoramento() {
                           <td>{grupo.paciente?.contato_cuidador || '-'}</td>
 
                           <td>{grupo.paciente?.operadoras?.nome}</td>
-                          
+
                           <td>
                             <div style={{ fontWeight: '500' }}>{grupo.medicamento?.nome}</div>
                             {grupo.estoqueProjetado != null && (
-                              <div style={{ 
-                                fontSize: '0.8rem', 
-                                color: 'var(--primary-color)', 
-                                backgroundColor: 'rgba(0,0,0,0.04)', 
-                                padding: '2px 8px', 
+                              <div style={{
+                                fontSize: '0.8rem',
+                                color: 'var(--primary-color)',
+                                backgroundColor: 'rgba(0,0,0,0.04)',
+                                padding: '2px 8px',
                                 borderRadius: '4px',
                                 display: 'inline-block',
                                 marginTop: '6px',
@@ -435,14 +439,14 @@ export default function Telemonitoramento() {
                   Mostrando página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> (Total: {totalItems} pendentes)
                 </PaginationInfo>
                 <div>
-                  <PageButton 
-                    disabled={currentPage === 1} 
+                  <PageButton
+                    disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => prev - 1)}
                   >
                     Anterior
                   </PageButton>
-                  <PageButton 
-                    disabled={currentPage === totalPages} 
+                  <PageButton
+                    disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => prev + 1)}
                   >
                     Próxima

@@ -2,32 +2,46 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../../services/api';
-import { 
-  ModalOverlay, ModalContent, SuccessCheck, Button, Input 
-} from '../styles'; 
+import {
+  ModalOverlay, ModalContent, SuccessCheck, Button, Input
+} from '../styles';
 
-export default function AvaliacaoModal({ 
-  isOpen, 
-  onClose, 
-  scoreFinal, 
-  pacienteData, // Recebendo diretamente os dados do paciente
-  pacienteId, 
-  evaluationId, 
-  pendingTemplatesCount 
+export default function AvaliacaoModal({
+  isOpen,
+  onClose,
+  scoreFinal,
+  pacienteData,
+  pacienteId,
+  evaluationId,
+  pendingTemplatesCount
 }) {
-  // Controle de Abas do Modal: 'success' -> 'medicamentos' -> 'nextTemplate'
-  const [modalStep, setModalStep] = useState('success'); 
+  const [modalStep, setModalStep] = useState('success');
   const [medicamentoState, setMedicamentoState] = useState({});
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
+  const [missingQtdCapsula, setMissingQtdCapsula] = useState(false); // NOVO ESTADO
 
-  // Reseta o modal e prepara o medicamento sempre que for aberto
   useEffect(() => {
     if (isOpen) {
       setModalStep('success');
-      // Verifica se o paciente possui UM medicamento vinculado
+      setMissingQtdCapsula(false); // Reseta o estado ao abrir
+      
       if (pacienteData?.medicamento) {
+        let defaultDate = '';
+
+        if (pacienteData.data_entrega_medicamento) {
+          defaultDate = String(pacienteData.data_entrega_medicamento).substring(0, 10);
+        } 
+        else if (pacienteData.events && pacienteData.events.length > 0 && pacienteData.events[0].date_delivery) {
+          defaultDate = String(pacienteData.events[0].date_delivery).substring(0, 10);
+        }
+
         setMedicamentoState({
-          [pacienteData.medicamento.id]: { usa: true, posologia: '' }
+          [pacienteData.medicamento.id]: { 
+            usa: true, 
+            posologia: '',
+            date_delivery: defaultDate,
+            qtd_capsula_manual: '' // Prepara o campo manual
+          }
         });
       } else {
         setMedicamentoState({});
@@ -38,7 +52,6 @@ export default function AvaliacaoModal({
   if (!isOpen) return null;
 
   const handleAvancarParaMedicamentos = () => {
-    // Se o paciente tiver um medicamento atrelado no cadastro, abre a tela de posologia
     if (pacienteData?.medicamento) {
       setModalStep('medicamentos');
     } else {
@@ -59,23 +72,40 @@ export default function AvaliacaoModal({
   const handleSalvarMonitoramento = async () => {
     setLoadingMonitoramento(true);
 
-    // Formata o payload (mantemos em formato de array para o backend não quebrar)
     const confirmados = Object.entries(medicamentoState)
       .map(([medId, data]) => ({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
-        usa: data.usa
+        usa: data.usa,
+        date_delivery: data.date_delivery,
+        qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
       }))
       .filter(item => item.usa && item.posologia_diaria > 0);
 
+    const itensSemData = confirmados.filter(item => !item.date_delivery);
+    if (itensSemData.length > 0) {
+      toast.error("Por favor, preencha a data de entrega do medicamento.");
+      setLoadingMonitoramento(false);
+      return;
+    }
+
+    // Se a flag estiver ativa, obriga a preencher o campo antes de bater na API de novo
+    if (missingQtdCapsula) {
+       const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
+       if (itensSemQtd.length > 0) {
+         toast.error("A quantidade total da caixa do medicamento é obrigatória.");
+         setLoadingMonitoramento(false);
+         return;
+       }
+    }
+
     if (confirmados.length === 0) {
-       setModalStep('nextTemplate');
-       setLoadingMonitoramento(false);
-       return;
+      setModalStep('nextTemplate');
+      setLoadingMonitoramento(false);
+      return;
     }
 
     try {
-      // Retirado o entrevista_profissional_id do payload
       await api.post('/monitoramento-medicamentos', {
         paciente_id: Number(pacienteId),
         patient_evaluation_id: evaluationId,
@@ -85,7 +115,13 @@ export default function AvaliacaoModal({
       toast.success("Ciclo de monitoramento gerado!");
       setModalStep('nextTemplate');
     } catch (error) {
-      toast.error(error.response?.data?.error || "Erro ao gerar monitoramento.");
+      // CAPTURA A RESPOSTA 400 SE FALTAR A QUANTIDADE NO BANCO
+      if (error.response?.data?.needs_qtd_capsula) {
+        toast.warning(error.response.data.message, { autoClose: 6000 });
+        setMissingQtdCapsula(true);
+      } else {
+        toast.error(error.response?.data?.error || "Erro ao gerar monitoramento.");
+      }
     } finally {
       setLoadingMonitoramento(false);
     }
@@ -94,7 +130,7 @@ export default function AvaliacaoModal({
   return (
     <ModalOverlay>
       <ModalContent>
-        
+
         {/* ETAPA 1: Sucesso da Avaliação */}
         {modalStep === 'success' && (
           <>
@@ -117,32 +153,32 @@ export default function AvaliacaoModal({
           <>
             <h3 style={{ marginBottom: '10px' }}>Confirmação de Uso Contínuo</h3>
             <p style={{ fontSize: '0.9rem', marginBottom: '20px', color: '#555' }}>
-              Paciente: <strong>{pacienteData.nome} {pacienteData.sobrenome}</strong><br/>
-              Confirme a posologia para agendar os próximos contatos de monitoramento.
+              Paciente: <strong>{pacienteData.nome} {pacienteData.sobrenome}</strong><br />
+              Confirme a posologia e a data da entrega do medicamento para agendar os contatos.
             </p>
 
             <div style={{ textAlign: 'left', marginBottom: '20px' }}>
               <div style={{ marginBottom: '15px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>
-                  {pacienteData.medicamento.nome} 
+                  {pacienteData.medicamento.nome}
                 </div>
-                
+
                 <label style={{ display: 'block', marginBottom: '8px' }}>
                   O paciente continua usando este medicamento?
                 </label>
                 <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
                   <label style={{ cursor: 'pointer' }}>
-                    <input 
-                      type="radio" 
-                      name={`usa_${pacienteData.medicamento.id}`} 
+                    <input
+                      type="radio"
+                      name={`usa_${pacienteData.medicamento.id}`}
                       checked={medicamentoState[pacienteData.medicamento.id]?.usa === true}
                       onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', true)}
                     /> Sim
                   </label>
                   <label style={{ cursor: 'pointer' }}>
-                    <input 
-                      type="radio" 
-                      name={`usa_${pacienteData.medicamento.id}`} 
+                    <input
+                      type="radio"
+                      name={`usa_${pacienteData.medicamento.id}`}
                       checked={medicamentoState[pacienteData.medicamento.id]?.usa === false}
                       onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', false)}
                     /> Não
@@ -150,17 +186,47 @@ export default function AvaliacaoModal({
                 </div>
 
                 {medicamentoState[pacienteData.medicamento.id]?.usa && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Quantos comprimidos ao dia?</label>
-                    <Input 
-                      type="number" 
-                      min="1"
-                      value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''}
-                      onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)}
-                      placeholder="Ex: 2"
-                      style={{ width: '120px', padding: '5px', marginTop: '5px' }}
-                    />
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''}
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)}
+                          placeholder="Ex: 2"
+                          style={{ width: '150px', padding: '5px', marginTop: '5px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Data de Entrega do Medicamento</label>
+                        <Input
+                          type="date"
+                          value={medicamentoState[pacienteData.medicamento.id]?.date_delivery || ''}
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'date_delivery', e.target.value)}
+                          style={{ width: '200px', padding: '5px', marginTop: '5px' }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* CAMPO REVELADO SE O BANCO NÃO TIVER A QUANTIDADE DA CAIXA */}
+                    {missingQtdCapsula && (
+                      <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: '6px', borderLeft: '4px solid #e74c3c' }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#c0392b' }}>
+                          ⚠️ Quantidade total de comprimidos/cápsulas por caixa:
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={medicamentoState[pacienteData.medicamento.id]?.qtd_capsula_manual || ''}
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'qtd_capsula_manual', e.target.value)}
+                          placeholder="Ex: 30"
+                          style={{ width: '150px', padding: '5px', marginTop: '8px', border: '1px solid #e74c3c' }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

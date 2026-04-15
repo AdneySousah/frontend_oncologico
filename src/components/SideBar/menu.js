@@ -31,12 +31,12 @@ export const registerOptions = [
   { id: "operadoras", label: "Operadoras", icon: LuShield, path: "/operadoras", modulo: "operadoras" },
   { id: "usuarios", label: "Usuários", icon: LuUsers, path: "/users", modulo: "usuarios" },
   { id: "permissoes", label: "Permissões", icon: LuLock, path: "/permissoes", modulo: "usuarios" },
-  { id: "pacientes", label: "Pacientes", icon: LuUser, path: "/pacientes", modulo: "pacientes" },
-  { id: "diagnosticos", label: "Diagnósticos", icon: LuFileSearch, path: "/diagnosticos", modulo: "diagnosticos" },
+  /* { id: "pacientes", label: "Pacientes", icon: LuUser, path: "/pacientes", modulo: "pacientes" }, */
+  /* { id: "diagnosticos", label: "Diagnósticos", icon: LuFileSearch, path: "/diagnosticos", modulo: "diagnosticos" }, */
 /*   { id: "prestadores", label: "Prestadores", icon: LuBuilding2, path: "/prestadores", modulo: "prestadores_medicos" }, */
   /* { id: "medicos", label: "Médicos", icon: LuStethoscope, path: "/medicos", modulo: "medicos" }, */
   /* { id: "comorbidades", label: "Comorbidades", icon: LuHeartPulse, path: "/comorbidades", modulo: "comorbidades" }, */
-  { id: "medicamentos", label: "Medicamentos", icon: LuPill, path: "/medicamentos", modulo: "medicamentos" },
+  /* { id: "medicamentos", label: "Medicamentos", icon: LuPill, path: "/medicamentos", modulo: "medicamentos" }, */
   
   // ITENS COM NOVOS ÍCONES SEGUROS:
   { 

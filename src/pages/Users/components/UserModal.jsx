@@ -212,7 +212,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
               Status / Tipo
             </label>
             <CheckboxGroup>
-              <div>
+              {/* <div>
                 <label>
                   <input
                     type="checkbox"
@@ -222,7 +222,7 @@ const UserModal = ({ isOpen, onClose, userToEdit, onSuccess }) => {
                   />
                   Ver todas as operadoras
                 </label>
-              </div>
+              </div> */}
               <label>
                 <input
                   type="checkbox"
