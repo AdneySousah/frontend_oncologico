@@ -1,26 +1,26 @@
-// src/components/Sidebar/AlertModal.jsx
 import React, { useState, useMemo } from 'react';
 import { LuX, LuArrowDownUp } from 'react-icons/lu';
-import * as S from './styles'; 
+import * as S from './styles';
 
 export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) {
   const [sortBy, setSortBy] = useState('URGENCIA'); 
+  const [filterType, setFilterType] = useState('TODOS');
 
   const processedAlerts = useMemo(() => {
-    // 1. Não precisamos mais filtrar abas (Todos, Novos, Tele) pois tudo é Telemonitoramento.
-    // 2. A segurança (filtragem por operadora) já é garantida pelo backend na rota /pendentes.
+    let filtered = alertsList;
+    if (filterType !== 'TODOS') {
+      filtered = alertsList.filter(a => a.type === filterType);
+    }
 
-    // Apenas aplicamos a ordenação escolhida pelo usuário
-    return [...alertsList].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       if (sortBy === 'SCORE') {
         const scoreA = a.score != null ? Number(a.score) : -1;
         const scoreB = b.score != null ? Number(b.score) : -1;
         if (scoreA !== scoreB) return scoreB - scoreA;
       }
-      // Padrão: Urgência (Mais atrasados primeiro)
       return a.diffDays - b.diffDays;
     });
-  }, [alertsList, sortBy]);
+  }, [alertsList, sortBy, filterType]);
 
   if (!isOpen) return null;
 
@@ -34,12 +34,34 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
           </button>
         </div>
 
-        <S.AlertControls style={{ justifyContent: 'flex-end' }}>
-          {/* Como removemos os filtros, alinhamos o botão de ordenação à direita */}
+        <S.AlertControls style={{ justifyContent: 'space-between', display: 'flex', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
+          
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: filterType === 'TODOS' ? '#007BFF' : '#eee', color: filterType === 'TODOS' ? '#fff' : '#333', cursor: 'pointer' }}
+              onClick={() => setFilterType('TODOS')}
+            >
+              Todos
+            </button>
+            <button 
+              style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: filterType === 'Telemonitoramento' ? '#007BFF' : '#eee', color: filterType === 'Telemonitoramento' ? '#fff' : '#333', cursor: 'pointer' }}
+              onClick={() => setFilterType('Telemonitoramento')}
+            >
+              Tele
+            </button>
+            <button 
+              style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: filterType === 'Avaliação' ? '#007BFF' : '#eee', color: filterType === 'Avaliação' ? '#fff' : '#333', cursor: 'pointer' }}
+              onClick={() => setFilterType('Avaliação')}
+            >
+              Avaliações
+            </button>
+          </div>
+
           <button 
             className="sort-btn" 
             onClick={() => setSortBy(prev => prev === 'URGENCIA' ? 'SCORE' : 'URGENCIA')}
             title="Mudar ordenação"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#666', fontWeight: 'bold' }}
           >
             <LuArrowDownUp size={14} /> 
             {sortBy === 'URGENCIA' ? 'Por Data (Urgência)' : 'Por Risco (Score)'}
@@ -61,7 +83,12 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
                   <div className="alert-info">
                     
                     <div className="name-row">
-                      <h4>{alert.patientName}</h4>
+                      <h4>
+                        {alert.patientName} 
+                        <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#666', background: '#e0e0e0', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px', verticalAlign: 'middle' }}>
+                          {alert.type}
+                        </span>
+                      </h4>
                       {alert.score != null && (
                         <S.ScoreBadge score={Number(alert.score)}>
                           Score: {alert.score} pts

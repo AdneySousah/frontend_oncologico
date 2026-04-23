@@ -316,3 +316,131 @@ export const PageButton = styled.button`
     cursor: not-allowed;
   }
 `;
+
+/* --- TOOLTIP PARA OBSERVAÇÕES --- */
+export const TooltipWrapper = styled.div`
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help; /* Muda o cursor para uma interrogação, indicando que tem mais info */
+
+  /* O Balão do Tooltip */
+  &::after {
+    content: attr(data-tooltip); /* Pega o texto do atributo data-tooltip */
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    padding: 10px 14px;
+    background-color: #333;
+    color: #fff;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    white-space: normal; /* Permite quebrar linha dentro do balão */
+    width: max-content;
+    max-width: 300px; /* Largura máxima do balão antes de quebrar a linha */
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    pointer-events: none;
+    line-height: 1.4;
+  }
+
+  /* A Setinha do Tooltip */
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 2px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+  }
+
+  /* Mostra o balão e a seta no hover */
+  &:hover::after,
+  &:hover::before {
+    opacity: 1;
+    visibility: visible;
+  }
+`;
+
+/* --- TOOLTIP PARA OBSERVAÇÕES --- */
+export const TooltipContainer = styled.div`
+  position: relative;
+  display: flex;
+  width: 100%;
+  cursor: help;
+
+  /* O Balão do Tooltip */
+  &::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    padding: 10px 14px;
+    background-color: #333;
+    color: #fff;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    white-space: pre-wrap; /* Garante que quebras de linha da observação sejam respeitadas */
+    word-wrap: break-word;
+    width: max-content;
+    max-width: 300px;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    pointer-events: none;
+    line-height: 1.4;
+  }
+
+  /* A Setinha do Tooltip */
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 2px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+  }
+
+  /* Mostra o balão e a seta no hover */
+  &:hover::after,
+  &:hover::before {
+    opacity: 1;
+    visibility: visible;
+  }
+`;
+
+export const TruncatedText = styled.span`
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;

@@ -59,7 +59,7 @@ export default function ListaEntrevistas() {
   const checkSyncStatus = async () => {
     try {
       setIsCheckingSync(true);
-      const res = await api.get('/pacientes/check-sync');
+      const res = await api.get('/sync/pacientes/check');
       setPendentesSync(res.data.pendentes);
     } catch (error) {
       console.error("Erro ao verificar status de sincronização", error);
@@ -173,9 +173,20 @@ export default function ListaEntrevistas() {
         </div>
 
         <S.SyncPanel>
-          <span style={{ fontSize: '14px', color: '#52c41a', fontWeight: 'bold' }}>
-            ✅ Caso não encontre um paciente clique em sincronizar
-          </span>
+          {/* LÓGICA DE AVISO DINÂMICO DE SINCRONIZAÇÃO */}
+          {isCheckingSync ? (
+            <span style={{ fontSize: '14px', color: '#888', fontWeight: 'bold' }}>
+              🔄 Verificando novos pacientes no servidor...
+            </span>
+          ) : pendentesSync > 0 ? (
+            <span style={{ fontSize: '14px', color: '#faad14', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              ⚠️ Há {pendentesSync} novo(s) paciente(s) aguardando sincronização!
+            </span>
+          ) : (
+            <span style={{ fontSize: '14px', color: '#52c41a', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              ✅ Banco de pacientes atualizado.
+            </span>
+          )}
 
           <S.ActionButton
             style={{

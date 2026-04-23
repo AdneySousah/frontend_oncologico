@@ -11,7 +11,7 @@ import {
 import { AdherenceBadge } from '../styles';
 import { getAdherenceClassification } from '../index';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
-import NpsModal from './NpsModal'; // <-- IMPORTAÇÃO DO NOVO MODAL
+import NpsModal from './NpsModal';
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, onSucesso }) {
   const theme = useTheme();
@@ -26,8 +26,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
 
-  // ESTADO PARA CONTROLAR A EXIBIÇÃO DO NPS
   const [showNpsPrompt, setShowNpsPrompt] = useState(false);
+
+  const [observacao, setObservacao] = useState('');
 
   let idealRemaining = 0;
   let margemMin = 0;
@@ -52,7 +53,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
     let calculado = Math.max(0, diffDays * posologia);
 
-    // TRAVA: O estoque projetado não pode ultrapassar o tamanho da caixa
     idealRemaining = Math.min(qtdTotalCaixa, calculado);
 
     const calcMin = Math.max(0, idealRemaining - posologia);
@@ -70,7 +70,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setReacoesSelecionadas([]);
       setContatoEfetivo(true);
       setNivelAdesao('COMPLETAMENTE');
-      setShowNpsPrompt(false); // Reseta o estado do NPS ao abrir
+      setShowNpsPrompt(false);
+      setObservacao('');
 
       api.get('/reacao-adversa')
         .then(response => setListaReacoes(response.data))
@@ -101,7 +102,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         percentual = 0;
       }
 
-      // --- MUDANÇA AQUI: DE 70 PARA 80 ---
       if (percentual >= 80) {
         setNivelAdesao('PARCIALMENTE');
       } else {
@@ -138,20 +138,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   if (!isOpen || !monitoramento) return null;
 
-  // Se o salvamento ocorreu, exibe APENAS o Modal de NPS
   if (showNpsPrompt) {
     return (
       <NpsModal
         monitoramento={monitoramento}
         onClose={() => {
-          onClose(); // Fecha tudo definitivamente
+          onClose();
         }}
       />
     );
   }
 
-  const score = monitoramento.avaliacao?.total_score;
-  const adInfo = getAdherenceClassification(score);
+  // AGORA PEGA O SCORE CORRETO QUE A TABELA INJETOU
+  const scoreAtual = monitoramento.avaliacao?.total_score;
+  const adInfo = getAdherenceClassification(scoreAtual);
   const dataHoje = new Date().toISOString().split('T')[0];
 
   const opcoesReacoes = listaReacoes.map(reacao => ({
@@ -175,7 +175,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         toast.error('A data de abertura da nova caixa não pode ser no passado.');
         return;
       }
-      // REMOVIDA A VALIDAÇÃO QUE OBRIGAVA A SELEÇÃO DA REAÇÃO ADVERSA
     }
 
     try {
@@ -188,14 +187,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         qtd_informada_caixa: contatoEfetivo ? Number(qtdInformada) : null,
         data_abertura_nova_caixa: contatoEfetivo ? dataAbertura : null,
         is_reacao: contatoEfetivo ? isReacao : null,
-        reacoes_adversas: contatoEfetivo && isReacao ? reacoesIds : []
+        reacoes_adversas: contatoEfetivo && isReacao ? reacoesIds : [],
+        observacao: observacao || null // 
       });
 
       toast.success('Contato registrado com sucesso!');
-      onSucesso(); // Atualiza a tabela por baixo dos panos
+      onSucesso();
       window.dispatchEvent(new Event('updateAlerts'));
 
-      // EM VEZ DE FECHAR, ABRE O NPS
       setShowNpsPrompt(true);
 
     } catch (error) {
@@ -229,8 +228,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           </ProjectedStockBox>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <strong>Score Anterior:</strong> {score != null ? `${score} pts` : '-'}
-            {score != null && (
+            <strong>Score Atual:</strong> {scoreAtual != null ? `${scoreAtual} pts` : '-'}
+            {scoreAtual != null && (
               <AdherenceBadge level={adInfo.level} style={{ margin: 0 }}>
                 {adInfo.label}
               </AdherenceBadge>
@@ -268,10 +267,21 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               </FormGroup>
 
               <FormGroup>
+                <label>Observação (Opcional)</label>
+                <Input
+                  as="textarea"
+                  rows="3"
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value)}
+                  placeholder="Descreva aqui informações em relação aos comprimidos do paciente"
+                  style={{ resize: 'vertical', padding: '10px' }}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <label>O quanto ele adere? (Calculado automaticamente)</label>
                 <Input as="select" value={nivelAdesao} disabled required>
                   <option value="COMPLETAMENTE">Completamente (Dentro da Média)</option>
-                  {/* --- MUDANÇA AQUI: DE 70% PARA 80% --- */}
                   <option value="PARCIALMENTE">Parcialmente (Entre 80% e a Margem Ideal)</option>
                   <option value="NAO_ADERE">Não Adere (Abaixo de 80% ou Superdosagem)</option>
                 </Input>

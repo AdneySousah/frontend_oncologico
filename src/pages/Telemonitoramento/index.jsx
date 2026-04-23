@@ -10,7 +10,7 @@ import {
   SubTableWrapper, SubTable, StatusBadge, ActionButton,
   HeaderFlex, InfoButton, ModalOverlay, ModalContent, Button,
   AdherenceBadge, LegendList,
-  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo
+  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo, TooltipWrapper, TooltipContainer, TruncatedText
 } from './styles';
 
 export const getAdherenceClassification = (score) => {
@@ -101,12 +101,19 @@ export default function Telemonitoramento() {
       const agrupados = data.reduce((acc, item) => {
         const key = `${item.paciente.id}_${item.medicamento.id}`;
 
+        // DESCUBRE A AVALIAÇÃO MAIS RECENTE DO PACIENTE
+        let scoreMaisRecente = item.avaliacao?.total_score;
+        if (item.paciente?.avaliacoes && item.paciente.avaliacoes.length > 0) {
+          const avaliacoesOrdenadas = [...item.paciente.avaliacoes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          scoreMaisRecente = avaliacoesOrdenadas[0].total_score;
+        }
+
         if (!acc[key]) {
           acc[key] = {
             key: key,
             paciente: item.paciente,
             medicamento: item.medicamento,
-            avaliacao: item.avaliacao,
+            avaliacao: { total_score: scoreMaisRecente }, // GRAVA O SCORE MAIS RECENTE
             historico: [],
             niveisAdesao: [],
             qtdConcluido: 0,
@@ -114,6 +121,9 @@ export default function Telemonitoramento() {
             proximoContatoData: null,
             estoqueProjetado: null
           };
+        } else {
+          // Garante que grupos já criados também fiquem com o score atualizado
+          acc[key].avaliacao = { total_score: scoreMaisRecente };
         }
 
         acc[key].historico.push(item);
@@ -157,7 +167,6 @@ export default function Telemonitoramento() {
             const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
             let calculado = Math.max(0, diffDays * contatoAtual.posologia_diaria);
 
-            // TRAVA: O estoque não pode ser maior que a quantidade total da caixa
             const qtdCaixa = grupo.medicamento?.qtd_capsula || calculado;
             grupo.estoqueProjetado = Math.min(qtdCaixa, calculado);
           }
@@ -194,8 +203,13 @@ export default function Telemonitoramento() {
     setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleOpenModal = (item) => {
-    setSelectedMonitoramento(item);
+  // Alterado para receber o score atualizado e injetar no item que vai pro Modal
+  const handleOpenModal = (hist, latestScore) => {
+    const updatedHist = {
+      ...hist,
+      avaliacao: { total_score: latestScore }
+    };
+    setSelectedMonitoramento(updatedHist);
     setIsModalOpen(true);
   };
 
@@ -261,11 +275,9 @@ export default function Telemonitoramento() {
                 <thead>
                   <tr>
                     <th>Paciente e Adesão</th>
-                    {/* --- COLUNAS DO CUIDADOR ADICIONADAS AQUI --- */}
                     <th>Cuidador?</th>
                     <th>Nome Cuidador</th>
                     <th>Contato Cuidador</th>
-
                     <th>Operadora</th>
                     <th>Medicamento</th>
                     <th>Próximo Contato</th>
@@ -317,7 +329,6 @@ export default function Telemonitoramento() {
                             )}
                           </td>
 
-                          {/* --- DADOS DO CUIDADOR NA TABELA --- */}
                           <td>
                             <StatusBadge
                               bg={grupo.paciente?.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'}
@@ -328,7 +339,6 @@ export default function Telemonitoramento() {
                           </td>
                           <td>{grupo.paciente?.nome_cuidador || '-'}</td>
                           <td>{grupo.paciente?.contato_cuidador || '-'}</td>
-
                           <td>{grupo.paciente?.operadoras?.nome}</td>
 
                           <td>
@@ -378,7 +388,7 @@ export default function Telemonitoramento() {
 
                         {expandedRows[grupo.key] && (
                           <tr className="details-row">
-                            <td colSpan="9"> {/* Aumentei o colSpan para englobar todas as colunas novas */}
+                            <td colSpan="9">
                               <SubTableWrapper>
                                 <SubTable>
                                   <thead>
@@ -386,12 +396,16 @@ export default function Telemonitoramento() {
                                       <th>Data Programada</th>
                                       <th>Previsão Fim da Caixa</th>
                                       <th>Status do Contato</th>
+                                      <th>Observações</th>
                                       <th>Ações</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {grupo.historico.map(hist => {
                                       const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
+
+                                      // --- LÓGICA SIMPLIFICADA: Pega só a observação da própria linha ---
+                                      const observacaoExibir = hist.observacao || '-';
 
                                       return (
                                         <tr key={hist.id}>
@@ -408,9 +422,21 @@ export default function Telemonitoramento() {
                                               </StatusBadge>
                                             )}
                                           </td>
+
+                                          {/* NOSSA TD DA OBSERVAÇÃO COM TOOLTIP (Mantida!) */}
+                                          <td style={{ maxWidth: '220px', fontSize: '0.85rem', color: '#555' }}>
+                                            {observacaoExibir !== '-' ? (
+                                              <TooltipContainer data-tooltip={observacaoExibir}>
+                                                <TruncatedText>{observacaoExibir}</TruncatedText>
+                                              </TooltipContainer>
+                                            ) : (
+                                              '-'
+                                            )}
+                                          </td>
+
                                           <td>
                                             {hist.status === 'PENDENTE' ? (
-                                              <ActionButton onClick={() => handleOpenModal(hist)}>
+                                              <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score)}>
                                                 Registrar Contato
                                               </ActionButton>
                                             ) : (
@@ -475,15 +501,15 @@ export default function Telemonitoramento() {
 
             <LegendList>
               <li>
-                <AdherenceBadge level="alta" style={{ fontSize: '1rem', padding: '6px 14px' }}>0 a 10 pontos: Alta Probabilidade de Adesão</AdherenceBadge>
+                <AdherenceBadge level="alta" style={{ fontSize: '1rem', padding: '6px 14px' }}>0 a 9 pontos: Alta Probabilidade de Adesão</AdherenceBadge>
                 <span style={{ fontSize: '0.9rem', color: '#555', marginTop: '8px', marginLeft: '5px' }}>O paciente apresenta baixo risco de abandono. Manter monitoramento padrão.</span>
               </li>
               <li>
-                <AdherenceBadge level="media" style={{ fontSize: '1rem', padding: '6px 14px' }}>11 a 14 pontos: Adesão Moderada (Atenção)</AdherenceBadge>
+                <AdherenceBadge level="media" style={{ fontSize: '1rem', padding: '6px 14px' }}>10 a 12 pontos: Adesão Moderada (Atenção)</AdherenceBadge>
                 <span style={{ fontSize: '0.9rem', color: '#555', marginTop: '8px', marginLeft: '5px' }}>Risco moderado. O paciente pode apresentar esquecimentos ou dificuldades com horários. Requer reforço de orientações.</span>
               </li>
               <li>
-                <AdherenceBadge level="baixa" style={{ fontSize: '1rem', padding: '6px 14px' }}>15 a 17 pontos: Risco de Baixa Adesão</AdherenceBadge>
+                <AdherenceBadge level="baixa" style={{ fontSize: '1rem', padding: '6px 14px' }}>13 ou mais: Risco de Baixa Adesão</AdherenceBadge>
                 <span style={{ fontSize: '0.9rem', color: '#555', marginTop: '8px', marginLeft: '5px' }}>Alta chance de interrupção do tratamento. Necessário acompanhamento próximo e escuta ativa.</span>
               </li>
             </LegendList>

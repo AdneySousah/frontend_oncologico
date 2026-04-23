@@ -11,7 +11,7 @@ export const Container = styled.div`
 export const SectionWrapper = styled.div`
   margin: 0 auto;
   width: 100%;
-  max-width: 1200px; /* Limitando a largura para não esticar demais em telas ultrawide */
+  max-width: 1200px;
 `;
 
 export const Title = styled.h2`
@@ -111,13 +111,13 @@ export const Select = styled.select`
 
 export const Form = styled.form`
   margin-top: 30px;
-
   background: ${props => props.theme.colors.surface};
   padding: 40px;
   border-radius: 8px;
   border: 1px solid ${props => props.theme.colors.border};
   box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  margin-bottom: 100px; /* Espaço para o FloatingScore não cobrir botões */
+  margin-bottom: 100px;
+  
   @media (max-width: 768px) {
     padding: 20px;
   }
@@ -238,10 +238,9 @@ export const QuestionCard = styled.div`
       background: ${props => props.theme.colors.inputBg};
     }
 
-    /* Estilo aplicado quando o radio está checado */
     &.selected {
       border-color: ${props => props.theme.colors.primary};
-      background: ${props => props.theme.colors.primary}10; /* Fundo com 10% de opacidade */
+      background: ${props => props.theme.colors.primary}10;
       font-weight: 600;
     }
   }
@@ -420,5 +419,70 @@ export const FloatingScore = styled.div`
   @media (max-width: 768px) {
     bottom: 20px; right: 20px; font-size: 1rem; padding: 12px 20px;
     span { font-size: 1.3rem; }
+  }
+`;
+
+
+/* =========================================
+   NOVOS ESTILOS PARA O HISTÓRICO DE AVALIAÇÕES 
+   ========================================= */
+
+export const HistoryWrapper = styled.div`
+  overflow-x: auto;
+  background: ${props => props.theme.colors.surface};
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  border: 1px solid ${props => props.theme.colors.border};
+`;
+
+export const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+`;
+
+export const Th = styled.th`
+  padding: 14px 12px;
+  border-bottom: 2px solid ${props => props.theme.colors.border};
+  color: ${props => props.theme.colors.textLight};
+  font-weight: 600;
+  font-size: 1.05rem;
+`;
+
+export const Td = styled.td`
+  padding: 14px 12px;
+  border-bottom: 1px solid ${props => props.theme.colors.border};
+  color: ${props => props.theme.colors.text};
+  vertical-align: middle;
+`;
+
+export const Tr = styled.tr`
+  transition: background-color 0.2s;
+  &:hover {
+    background-color: ${props => props.theme.colors.inputBg};
+  }
+`;
+
+export const ActionButton = styled.button`
+  background-color: ${props => props.theme.colors.primary};
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: background-color 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+  
+  &:active {
+    transform: scale(0.98);
   }
 `;

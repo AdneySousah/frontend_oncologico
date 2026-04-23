@@ -8,6 +8,7 @@ import {
 } from "react-icons/lu";
 
 import AvaliacaoModal from './component/AvaliacaoModal';
+import HistoricoAvaliacoes from './component/HistoricoAvaliacoes'; // IMPORT DO NOVO COMPONENTE
 
 import {
   Container, Title, Form, QuestionCard, Select, Button,
@@ -28,8 +29,10 @@ export default function NovaAvaliacao() {
   const [pacienteData, setPacienteData] = useState(null);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
+  
+  const [historyData, setHistoryData] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Estados para o Modal e Paginação
   const [modalOpen, setModalOpen] = useState(false);
   const [scoreFinal, setScoreFinal] = useState(0);
   const [evaluationId, setEvaluationId] = useState(null);
@@ -48,13 +51,16 @@ export default function NovaAvaliacao() {
   async function fetchData() {
     try {
       setLoading(true);
-      const [templatesRes, pacienteRes] = await Promise.all([
+      // Alteração: Buscamos o histórico logo no início junto com os outros dados
+      const [templatesRes, pacienteRes, historyRes] = await Promise.all([
         api.get(`/evaluations/templates/pending/${paciente_id}`),
-        api.get(`/pacientes/detalhes/${paciente_id}`)
+        api.get(`/pacientes/detalhes/${paciente_id}`),
+        api.get(`/evaluations/paciente/${paciente_id}/history`)
       ]);
 
       setPendingTemplates(templatesRes.data);
       setPacienteData(pacienteRes.data);
+      setHistoryData(historyRes.data); // Já guardamos o histórico aqui
 
       if (templatesRes.data.length > 0) {
         setSelectedTemplateId(templatesRes.data[0].id);
@@ -66,7 +72,41 @@ export default function NovaAvaliacao() {
     }
   }
 
-  // Sempre que mudar de questionário, reseta a página e as respostas
+  async function loadHistory() {
+    setLoadingHistory(true);
+    try {
+      const res = await api.get(`/evaluations/paciente/${paciente_id}/history`);
+      setHistoryData(res.data);
+    } catch (error) {
+      toast.error("Erro ao carregar histórico.");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  // NOVA FUNÇÃO: Dispara quando clica no botão "Refazer" lá do componente de histórico
+  const handleRetake = async (templateId) => {
+    try {
+      setLoading(true);
+      // Busca o template específico pelo ID (presumindo que sua API padrão traga as questions)
+      // Se não existir rota "/evaluations/templates/:id", você pode criar ou buscar a lista completa de templates.
+      const res = await api.get(`/evaluations/templates/${templateId}`);
+      
+      const templateData = res.data;
+      
+      // Coloca esse template na lista de pendentes e seleciona ele para o formulário aparecer
+      setPendingTemplates([templateData]);
+      setSelectedTemplateId(templateData.id);
+      setModalOpen(false); // Garante que nenhum modal de conclusão esteja aberto
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao carregar os dados do questionário. Verifique se ele ainda está ativo no sistema.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     setCurrentCategoryIndex(0);
     setAnswers({});
@@ -88,29 +128,21 @@ export default function NovaAvaliacao() {
 
   const activeTemplate = pendingTemplates.find(t => t.id === Number(selectedTemplateId));
 
-
-
-  // Agrupa as perguntas por categoria
   const groupedCategories = useMemo(() => {
     if (!activeTemplate || !activeTemplate.questions) return [];
 
-    // 1. Criamos uma cópia para não mutar o estado original e ordenamos por ID crescente
     const sortedQuestions = [...activeTemplate.questions].sort((a, b) => a.id - b.id);
-
     const groups = {};
 
-    // 2. Usamos o array já ordenado para montar os grupos
     sortedQuestions.forEach(q => {
       const cat = q.categoria || 'Geral';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(q);
     });
 
-    // Retorna um array de objetos { name: 'Nome da Categoria', questions: [...] }
     return Object.entries(groups).map(([name, qs]) => ({ name, questions: qs }));
   }, [activeTemplate]);
 
-  // Calcula o progresso global (ignorando tipo "orientacao")
   const { totalAnswerable, answeredCount, progressPercentage } = useMemo(() => {
     if (!activeTemplate || !activeTemplate.questions) return { totalAnswerable: 0, answeredCount: 0, progressPercentage: 0 };
 
@@ -122,7 +154,6 @@ export default function NovaAvaliacao() {
     return { totalAnswerable: answerable.length, answeredCount: answered.length, progressPercentage: progress };
   }, [activeTemplate, answers]);
 
-  // Valida se todas as perguntas da categoria atual foram respondidas
   const canAdvance = () => {
     const currentCat = groupedCategories[currentCategoryIndex];
     if (!currentCat) return false;
@@ -134,7 +165,7 @@ export default function NovaAvaliacao() {
   };
 
   const handleNext = (e) => {
-    e.preventDefault(); // Impede recarregamento e comportamentos estranhos
+    e.preventDefault();
     if (!canAdvance()) {
       toast.warn("Por favor, responda todos os itens desta etapa antes de avançar.");
       return;
@@ -144,13 +175,13 @@ export default function NovaAvaliacao() {
   };
 
   const handlePrev = (e) => {
-    e.preventDefault(); // Impede recarregamento
+    e.preventDefault();
     setCurrentCategoryIndex(prev => prev - 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault(); // Impede recarregamento da página
+    if (e) e.preventDefault();
 
     if (!canAdvance() || answeredCount < totalAnswerable) {
       toast.warn("Por favor, preencha todo o formulário antes de enviar.");
@@ -181,6 +212,8 @@ export default function NovaAvaliacao() {
       setPendingTemplates(prev => prev.filter(t => t.id !== Number(selectedTemplateId)));
       setAnswers({});
       setModalOpen(true);
+      
+      loadHistory();
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Erro ao enviar avaliação.';
       toast.error(errorMsg);
@@ -192,7 +225,9 @@ export default function NovaAvaliacao() {
     if (continuar && pendingTemplates.length > 0) {
       setSelectedTemplateId(pendingTemplates[0].id);
     } else {
-      navigate('/necessidade-navegacao');
+      if(pendingTemplates.length !== 0) {
+        navigate('/necessidade-navegacao');
+      }
     }
   };
 
@@ -218,15 +253,18 @@ export default function NovaAvaliacao() {
     return total;
   }, [answers, activeTemplate]);
 
-  if (loading) return <div style={{ padding: 20, textAlign: 'center', fontSize: '1.2rem' }}>Carregando dados da avaliação...</div>;
+  if (loading) return <div style={{ padding: 20, textAlign: 'center', fontSize: '1.2rem', color: 'var(--text-color)' }}>Carregando dados...</div>;
 
+  // Renderização Componentizada do Histórico
   if (pendingTemplates.length === 0 && !modalOpen) {
     return (
       <Container>
-        <SectionWrapper>
-          <Title>Todas as avaliações foram concluídas.</Title>
-          <Button onClick={() => navigate('/necessidade-navegacao')}>Voltar para a Lista</Button>
-        </SectionWrapper>
+        <HistoricoAvaliacoes
+          historyData={historyData}
+          loadingHistory={loadingHistory}
+          onBack={() => navigate('/necessidade-navegacao')}
+          onRetake={handleRetake}
+        />
       </Container>
     );
   }
@@ -398,6 +436,7 @@ export default function NovaAvaliacao() {
           pacienteId={paciente_id}
           evaluationId={evaluationId}
           pendingTemplatesCount={pendingTemplates.length}
+          jaPossuiHistorico={historyData.length > 0} // <-- NOVA FLAG AQUI
         />
 
       </SectionWrapper>

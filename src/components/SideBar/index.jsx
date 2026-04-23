@@ -1,4 +1,3 @@
-// src/components/Sidebar/index.jsx
 import { useState, useEffect, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as S from "./styles";
@@ -14,7 +13,6 @@ import api from "../../services/api";
 
 import AlertModal from "./AlertModal";
 
-// IMPORT DAS LOGOS
 import logoBranca from "../../assets/logo_branca.png";
 
 export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
@@ -35,10 +33,9 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertsList, setAlertsList] = useState([]);
 
-  // NOVO: Estado para saúde do WhatsApp NPS
   const [npsHealth, setNpsHealth] = useState(null);
 
-  const currentLogo = theme === 'light' ? logoBranca : logoBranca;
+  const currentLogo = logoBranca;
 
   const getInitials = (fullName) => {
     if (!fullName) return "U";
@@ -80,18 +77,19 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
   };
 
-  // Carrega os alertas (Navegação, Tele e Novos Pacientes)
- // Carrega apenas os alertas de Telemonitoramento
   const loadAlerts = async () => {
     try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
-      // 1. Busca apenas os monitoramentos pendentes
-      const resTele = await api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }));
-      const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
+      const [resTele, resEval] = await Promise.all([
+        api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] })),
+        api.get('/evaluations/pendentes-alerta').catch(() => ({ data: [] }))
+      ]);
 
-      // 2. Processa os dados de telemonitoramento
+      const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
+      const evalData = Array.isArray(resEval.data) ? resEval.data : [];
+
       teleData.forEach(item => {
         const status = item.status ? String(item.status).toUpperCase() : '';
         const isConcluido = ['CONCLUÍDO', 'CONCLUIDO', 'FINALIZADO', 'FINALIZADA', 'CANCELADO'].includes(status);
@@ -113,29 +111,43 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
         }
       });
 
-      // 3. Ordena e atualiza os estados
+      evalData.forEach(item => {
+        if (item.data_proxima_avaliacao) {
+          const diffDays = processDate(item.data_proxima_avaliacao);
+          if (diffDays <= 5) {
+            if (diffDays < mostCritical) mostCritical = diffDays;
+            unifiedAlerts.push({
+              id: `eval_${item.id}`,
+              type: 'Avaliação',
+              patientName: `${item.paciente?.nome || 'Sem Nome'} ${item.paciente?.sobrenome || ''}`.trim(),
+              description: `Renovar Questionário: ${item.template?.title || 'Avaliação'}`,
+              diffDays,
+              route: `/necessidade-navegacao?paciente_id=${item.paciente_id}`,
+              score: item.total_score != null ? item.total_score : null
+            });
+          }
+        }
+      });
+
       unifiedAlerts.sort((a, b) => a.diffDays - b.diffDays);
       setAlertsList(unifiedAlerts);
       setAlertCount(unifiedAlerts.length);
 
-      // 4. Define a cor do sino com base na criticidade
       if (unifiedAlerts.length === 0) setAlertColor('inherit');
-      else if (mostCritical <= 1) setAlertColor('#ff4d4f'); // Vermelho (hoje ou atrasado)
-      else if (mostCritical <= 3) setAlertColor('#faad14'); // Amarelo (próximos dias)
-      else setAlertColor('#52c41a'); // Verde
+      else if (mostCritical <= 1) setAlertColor('#ff4d4f');
+      else if (mostCritical <= 3) setAlertColor('#faad14');
+      else setAlertColor('#52c41a');
 
     } catch (error) {
       console.error("Erro ao carregar alertas", error);
     }
   };
 
-  // NOVO: Carregar saúde do WhatsApp NPS
   const loadNpsHealth = async () => {
     try {
       const user = localStorage.getItem('oncologico:UserData');
       const parsedUser = user ? JSON.parse(user) : null;
 
-      // Só tenta buscar se for admin ou tiver permissão (ajuste conforme seu checkPermission)
       if (parsedUser?.user?.is_admin || temPermissaoDeAcesso('check-saude')) {
         const response = await api.get('/nps/health');
         setNpsHealth(response.data);
@@ -161,9 +173,8 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     loadAlerts();
     loadNpsHealth();
 
-    // Intervals para atualização automática
     const alertInterval = setInterval(() => loadAlerts(), 300000);
-    const healthInterval = setInterval(() => loadNpsHealth(), 600000); // 10 min
+    const healthInterval = setInterval(() => loadNpsHealth(), 600000);
 
     const handleUpdateAlerts = () => loadAlerts();
     window.addEventListener('updateAlerts', handleUpdateAlerts);
@@ -299,7 +310,6 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
         </S.MenuList>
 
         <S.Footer isCollapsed={collapsed}>
-          {/* SEÇÃO DINÂMICA DE SAÚDE DO WHATSAPP NPS */}
           {npsHealth && (
             <S.HealthStatus
               isCollapsed={collapsed}
@@ -315,7 +325,6 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
                       npsHealth.qualidade === 'Red' ? 'Qualidade Baixa' : 'Indisponível'}
                 </strong>
 
-                {/* Exibição do Saldo logo abaixo */}
                 <div className="balance-label">
                   <LuSmartphone size={12} />
                   Saldo: {npsHealth.saldo || '...'}
