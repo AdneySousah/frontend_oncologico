@@ -367,7 +367,7 @@ export const ModalContent = styled.div`
   border: 1px solid ${props => props.theme.colors.border};
 `;
 
-const strokeAnimation = keyframes`
+/* const strokeAnimation = keyframes`
   100% { stroke-dashoffset: 0; }
 `;
 
@@ -379,7 +379,7 @@ export const SuccessCheck = styled.svg`
     stroke-dasharray: 48; stroke-dashoffset: 48;
     animation: ${strokeAnimation} 0.5s ease forwards;
   }
-`;
+`; */
 
 export const FloatingScore = styled.div`
   position: fixed;
@@ -484,5 +484,50 @@ export const ActionButton = styled.button`
   
   &:active {
     transform: scale(0.98);
+  }
+`;
+
+
+const strokeAnimation = keyframes`
+  100% {
+    stroke-dashoffset: 0;
+  }
+`;
+
+// Animação para dar um "pulo" no final
+const scaleAnimation = keyframes`
+  0%, 100% { transform: none; }
+  50% { transform: scale3d(1.1, 1.1, 1); }
+`;
+
+export const SuccessCheck = styled.svg`
+  width: 70px;
+  height: 70px;
+  display: block;
+  margin: 0 auto 15px auto;
+  border-radius: 50%;
+  stroke-width: 3;
+  stroke: #28a745;
+  stroke-miterlimit: 10;
+  animation: ${scaleAnimation} 0.3s ease-in-out 0.6s both;
+
+  .check-circle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-width: 3;
+    stroke-miterlimit: 10;
+    stroke: #28a745;
+    fill: none;
+    /* Anima o círculo primeiro */
+    animation: ${strokeAnimation} 0.4s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  }
+
+  .check-path {
+    transform-origin: 50% 50%;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    stroke: #28a745;
+    /* Anima o 'V' com um pequeno delay para esperar o círculo fechar */
+    animation: ${strokeAnimation} 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards;
   }
 `;

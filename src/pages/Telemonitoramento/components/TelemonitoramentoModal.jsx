@@ -16,6 +16,7 @@ import NpsModal from './NpsModal';
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, onSucesso }) {
   const theme = useTheme();
 
+
   const [qtdInformada, setQtdInformada] = useState('');
   const [dataAbertura, setDataAbertura] = useState('');
   const [isReacao, setIsReacao] = useState(false);

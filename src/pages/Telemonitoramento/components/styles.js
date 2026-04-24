@@ -10,7 +10,7 @@ export const ModalContent = styled.div`
   color: ${props => props.theme.colors.text};
   padding: 40px; 
   border-radius: 12px; 
-  max-width: 1200px; /* Reduzi um pouco a largura máxima para o form não ficar tão esticado */
+  max-width: 900px; /* Reduzi um pouco a largura máxima para o form não ficar tão esticado */
   width: 90%;
   max-height: 90vh; /* Para garantir que não passe da tela */
   overflow-y: auto; /* Scroll caso a tela seja pequena */

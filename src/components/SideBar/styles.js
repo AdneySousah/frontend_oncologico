@@ -392,20 +392,20 @@ export const ScoreBadge = styled.span`
   white-space: nowrap;
 
   background-color: ${props => {
-    if (props.score <= 10) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
-    if (props.score <= 14) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; 
+    if (props.score <= 9) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
+    if (props.score <= 12) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; 
     return props.theme.colors.dangerLight || 'rgba(255, 77, 79, 0.15)'; 
   }};
 
   color: ${props => {
-    if (props.score <= 10) return props.theme.colors.success || '#52c41a';
-    if (props.score <= 14) return props.theme.colors.warning || '#faad14';
+    if (props.score <= 9) return props.theme.colors.success || '#52c41a';
+    if (props.score <= 12) return props.theme.colors.warning || '#faad14';
     return props.theme.colors.danger || '#ff4d4f';
   }};
   
   border: 1px solid ${props => {
-    if (props.score <= 10) return props.theme.colors.success || '#52c41a';
-    if (props.score <= 14) return props.theme.colors.warning || '#faad14';
+    if (props.score <= 9) return props.theme.colors.success || '#52c41a';
+    if (props.score <= 12) return props.theme.colors.warning || '#faad14';
     return props.theme.colors.danger || '#ff4d4f';
   }};
 `;

@@ -93,6 +93,8 @@ export default function Telemonitoramento() {
         }
       });
 
+      
+
       const { data, total, totalPages: fetchedTotalPages } = response.data;
 
       setTotalPages(fetchedTotalPages || 1);

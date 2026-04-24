@@ -18,29 +18,29 @@ export default function AvaliacaoModal({
   const [modalStep, setModalStep] = useState('success');
   const [medicamentoState, setMedicamentoState] = useState({});
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
-  const [missingQtdCapsula, setMissingQtdCapsula] = useState(false); // NOVO ESTADO
+  const [missingQtdCapsula, setMissingQtdCapsula] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setModalStep('success');
-      setMissingQtdCapsula(false); // Reseta o estado ao abrir
-      
+      setMissingQtdCapsula(false);
+
       if (pacienteData?.medicamento) {
         let defaultDate = '';
 
         if (pacienteData.data_entrega_medicamento) {
           defaultDate = String(pacienteData.data_entrega_medicamento).substring(0, 10);
-        } 
+        }
         else if (pacienteData.events && pacienteData.events.length > 0 && pacienteData.events[0].date_delivery) {
           defaultDate = String(pacienteData.events[0].date_delivery).substring(0, 10);
         }
 
         setMedicamentoState({
-          [pacienteData.medicamento.id]: { 
-            usa: true, 
+          [pacienteData.medicamento.id]: {
+            usa: true,
             posologia: '',
             date_delivery: defaultDate,
-            qtd_capsula_manual: '' // Prepara o campo manual
+            qtd_capsula_manual: ''
           }
         });
       } else {
@@ -50,6 +50,27 @@ export default function AvaliacaoModal({
   }, [isOpen, pacienteData]);
 
   if (!isOpen) return null;
+
+  // ✅ NOVO: Função para classificar a adesão e definir as cores do modal
+  const getAdherenceInfo = (score) => {
+    if (score <= 9) return {
+      label: 'ALTA adesão',
+      textColor: '#27ae60', // Verde
+      bgColor: 'rgba(46, 204, 113, 0.15)'
+    };
+    if (score <= 12) return {
+      label: 'MÉDIA adesão',
+      textColor: '#d35400', // Laranja/Amarelo escuro
+      bgColor: 'rgba(243, 156, 18, 0.15)'
+    };
+    return {
+      label: 'BAIXA adesão',
+      textColor: '#c0392b', // Vermelho
+      bgColor: 'rgba(231, 76, 60, 0.15)'
+    };
+  };
+
+  const adInfo = getAdherenceInfo(scoreFinal);
 
   const handleAvancarParaMedicamentos = () => {
     if (pacienteData?.medicamento) {
@@ -72,7 +93,7 @@ export default function AvaliacaoModal({
   const handleSalvarMonitoramento = async () => {
     setLoadingMonitoramento(true);
 
-    const confirmados = Object.entries(medicamentoState)
+    const medicamentosEmUso = Object.entries(medicamentoState)
       .map(([medId, data]) => ({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
@@ -80,7 +101,16 @@ export default function AvaliacaoModal({
         date_delivery: data.date_delivery,
         qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
       }))
-      .filter(item => item.usa && item.posologia_diaria > 0);
+      .filter(item => item.usa === true);
+
+    const itensSemPosologia = medicamentosEmUso.filter(item => item.posologia_diaria <= 0);
+    if (itensSemPosologia.length > 0) {
+      toast.error("Por favor, informe quantos comprimidos ao dia o paciente toma.");
+      setLoadingMonitoramento(false);
+      return;
+    }
+
+    const confirmados = medicamentosEmUso;
 
     const itensSemData = confirmados.filter(item => !item.date_delivery);
     if (itensSemData.length > 0) {
@@ -89,14 +119,13 @@ export default function AvaliacaoModal({
       return;
     }
 
-    // Se a flag estiver ativa, obriga a preencher o campo antes de bater na API de novo
     if (missingQtdCapsula) {
-       const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
-       if (itensSemQtd.length > 0) {
-         toast.error("A quantidade total da caixa do medicamento é obrigatória.");
-         setLoadingMonitoramento(false);
-         return;
-       }
+      const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
+      if (itensSemQtd.length > 0) {
+        toast.error("A quantidade total da caixa do medicamento é obrigatória.");
+        setLoadingMonitoramento(false);
+        return;
+      }
     }
 
     if (confirmados.length === 0) {
@@ -115,7 +144,6 @@ export default function AvaliacaoModal({
       toast.success("Ciclo de monitoramento gerado!");
       setModalStep('nextTemplate');
     } catch (error) {
-      // CAPTURA A RESPOSTA 400 SE FALTAR A QUANTIDADE NO BANCO
       if (error.response?.data?.needs_qtd_capsula) {
         toast.warning(error.response.data.message, { autoClose: 6000 });
         setMissingQtdCapsula(true);
@@ -134,15 +162,33 @@ export default function AvaliacaoModal({
         {/* ETAPA 1: Sucesso da Avaliação */}
         {modalStep === 'success' && (
           <>
+            {/* ✅ Ícone corrigido: Raio reduzido (r=22) para não cortar nas bordas */}
             <SuccessCheck viewBox="0 0 52 52">
-              <circle className="check-circle" cx="26" cy="26" r="25" fill="none" />
-              <path className="check-path" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+              <circle className="check-circle" cx="26" cy="26" r="22" fill="none" strokeWidth="3" />
+              <path className="check-path" fill="none" d="M16 27 l6 6 l13 -13" strokeWidth="3" />
             </SuccessCheck>
+
             <h2>Avaliação Enviada!</h2>
+
             <p style={{ fontSize: '1.2rem', marginTop: '10px' }}>
               Pontuação calculada: <strong>{scoreFinal} pts</strong>
             </p>
-            <Button style={{ marginTop: '20px' }} onClick={handleAvancarParaMedicamentos}>
+
+            {/* ✅ NOVO: Card dinâmico com o nome do paciente e classificação */}
+            <div style={{
+              marginTop: '15px',
+              padding: '15px',
+              backgroundColor: adInfo.bgColor,
+              borderRadius: '8px',
+              borderLeft: `5px solid ${adInfo.textColor}`,
+              textAlign: 'left'
+            }}>
+              <p style={{ margin: 0, fontSize: '1rem', lineHeight: '1.5', color: '#444' }}>
+                O paciente <strong>{pacienteData?.nome} {pacienteData?.sobrenome}</strong> entrou para o telemonitoramento com tendência de <strong style={{ color: adInfo.textColor }}>{adInfo.label}</strong> ao tratamento.
+              </p>
+            </div>
+
+            <Button style={{ marginTop: '25px', width: '100%' }} onClick={handleAvancarParaMedicamentos}>
               Continuar
             </Button>
           </>
@@ -197,6 +243,7 @@ export default function AvaliacaoModal({
                           onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)}
                           placeholder="Ex: 2"
                           style={{ width: '150px', padding: '5px', marginTop: '5px' }}
+                          required
                         />
                       </div>
                       <div>
@@ -209,8 +256,7 @@ export default function AvaliacaoModal({
                         />
                       </div>
                     </div>
-                    
-                    {/* CAMPO REVELADO SE O BANCO NÃO TIVER A QUANTIDADE DA CAIXA */}
+
                     {missingQtdCapsula && (
                       <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: '6px', borderLeft: '4px solid #e74c3c' }}>
                         <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#c0392b' }}>
@@ -238,6 +284,7 @@ export default function AvaliacaoModal({
         )}
 
         {/* ETAPA 3: Decisão do Próximo Template */}
+        {/* ETAPA 3: Decisão do Próximo Template */}
         {modalStep === 'nextTemplate' && (
           <>
             {pendingTemplatesCount > 0 ? (
@@ -252,8 +299,14 @@ export default function AvaliacaoModal({
               </>
             ) : (
               <>
-                <h3 style={{ margin: '20px 0' }}>Processo Concluído!</h3>
-                <Button style={{ marginTop: 25 }} onClick={() => onClose(false)}>Voltar à Tabela</Button>
+                {/* ✅ A perfumaria foi adicionada aqui! */}
+                <SuccessCheck viewBox="0 0 52 52">
+                  <circle className="check-circle" cx="26" cy="26" r="22" fill="none" strokeWidth="3" />
+                  <path className="check-path" fill="none" d="M16 27 l6 6 l13 -13" strokeWidth="3" />
+                </SuccessCheck>
+
+                <h3 style={{ margin: '10px 0 20px 0' }}>Processo Concluído!</h3>
+                <Button style={{ marginTop: 10, width: '100%' }} onClick={() => onClose(false)}>Voltar à Tabela</Button>
               </>
             )}
           </>

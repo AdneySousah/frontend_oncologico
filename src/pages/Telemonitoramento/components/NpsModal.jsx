@@ -12,6 +12,7 @@ export default function NpsModal({ monitoramento, onClose }) {
 
   const pacienteInfo = monitoramento.paciente;
 
+
   useEffect(() => {
     if (pacienteInfo) {
       // Se tiver cuidador, o padrão vira o cuidador
@@ -69,7 +70,7 @@ export default function NpsModal({ monitoramento, onClose }) {
 
   return (
     <ModalOverlay>
-      <ModalContent style={{ maxWidth: '600px' }}>
+      <ModalContent >
         <NpsContainer>
           {step === 'prompt' && (
             <>
@@ -98,7 +99,7 @@ export default function NpsModal({ monitoramento, onClose }) {
                               checked={destinoEnvio === 'cuidador'} 
                               onChange={() => setDestinoEnvio('cuidador')}
                           />
-                          Disparar para o Cuidador ({pacienteInfo.contato_cuidador})
+                          Disparar para o Cuidador  ({pacienteInfo.nome_cuidador} - {pacienteInfo.contato_cuidador})
                       </label>
                   )}
                   
@@ -110,7 +111,7 @@ export default function NpsModal({ monitoramento, onClose }) {
                           checked={destinoEnvio === 'paciente'} 
                           onChange={() => setDestinoEnvio('paciente')}
                       />
-                      Disparar para o Paciente ({pacienteInfo.celular || pacienteInfo.telefone})
+                      Disparar para o Paciente ({pacienteInfo.nome} {pacienteInfo.sobrenome} - {pacienteInfo.celular || pacienteInfo.telefone})
                   </label>
               </div>
 
