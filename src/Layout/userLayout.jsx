@@ -100,12 +100,12 @@ export function UserLayout() {
       )}
 
       {/* Botão de Ajuda: Aparece para todos */}
-      <FloatingHelpContainer>
+  {/*     <FloatingHelpContainer>
         <HelpTooltip className="tooltip">Quer ajuda com uso do sistema?</HelpTooltip>
         <HelpButton title="Acessar o Manual" onClick={handleOpenManual}>
           <LuCircleAlert size={32} />
         </HelpButton>
-      </FloatingHelpContainer>
+      </FloatingHelpContainer> */}
     </Container>
   );
 }

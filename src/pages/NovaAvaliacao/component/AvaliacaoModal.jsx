@@ -1,4 +1,3 @@
-// src/pages/NovaAvaliacao/AvaliacaoModal.jsx
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../../services/api';
@@ -13,7 +12,8 @@ export default function AvaliacaoModal({
   pacienteData,
   pacienteId,
   evaluationId,
-  pendingTemplatesCount
+  pendingTemplatesCount,
+  jaPossuiHistorico // Recebido da página pai (NovaAvaliacao)
 }) {
   const [modalStep, setModalStep] = useState('success');
   const [medicamentoState, setMedicamentoState] = useState({});
@@ -27,11 +27,9 @@ export default function AvaliacaoModal({
 
       if (pacienteData?.medicamento) {
         let defaultDate = '';
-
         if (pacienteData.data_entrega_medicamento) {
           defaultDate = String(pacienteData.data_entrega_medicamento).substring(0, 10);
-        }
-        else if (pacienteData.events && pacienteData.events.length > 0 && pacienteData.events[0].date_delivery) {
+        } else if (pacienteData.events?.[0]?.date_delivery) {
           defaultDate = String(pacienteData.events[0].date_delivery).substring(0, 10);
         }
 
@@ -43,38 +41,52 @@ export default function AvaliacaoModal({
             qtd_capsula_manual: ''
           }
         });
-      } else {
-        setMedicamentoState({});
       }
     }
   }, [isOpen, pacienteData]);
 
-  if (!isOpen) return null;
-
-  // ✅ NOVO: Função para classificar a adesão e definir as cores do modal
   const getAdherenceInfo = (score) => {
-    if (score <= 9) return {
-      label: 'ALTA adesão',
-      textColor: '#27ae60', // Verde
-      bgColor: 'rgba(46, 204, 113, 0.15)'
-    };
-    if (score <= 12) return {
-      label: 'MÉDIA adesão',
-      textColor: '#d35400', // Laranja/Amarelo escuro
-      bgColor: 'rgba(243, 156, 18, 0.15)'
-    };
-    return {
-      label: 'BAIXA adesão',
-      textColor: '#c0392b', // Vermelho
-      bgColor: 'rgba(231, 76, 60, 0.15)'
-    };
+    if (score <= 9) return { label: 'ALTA adesão', textColor: '#27ae60', bgColor: 'rgba(46, 204, 113, 0.15)' };
+    if (score <= 12) return { label: 'MÉDIA adesão', textColor: '#d35400', bgColor: 'rgba(243, 156, 18, 0.15)' };
+    return { label: 'BAIXA adesão', textColor: '#c0392b', bgColor: 'rgba(231, 76, 60, 0.15)' };
   };
 
   const adInfo = getAdherenceInfo(scoreFinal);
 
+  // Vínculo silencioso quando o paciente já está no telemonitoramento
+  const handleUpdateSilencioso = async () => {
+    setLoadingMonitoramento(true);
+    try {
+      await api.post('/monitoramento-medicamentos', {
+        paciente_id: Number(pacienteId),
+        patient_evaluation_id: evaluationId,
+        medicamentos_confirmados: [
+          {
+            medicamento_id: pacienteData.medicamento.id,
+            usa: true
+            // Não enviamos posologia/data para não sobrescrever o que já foi configurado antes
+          }
+        ]
+      });
+      window.dispatchEvent(new Event('updateAlerts'));
+      setModalStep('nextTemplate');
+    } catch (error) {
+      toast.error("Erro ao atualizar vínculo de monitoramento.");
+      setModalStep('nextTemplate');
+    } finally {
+      setLoadingMonitoramento(false);
+    }
+  };
+
   const handleAvancarParaMedicamentos = () => {
     if (pacienteData?.medicamento) {
-      setModalStep('medicamentos');
+      if (jaPossuiHistorico) {
+        // Pula a tela visual e apenas vincula o Score no banco
+        handleUpdateSilencioso();
+      } else {
+        // Primeira inclusão: mostra a tela para configurar a caixa
+        setModalStep('medicamentos');
+      }
     } else {
       setModalStep('nextTemplate');
     }
@@ -83,17 +95,13 @@ export default function AvaliacaoModal({
   const handleMonitoramentoChange = (medId, field, value) => {
     setMedicamentoState(prev => ({
       ...prev,
-      [medId]: {
-        ...prev[medId],
-        [field]: value
-      }
+      [medId]: { ...prev[medId], [field]: value }
     }));
   };
 
   const handleSalvarMonitoramento = async () => {
     setLoadingMonitoramento(true);
-
-    const medicamentosEmUso = Object.entries(medicamentoState)
+    const confirmados = Object.entries(medicamentoState)
       .map(([medId, data]) => ({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
@@ -103,33 +111,8 @@ export default function AvaliacaoModal({
       }))
       .filter(item => item.usa === true);
 
-    const itensSemPosologia = medicamentosEmUso.filter(item => item.posologia_diaria <= 0);
-    if (itensSemPosologia.length > 0) {
-      toast.error("Por favor, informe quantos comprimidos ao dia o paciente toma.");
-      setLoadingMonitoramento(false);
-      return;
-    }
-
-    const confirmados = medicamentosEmUso;
-
-    const itensSemData = confirmados.filter(item => !item.date_delivery);
-    if (itensSemData.length > 0) {
-      toast.error("Por favor, preencha a data de entrega do medicamento.");
-      setLoadingMonitoramento(false);
-      return;
-    }
-
-    if (missingQtdCapsula) {
-      const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
-      if (itensSemQtd.length > 0) {
-        toast.error("A quantidade total da caixa do medicamento é obrigatória.");
-        setLoadingMonitoramento(false);
-        return;
-      }
-    }
-
-    if (confirmados.length === 0) {
-      setModalStep('nextTemplate');
+    if (confirmados.some(item => item.posologia_diaria <= 0 || !item.date_delivery)) {
+      toast.error("Preencha a posologia e a data de entrega.");
       setLoadingMonitoramento(false);
       return;
     }
@@ -141,177 +124,68 @@ export default function AvaliacaoModal({
         medicamentos_confirmados: confirmados
       });
       window.dispatchEvent(new Event('updateAlerts'));
-      toast.success("Ciclo de monitoramento gerado!");
+      toast.success("Monitoramento configurado!");
       setModalStep('nextTemplate');
     } catch (error) {
       if (error.response?.data?.needs_qtd_capsula) {
-        toast.warning(error.response.data.message, { autoClose: 6000 });
         setMissingQtdCapsula(true);
+        toast.warning(error.response.data.message);
       } else {
-        toast.error(error.response?.data?.error || "Erro ao gerar monitoramento.");
+        toast.error("Erro ao salvar monitoramento.");
       }
     } finally {
       setLoadingMonitoramento(false);
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <ModalOverlay>
       <ModalContent>
-
-        {/* ETAPA 1: Sucesso da Avaliação */}
         {modalStep === 'success' && (
           <>
-            {/* ✅ Ícone corrigido: Raio reduzido (r=22) para não cortar nas bordas */}
             <SuccessCheck viewBox="0 0 52 52">
               <circle className="check-circle" cx="26" cy="26" r="22" fill="none" strokeWidth="3" />
               <path className="check-path" fill="none" d="M16 27 l6 6 l13 -13" strokeWidth="3" />
             </SuccessCheck>
-
             <h2>Avaliação Enviada!</h2>
-
-            <p style={{ fontSize: '1.2rem', marginTop: '10px' }}>
-              Pontuação calculada: <strong>{scoreFinal} pts</strong>
-            </p>
-
-            {/* ✅ NOVO: Card dinâmico com o nome do paciente e classificação */}
-            <div style={{
-              marginTop: '15px',
-              padding: '15px',
-              backgroundColor: adInfo.bgColor,
-              borderRadius: '8px',
-              borderLeft: `5px solid ${adInfo.textColor}`,
-              textAlign: 'left'
-            }}>
-              <p style={{ margin: 0, fontSize: '1rem', lineHeight: '1.5', color: '#444' }}>
-                O paciente <strong>{pacienteData?.nome} {pacienteData?.sobrenome}</strong> entrou para o telemonitoramento com tendência de <strong style={{ color: adInfo.textColor }}>{adInfo.label}</strong> ao tratamento.
+            <p style={{ fontSize: '1.2rem', marginTop: '10px' }}>Pontuação: <strong>{scoreFinal} pts</strong></p>
+            <div style={{ marginTop: '15px', padding: '15px', backgroundColor: adInfo.bgColor, borderRadius: '8px', borderLeft: `5px solid ${adInfo.textColor}`, textAlign: 'left' }}>
+              <p style={{ margin: 0, color: '#444' }}>
+                O paciente <strong>{pacienteData?.nome}</strong> possui tendência de <strong style={{ color: adInfo.textColor }}>{adInfo.label}</strong>.
               </p>
             </div>
-
-            <Button style={{ marginTop: '25px', width: '100%' }} onClick={handleAvancarParaMedicamentos}>
-              Continuar
+            <Button style={{ marginTop: '25px', width: '100%' }} onClick={handleAvancarParaMedicamentos} disabled={loadingMonitoramento}>
+              {loadingMonitoramento ? 'Processando...' : 'Continuar'}
             </Button>
           </>
         )}
 
-        {/* ETAPA 2: Configuração de Monitoramento */}
-        {modalStep === 'medicamentos' && pacienteData?.medicamento && (
+        {modalStep === 'medicamentos' && (
           <>
-            <h3 style={{ marginBottom: '10px' }}>Confirmação de Uso Contínuo</h3>
-            <p style={{ fontSize: '0.9rem', marginBottom: '20px', color: '#555' }}>
-              Paciente: <strong>{pacienteData.nome} {pacienteData.sobrenome}</strong><br />
-              Confirme a posologia e a data da entrega do medicamento para agendar os contatos.
-            </p>
-
-            <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-              <div style={{ marginBottom: '15px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>
-                  {pacienteData.medicamento.nome}
-                </div>
-
-                <label style={{ display: 'block', marginBottom: '8px' }}>
-                  O paciente continua usando este medicamento?
-                </label>
-                <div style={{ display: 'flex', gap: '15px', marginBottom: '10px' }}>
-                  <label style={{ cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name={`usa_${pacienteData.medicamento.id}`}
-                      checked={medicamentoState[pacienteData.medicamento.id]?.usa === true}
-                      onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', true)}
-                    /> Sim
-                  </label>
-                  <label style={{ cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name={`usa_${pacienteData.medicamento.id}`}
-                      checked={medicamentoState[pacienteData.medicamento.id]?.usa === false}
-                      onChange={() => handleMonitoramentoChange(pacienteData.medicamento.id, 'usa', false)}
-                    /> Não
-                  </label>
-                </div>
-
-                {medicamentoState[pacienteData.medicamento.id]?.usa && (
-                  <>
-                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''}
-                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)}
-                          placeholder="Ex: 2"
-                          style={{ width: '150px', padding: '5px', marginTop: '5px' }}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Data de Entrega do Medicamento</label>
-                        <Input
-                          type="date"
-                          value={medicamentoState[pacienteData.medicamento.id]?.date_delivery || ''}
-                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'date_delivery', e.target.value)}
-                          style={{ width: '200px', padding: '5px', marginTop: '5px' }}
-                        />
-                      </div>
-                    </div>
-
-                    {missingQtdCapsula && (
-                      <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: '6px', borderLeft: '4px solid #e74c3c' }}>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#c0392b' }}>
-                          ⚠️ Quantidade total de comprimidos/cápsulas por caixa:
-                        </label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={medicamentoState[pacienteData.medicamento.id]?.qtd_capsula_manual || ''}
-                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'qtd_capsula_manual', e.target.value)}
-                          placeholder="Ex: 30"
-                          style={{ width: '150px', padding: '5px', marginTop: '8px', border: '1px solid #e74c3c' }}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+            <h3>Configuração de Uso Contínuo</h3>
+            <div style={{ textAlign: 'left', margin: '20px 0' }}>
+               <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+                 <strong>{pacienteData.medicamento.nome}</strong>
+                 <div style={{ marginTop: '10px' }}>
+                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
+                    <Input type="number" value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''} onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)} style={{ width: '100%', marginBottom: '10px' }} />
+                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Data de Entrega</label>
+                    <Input type="date" value={medicamentoState[pacienteData.medicamento.id]?.date_delivery || ''} onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'date_delivery', e.target.value)} style={{ width: '100%' }} />
+                 </div>
+               </div>
             </div>
-
-            <Button onClick={handleSalvarMonitoramento} disabled={loadingMonitoramento}>
-              {loadingMonitoramento ? 'Salvando...' : 'Confirmar Monitoramentos'}
-            </Button>
+            <Button onClick={handleSalvarMonitoramento} disabled={loadingMonitoramento}>Confirmar</Button>
           </>
         )}
 
-        {/* ETAPA 3: Decisão do Próximo Template */}
-        {/* ETAPA 3: Decisão do Próximo Template */}
         {modalStep === 'nextTemplate' && (
           <>
-            {pendingTemplatesCount > 0 ? (
-              <>
-                <p style={{ margin: '25px 0', color: '#e67e22', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                  Existem mais {pendingTemplatesCount} questionário(s) pendente(s). Deseja responder agora?
-                </p>
-                <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                  <Button onClick={() => onClose(true)}>Sim, Continuar</Button>
-                  <Button style={{ backgroundColor: '#888' }} onClick={() => onClose(false)}>Não, Voltar à Tabela</Button>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* ✅ A perfumaria foi adicionada aqui! */}
-                <SuccessCheck viewBox="0 0 52 52">
-                  <circle className="check-circle" cx="26" cy="26" r="22" fill="none" strokeWidth="3" />
-                  <path className="check-path" fill="none" d="M16 27 l6 6 l13 -13" strokeWidth="3" />
-                </SuccessCheck>
-
-                <h3 style={{ margin: '10px 0 20px 0' }}>Processo Concluído!</h3>
-                <Button style={{ marginTop: 10, width: '100%' }} onClick={() => onClose(false)}>Voltar à Tabela</Button>
-              </>
-            )}
+            <h3>Processo Concluído!</h3>
+            <Button style={{ marginTop: '20px', width: '100%' }} onClick={() => onClose(false)}>Voltar à Tabela</Button>
           </>
         )}
-
       </ModalContent>
     </ModalOverlay>
   );
