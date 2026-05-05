@@ -19,11 +19,16 @@ export default function AvaliacaoModal({
   const [medicamentoState, setMedicamentoState] = useState({});
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
   const [missingQtdCapsula, setMissingQtdCapsula] = useState(false);
+  const [historicoCongelado, setHistoricoCongelado] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setModalStep('success');
       setMissingQtdCapsula(false);
+      
+      // 👇 CONGELA O VALOR AQUI 👇
+      // Ele grava se tinha histórico antes de você enviar ESSA avaliação
+      setHistoricoCongelado(jaPossuiHistorico);
 
       if (pacienteData?.medicamento) {
         let defaultDate = '';
@@ -43,6 +48,7 @@ export default function AvaliacaoModal({
         });
       }
     }
+    // IMPORTANTE: NÃO coloque jaPossuiHistorico no array de dependências abaixo
   }, [isOpen, pacienteData]);
 
   const getAdherenceInfo = (score) => {
@@ -54,34 +60,17 @@ export default function AvaliacaoModal({
   const adInfo = getAdherenceInfo(scoreFinal);
 
   // Vínculo silencioso quando o paciente já está no telemonitoramento
-  const handleUpdateSilencioso = async () => {
-    setLoadingMonitoramento(true);
-    try {
-      await api.post('/monitoramento-medicamentos', {
-        paciente_id: Number(pacienteId),
-        patient_evaluation_id: evaluationId,
-        medicamentos_confirmados: [
-          {
-            medicamento_id: pacienteData.medicamento.id,
-            usa: true
-            // Não enviamos posologia/data para não sobrescrever o que já foi configurado antes
-          }
-        ]
-      });
-      window.dispatchEvent(new Event('updateAlerts'));
-      setModalStep('nextTemplate');
-    } catch (error) {
-      toast.error("Erro ao atualizar vínculo de monitoramento.");
-      setModalStep('nextTemplate');
-    } finally {
-      setLoadingMonitoramento(false);
-    }
+  // O vínculo "silencioso" agora apenas fecha a etapa, sem duplicar o monitoramento
+  const handleUpdateSilencioso = () => {
+    window.dispatchEvent(new Event('updateAlerts'));
+    setModalStep('nextTemplate');
   };
 
-  const handleAvancarParaMedicamentos = () => {
+ const handleAvancarParaMedicamentos = () => {
     if (pacienteData?.medicamento) {
-      if (jaPossuiHistorico) {
-        // Pula a tela visual e apenas vincula o Score no banco
+      // 👇 AGORA ELE LÊ A VARIÁVEL CONGELADA 👇
+      if (historicoCongelado) { 
+        // Pula a tela visual
         handleUpdateSilencioso();
       } else {
         // Primeira inclusão: mostra a tela para configurar a caixa
