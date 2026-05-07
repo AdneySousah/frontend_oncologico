@@ -8,7 +8,7 @@ import {
 } from "react-icons/lu";
 
 import AvaliacaoModal from './component/AvaliacaoModal';
-import HistoricoAvaliacoes from './component/HistoricoAvaliacoes'; // IMPORT DO NOVO COMPONENTE
+import HistoricoAvaliacoes from './component/HistoricoAvaliacoes'; 
 
 import {
   Container, Title, Form, QuestionCard, Select, Button,
@@ -32,6 +32,8 @@ export default function NovaAvaliacao() {
   
   const [historyData, setHistoryData] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  const [needsMedicationSetup, setNeedsMedicationSetup] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [scoreFinal, setScoreFinal] = useState(0);
@@ -51,7 +53,6 @@ export default function NovaAvaliacao() {
   async function fetchData() {
     try {
       setLoading(true);
-      // Alteração: Buscamos o histórico logo no início junto com os outros dados
       const [templatesRes, pacienteRes, historyRes] = await Promise.all([
         api.get(`/evaluations/templates/pending/${paciente_id}`),
         api.get(`/pacientes/detalhes/${paciente_id}`),
@@ -60,7 +61,10 @@ export default function NovaAvaliacao() {
 
       setPendingTemplates(templatesRes.data);
       setPacienteData(pacienteRes.data);
-      setHistoryData(historyRes.data); // Já guardamos o histórico aqui
+      setHistoryData(historyRes.data); 
+
+ 
+      setNeedsMedicationSetup(!pacienteRes.data.ja_tem_monitoramento);
 
       if (templatesRes.data.length > 0) {
         setSelectedTemplateId(templatesRes.data[0].id);
@@ -84,24 +88,20 @@ export default function NovaAvaliacao() {
     }
   }
 
-  // NOVA FUNÇÃO: Dispara quando clica no botão "Refazer" lá do componente de histórico
   const handleRetake = async (templateId) => {
     try {
       setLoading(true);
-      // Busca o template específico pelo ID (presumindo que sua API padrão traga as questions)
-      // Se não existir rota "/evaluations/templates/:id", você pode criar ou buscar a lista completa de templates.
       const res = await api.get(`/evaluations/templates/${templateId}`);
       
       const templateData = res.data;
       
-      // Coloca esse template na lista de pendentes e seleciona ele para o formulário aparecer
       setPendingTemplates([templateData]);
       setSelectedTemplateId(templateData.id);
-      setModalOpen(false); // Garante que nenhum modal de conclusão esteja aberto
+      setModalOpen(false); 
 
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao carregar os dados do questionário. Verifique se ele ainda está ativo no sistema.");
+      toast.error("Erro ao carregar os dados do questionário.");
     } finally {
       setLoading(false);
     }
@@ -205,15 +205,47 @@ export default function NovaAvaliacao() {
 
     try {
       const res = await api.post('/evaluations/responses', payload);
-      setScoreFinal(res.data.evaluation.total_score);
-      setEvaluationId(res.data.evaluation.id);
-
-      toast.success('Avaliação enviada com sucesso!');
-      setPendingTemplates(prev => prev.filter(t => t.id !== Number(selectedTemplateId)));
-      setAnswers({});
-      setModalOpen(true);
+      const newScore = res.data.evaluation.total_score;
+      const newEvalId = res.data.evaluation.id;
       
-      loadHistory();
+      setScoreFinal(newScore);
+      setEvaluationId(newEvalId);
+
+      const remainingTemplates = pendingTemplates.filter(t => t.id !== Number(selectedTemplateId));
+      // 👇 AQUI ESTÁ A MÁGICA: Decide se abre ou não o Modal 👇
+      if (!needsMedicationSetup) {
+        // JÁ TEM HISTÓRICO: NÃO ABRE O MODAL, apenas avisa o backend e avança
+        try {
+          await api.put('/monitoramento-medicamentos/vincular-avaliacao', {
+            paciente_id: Number(paciente_id),
+            patient_evaluation_id: newEvalId
+          });
+          window.dispatchEvent(new Event('updateAlerts'));
+        } catch (err) {
+          console.error("Erro ao vincular pontuação silenciosamente:", err);
+        }
+
+        toast.success(`Avaliação enviada com sucesso! Pontuação: ${newScore} pts.`);
+        
+        setPendingTemplates(remainingTemplates);
+        setAnswers({});
+        loadHistory();
+
+        if (remainingTemplates.length > 0) {
+          setSelectedTemplateId(remainingTemplates[0].id);
+        } else {
+          navigate('/necessidade-navegacao');
+        }
+
+      } else {
+        // NÃO TEM HISTÓRICO: Aí sim ele abre o Modal para pedir a posologia
+        toast.success('Avaliação enviada com sucesso!');
+        setPendingTemplates(remainingTemplates);
+        setAnswers({});
+        setModalOpen(true);
+        loadHistory();
+      }
+
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Erro ao enviar avaliação.';
       toast.error(errorMsg);
@@ -222,6 +254,9 @@ export default function NovaAvaliacao() {
 
   const handleCloseModal = (continuar) => {
     setModalOpen(false);
+    
+    setNeedsMedicationSetup(false);
+
     if (continuar && pendingTemplates.length > 0) {
       setSelectedTemplateId(pendingTemplates[0].id);
     } else {
@@ -255,7 +290,6 @@ export default function NovaAvaliacao() {
 
   if (loading) return <div style={{ padding: 20, textAlign: 'center', fontSize: '1.2rem', color: 'var(--text-color)' }}>Carregando dados...</div>;
 
-  // Renderização Componentizada do Histórico
   if (pendingTemplates.length === 0 && !modalOpen) {
     return (
       <Container>
@@ -436,7 +470,7 @@ export default function NovaAvaliacao() {
           pacienteId={paciente_id}
           evaluationId={evaluationId}
           pendingTemplatesCount={pendingTemplates.length}
-          jaPossuiHistorico={historyData.length > 0} // <-- NOVA FLAG AQUI
+          requireMedicationSetup={needsMedicationSetup} 
         />
 
       </SectionWrapper>

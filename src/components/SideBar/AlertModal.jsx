@@ -6,7 +6,6 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
   const [sortBy, setSortBy] = useState('URGENCIA'); 
   const [filterType, setFilterType] = useState('TODOS');
 
-  console.log(alertsList)
   const processedAlerts = useMemo(() => {
     let filtered = alertsList;
     if (filterType !== 'TODOS') {
