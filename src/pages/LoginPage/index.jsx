@@ -77,7 +77,7 @@ export default function LoginPage() {
             <S.Input 
               id="email"
               type="text" // Alterado de type="email" para "text" para aceitar CPF ou username
-              placeholder="Email Corporativo ou CPF" 
+              placeholder="Usuario utilizado no sistema de compras" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

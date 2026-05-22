@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../services/api';
-import { 
-    Container, 
-    Card, 
-    Title, 
-    Text, 
-    ButtonGroup, 
-    Button, 
+import {
+    Container,
+    Card,
+    Title,
+    Text,
+    ButtonGroup,
+    Button,
     LoadingContainer,
     CheckboxContainer,
     Checkbox,
@@ -20,7 +20,7 @@ export default function TelaAceiteTermo() {
     const { id } = useParams();
     const [statusTermo, setStatusTermo] = useState(null); // 'Aceito', 'Recusado', 'Pendente'
     const [loading, setLoading] = useState(true);
-    const [showConfirmReject, setShowConfirmReject] = useState(false); 
+    const [showConfirmReject, setShowConfirmReject] = useState(false);
     const [operadora, setOperadora] = useState(null);
 
     // ✅ NOVOS: Estados para o checkbox e mensagem de erro
@@ -117,17 +117,17 @@ export default function TelaAceiteTermo() {
                     </Text>
 
                     <ButtonGroup>
-                        <Button 
-                            variant="secondary" 
-                            onClick={() => setShowConfirmReject(false)} 
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowConfirmReject(false)}
                             disabled={loading}
                         >
                             Não, voltar
                         </Button>
-                        <Button 
-                            variant="danger" 
-                            bold 
-                            onClick={() => handleResponder(false)} 
+                        <Button
+                            variant="danger"
+                            bold
+                            onClick={() => handleResponder(false)}
                             disabled={loading}
                         >
                             {loading ? 'Processando...' : 'Sim, não quero aceitar'}
@@ -144,23 +144,25 @@ export default function TelaAceiteTermo() {
             <Card>
                 <Title>Termo de aceite para Navegação</Title>
                 <Text large>
-                    A {operadora} solicita sua permissão para realizar contatos telefônicos 
+                    A {operadora} solicita sua permissão para realizar contatos telefônicos
                     com o objetivo de acompanhar a evolução do seu tratamento.
                 </Text>
                 <Text>Você aceita os termos para este acompanhamento?</Text>
 
                 {/* ✅ Checkbox e Link para o PDF */}
+                {/* ✅ Checkbox e Link para o PDF dinâmico */}
                 <CheckboxContainer>
-                    <Checkbox 
+                    <Checkbox
                         id="aceite-termos"
                         checked={termosAceitos}
                         onChange={handleCheckboxChange}
                     />
                     <CheckboxLabel htmlFor="aceite-termos">
                         Aceito os{' '}
-                        <TermLink 
-                            href="/caminho/para/seu/termo-score.pdf" 
-                            target="_blank" 
+                        <TermLink
+                            // Substitua api.defaults.baseURL pelo endereço base da sua API
+                            href={`${api.defaults.baseURL}/termos/paciente/${id}/preview-pdf`}
+                            target="_blank"
                             rel="noopener noreferrer"
                         >
                             termos e condições
@@ -175,16 +177,16 @@ export default function TelaAceiteTermo() {
                 </ErrorMessage>
 
                 <ButtonGroup>
-                    <Button 
-                        variant="success" 
-                        onClick={() => handleResponder(true)} 
+                    <Button
+                        variant="success"
+                        onClick={() => handleResponder(true)}
                         disabled={loading}
                     >
                         {loading ? 'Processando...' : 'Sim, eu aceito'}
                     </Button>
-                    <Button 
-                        variant="danger" 
-                        onClick={() => setShowConfirmReject(true)} 
+                    <Button
+                        variant="danger"
+                        onClick={() => setShowConfirmReject(true)}
                         disabled={loading}
                     >
                         Não aceito
