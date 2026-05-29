@@ -51,6 +51,9 @@ export default function Telemonitoramento() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
   const [selectedMonitoramento, setSelectedMonitoramento] = useState(null);
+  
+  // 👇 Estado adicionado para gerenciar o contato anterior
+  const [monitoramentoAnterior, setMonitoramentoAnterior] = useState(null);
 
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
@@ -93,8 +96,6 @@ export default function Telemonitoramento() {
         }
       });
 
-      
-
       const { data, total, totalPages: fetchedTotalPages } = response.data;
 
       setTotalPages(fetchedTotalPages || 1);
@@ -103,7 +104,6 @@ export default function Telemonitoramento() {
       const agrupados = data.reduce((acc, item) => {
         const key = `${item.paciente.id}_${item.medicamento.id}`;
 
-        // DESCUBRE A AVALIAÇÃO MAIS RECENTE DO PACIENTE
         let scoreMaisRecente = item.avaliacao?.total_score;
         if (item.paciente?.avaliacoes && item.paciente.avaliacoes.length > 0) {
           const avaliacoesOrdenadas = [...item.paciente.avaliacoes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -115,7 +115,7 @@ export default function Telemonitoramento() {
             key: key,
             paciente: item.paciente,
             medicamento: item.medicamento,
-            avaliacao: { total_score: scoreMaisRecente }, // GRAVA O SCORE MAIS RECENTE
+            avaliacao: { total_score: scoreMaisRecente }, 
             historico: [],
             niveisAdesao: [],
             qtdConcluido: 0,
@@ -124,7 +124,6 @@ export default function Telemonitoramento() {
             estoqueProjetado: null
           };
         } else {
-          // Garante que grupos já criados também fiquem com o score atualizado
           acc[key].avaliacao = { total_score: scoreMaisRecente };
         }
 
@@ -205,25 +204,35 @@ export default function Telemonitoramento() {
     setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Alterado para receber o score atualizado e injetar no item que vai pro Modal
-  const handleOpenModal = (hist, latestScore) => {
+  // 👇 Função ajustada para receber o histórico completo e filtrar o último contato concluído
+  const handleOpenModal = (hist, latestScore, historicoDoGrupo) => {
+    // Filtra apenas os que já foram concluídos
+    const concluidos = historicoDoGrupo.filter(item => item.status === 'CONCLUIDO');
+    
+    // Pega o mais recente. Como atualizamos o backend para DESC (do mais novo pro mais velho), o índice 0 é o último contato.
+    const ultimoConcluido = concluidos.length > 0 ? concluidos[0] : null;
+
     const updatedHist = {
       ...hist,
       avaliacao: { total_score: latestScore }
     };
+
     setSelectedMonitoramento(updatedHist);
+    setMonitoramentoAnterior(ultimoConcluido);
     setIsModalOpen(true);
   };
 
   const formatarData = (dataStr) => {
     if (!dataStr) return '-';
-    return dataStr.split('-').reverse().join('/');
+    const dataApenasData = dataStr.split('T')[0];
+    return dataApenasData.split('-').reverse().join('/');
   };
 
   const calcularStatusTempo = (dataStr) => {
     if (!dataStr) return { texto: '-', status: 'pendente' };
 
-    const dataContato = new Date(dataStr + 'T00:00:00');
+    const dataApenasData = dataStr.split('T')[0];
+    const dataContato = new Date(dataApenasData + 'T00:00:00');
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
@@ -395,8 +404,10 @@ export default function Telemonitoramento() {
                                 <SubTable>
                                   <thead>
                                     <tr>
-                                      <th>Data Programada</th>
+                                      <th>Data Entrega Med.</th> 
+                                      <th>Data Programada Contato</th>
                                       <th>Previsão Fim da Caixa</th>
+                                      <th>Adesão do tele</th>
                                       <th>Status do Contato</th>
                                       <th>Observações</th>
                                       <th>Ações</th>
@@ -405,16 +416,19 @@ export default function Telemonitoramento() {
                                   <tbody>
                                     {grupo.historico.map(hist => {
                                       const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
-
-                                      // --- LÓGICA SIMPLIFICADA: Pega só a observação da própria linha ---
                                       const observacaoExibir = hist.observacao || '-';
 
                                       return (
                                         <tr key={hist.id}>
                                           <td>
+                                            {formatarData(hist.data_entrega)}
+                                          </td>
+
+                                          <td>
                                             <strong>{formatarData(hist.data_proximo_contato)}</strong>
                                           </td>
                                           <td>{formatarData(hist.data_calculada_fim_caixa)}</td>
+                                          <td>{hist.nivel_adesao === 'NAO_ADERE' ? 'NAO ADERE' : hist.nivel_adesao }</td>
                                           <td>
                                             {hist.status === 'CONCLUIDO' ? (
                                               <StatusBadge status="concluido">CONCLUÍDO</StatusBadge>
@@ -425,7 +439,6 @@ export default function Telemonitoramento() {
                                             )}
                                           </td>
 
-                                          {/* NOSSA TD DA OBSERVAÇÃO COM TOOLTIP (Mantida!) */}
                                           <td style={{ maxWidth: '220px', fontSize: '0.85rem', color: '#555' }}>
                                             {observacaoExibir !== '-' ? (
                                               <TooltipContainer data-tooltip={observacaoExibir}>
@@ -438,7 +451,8 @@ export default function Telemonitoramento() {
 
                                           <td>
                                             {hist.status === 'PENDENTE' ? (
-                                              <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score)}>
+                                              // 👇 Passando o histórico do grupo inteiro para encontrar o anterior
+                                              <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}>
                                                 Registrar Contato
                                               </ActionButton>
                                             ) : (
@@ -490,6 +504,7 @@ export default function Telemonitoramento() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         monitoramento={selectedMonitoramento}
+        monitoramentoAnterior={monitoramentoAnterior} // 👇 Repassando para o modal
         onSucesso={fetchMonitoramentos}
       />
 

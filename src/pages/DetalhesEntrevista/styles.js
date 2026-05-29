@@ -232,3 +232,52 @@ export const PageButton = styled.button`
     filter: brightness(1.2);
   }
 `;
+
+// --- NOVOS ESTILOS: CONTADORES DE STATUS (CÍRCULOS) ---
+export const CountersContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 25px;
+`;
+
+export const CounterCircle = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background-color: ${({ theme }) => theme.colors.surface || '#1e1e1e'};
+  border: 4px solid ${({ color }) => color};
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  /* Efeito luminoso e aumento quando o filtro está ativo */
+  box-shadow: ${({ active, color }) => active ? `0 0 15px ${color}80` : '0 4px 6px rgba(0,0,0,0.1)'};
+  transform: ${({ active }) => active ? 'scale(1.1)' : 'scale(1)'};
+  opacity: ${({ active }) => active ? '1' : '0.6'};
+
+  &:hover {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+
+  .count {
+    font-size: 24px;
+    font-weight: 800;
+    color: ${({ color }) => color};
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .label {
+    font-size: 11px;
+    color: ${({ theme }) => theme.colors.text || '#fff'};
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+`;

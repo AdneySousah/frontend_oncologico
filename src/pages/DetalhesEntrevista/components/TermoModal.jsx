@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from 'react-toastify'; // <-- Adicionado para manter o padrão de alertas
+import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import {
   Overlay, Container, StatusBadge, ActionArea,
-  Button, WaitingBox, ErrorBox, SuccessBox, Input // <-- Input importado para os campos de data/qtd
+  Button, WaitingBox, ErrorBox, SuccessBox, Input
 } from './styles';
 
 export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
@@ -109,24 +109,53 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   };
 
   // ==========================================
+  // FUNÇÕES AUXILIARES DE DATA
+  // ==========================================
+  const calculateTelemonitoramentoDate = (baseDate) => {
+    const date = baseDate ? new Date(`${baseDate}T12:00:00`) : new Date();
+    date.setDate(date.getDate() + 15); // Soma 15 dias
+
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 6) {
+      // Se cair no Sábado (6), joga pra Segunda (+2 dias)
+      date.setDate(date.getDate() + 2);
+    } else if (dayOfWeek === 0) {
+      // Se cair no Domingo (0), joga pra Segunda (+1 dia)
+      date.setDate(date.getDate() + 1);
+    }
+
+    // Retorna no formato YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  };
+
+  const getDayOfWeek = (dateString) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    // Cria a data com timezone local para evitar variação de fuso horário
+    const date = new Date(year, month - 1, day);
+    const dia = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+    return dia.charAt(0).toUpperCase() + dia.slice(1);
+  };
+
+  // ==========================================
   // FUNÇÕES DO FLUXO DE TELEMONITORAMENTO DIRETO
   // ==========================================
   const handleAbrirSetupMonitoramento = () => {
     if (paciente?.medicamento) {
-      let defaultDate = '';
+      const defaultEntrega = paciente.data_entrega_medicamento
+        ? paciente.data_entrega_medicamento.split('T')[0]
+        : new Date().toISOString().split('T')[0];
 
-      if (paciente.data_entrega_medicamento) {
-        defaultDate = String(paciente.data_entrega_medicamento).substring(0, 10);
-      } else if (paciente.events && paciente.events.length > 0 && paciente.events[0].date_delivery) {
-        defaultDate = String(paciente.events[0].date_delivery).substring(0, 10);
-      }
+      const defaultTelemonitoramento = calculateTelemonitoramentoDate(defaultEntrega);
 
       setMedicamentoState({
-        [paciente.medicamento.id]: { 
-          usa: true, 
+        [paciente.medicamento.id]: {
+          usa: true,
           posologia: '',
-          date_delivery: defaultDate,
-          qtd_capsula_manual: '' 
+          data_entrega: defaultEntrega,
+          data_telemonitoramento: defaultTelemonitoramento,
+          qtd_capsula_manual: '',
+          qtd_caixas: paciente.qtd_caixas || 1 // Puxa do cadastro do paciente vindo do evento sync
         }
       });
       setMissingQtdCapsula(false);
@@ -137,13 +166,16 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   };
 
   const handleMonitoramentoChange = (medId, field, value) => {
-    setMedicamentoState(prev => ({
-      ...prev,
-      [medId]: {
-        ...prev[medId],
-        [field]: value
+    setMedicamentoState(prev => {
+      const updatedMed = { ...prev[medId], [field]: value };
+
+      // Recalcula o telemonitoramento automaticamente se a data de entrega mudar
+      if (field === 'data_entrega' && value) {
+        updatedMed.data_telemonitoramento = calculateTelemonitoramentoDate(value);
       }
-    }));
+
+      return { ...prev, [medId]: updatedMed };
+    });
   };
 
   const handleSalvarMonitoramento = async () => {
@@ -154,25 +186,27 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
         usa: data.usa,
-        date_delivery: data.date_delivery,
+        data_entrega: data.data_entrega,
+        data_telemonitoramento: data.data_telemonitoramento,
+        qtd_caixas: data.qtd_caixas ? Number(data.qtd_caixas) : 1, // Envia as caixas para o controller
         qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
       }))
       .filter(item => item.usa && item.posologia_diaria > 0);
 
-    const itensSemData = confirmados.filter(item => !item.date_delivery);
+    const itensSemData = confirmados.filter(item => !item.data_entrega || !item.data_telemonitoramento);
     if (itensSemData.length > 0) {
-      toast.error("Por favor, preencha a data de entrega do medicamento.");
+      toast.error("Por favor, preencha as datas do medicamento corretamente.");
       setLoadingMonitoramento(false);
       return;
     }
 
     if (missingQtdCapsula) {
-       const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
-       if (itensSemQtd.length > 0) {
-         toast.error("A quantidade total da caixa do medicamento é obrigatória.");
-         setLoadingMonitoramento(false);
-         return;
-       }
+      const itensSemQtd = confirmados.filter(item => !item.qtd_capsula_manual);
+      if (itensSemQtd.length > 0) {
+        toast.error("A quantidade total da caixa do medicamento é obrigatória.");
+        setLoadingMonitoramento(false);
+        return;
+      }
     }
 
     if (confirmados.length === 0) {
@@ -289,9 +323,8 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
                 <Button variant="cancel" onClick={handleClose} style={{ flex: 1 }}>Cancelar</Button>
                 <Button variant="resend" onClick={handleSendLink} style={{ flex: 1 }}>Reenviar Link</Button>
               </div>
-              {/* NOVO BOTÃO AQUI */}
-              <Button 
-                onClick={handleAbrirSetupMonitoramento} 
+              <Button
+                onClick={handleAbrirSetupMonitoramento}
                 style={{ width: '100%', backgroundColor: '#2c3e50', color: '#fff' }}
               >
                 Incluir paciente direto no Telemonitoramento
@@ -300,12 +333,11 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
           </ErrorBox>
         )}
 
-        {/* NOVA TELA DE CONFIGURAÇÃO DE MONITORAMENTO (IDÊNTICA À AVALIAÇÃO) */}
         {step === 'setup_monitoramento' && paciente?.medicamento && (
           <div style={{ textAlign: 'left', padding: '10px' }}>
             <h3 style={{ marginBottom: '10px', color: 'var(--text-color)' }}>Configurar Uso Contínuo</h3>
             <p style={{ fontSize: '0.9rem', marginBottom: '20px', color: '#555' }}>
-              Paciente recusou os termos, mas será incluído no acompanhamento de medicamentos.<br/>
+              Paciente recusou os termos, mas será incluído no acompanhamento de medicamentos.<br />
               Confirme a posologia e a data para agendar os contatos.
             </p>
 
@@ -339,29 +371,68 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
 
                 {medicamentoState[paciente.medicamento.id]?.usa && (
                   <>
-                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={medicamentoState[paciente.medicamento.id]?.posologia || ''}
-                          onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'posologia', e.target.value)}
-                          placeholder="Ex: 2"
-                          style={{ width: '150px', padding: '8px', marginTop: '5px' }}
-                        />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ display: 'flex', gap: '15px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={medicamentoState[paciente.medicamento.id]?.posologia || ''}
+                            onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'posologia', e.target.value)}
+                            placeholder="Ex: 2"
+                            style={{ width: '150px', padding: '8px', marginTop: '5px' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.9rem' }}>Qtd. Caixas:</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={medicamentoState[paciente.medicamento.id]?.qtd_caixas || ''}
+                            onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'qtd_caixas', e.target.value)}
+                            placeholder="Ex: 1"
+                            style={{ width: '100px', padding: '8px', marginTop: '5px' }}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Data de Entrega</label>
+
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                          Data de Início/Entrega do Medicamento
+                        </label>
                         <Input
                           type="date"
-                          value={medicamentoState[paciente.medicamento.id]?.date_delivery || ''}
-                          onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'date_delivery', e.target.value)}
-                          style={{ width: '200px', padding: '8px', marginTop: '5px' }}
+                          value={medicamentoState[paciente.medicamento.id]?.data_entrega || ''}
+                          onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'data_entrega', e.target.value)}
+                          style={{ width: '100%', padding: '8px', marginTop: '5px', marginBottom: '5px' }}
                         />
                       </div>
+
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                          Data do primeiro telemonitoramento
+                        </label>
+                        <p style={{ fontSize: '0.8rem', color: '#666', margin: '3px 0 8px 0' }}>
+                          Agendado para aproximadamente 15 dias após a entrega.
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <Input
+                            type="date"
+                            value={medicamentoState[paciente.medicamento.id]?.data_telemonitoramento || ''}
+                            onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'data_telemonitoramento', e.target.value)}
+                            style={{ width: '180px', padding: '8px' }}
+                          />
+                          {medicamentoState[paciente.medicamento.id]?.data_telemonitoramento && (
+                            <span style={{ fontSize: '0.9rem', color: '#333', whiteSpace: 'nowrap', fontWeight: '500' }}>
+                              ({getDayOfWeek(medicamentoState[paciente.medicamento.id].data_telemonitoramento)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    
+
                     {missingQtdCapsula && (
                       <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'rgba(231, 76, 60, 0.1)', borderRadius: '6px', borderLeft: '4px solid #e74c3c' }}>
                         <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#c0392b' }}>
@@ -383,10 +454,10 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
             </div>
 
             <ActionArea style={{ justifyContent: 'space-between' }}>
-               <Button variant="cancel" onClick={() => setStep('rejected')}>Voltar</Button>
-               <Button onClick={handleSalvarMonitoramento} disabled={loadingMonitoramento}>
-                 {loadingMonitoramento ? 'Salvando...' : 'Confirmar Monitoramentos'}
-               </Button>
+              <Button variant="cancel" onClick={() => setStep('rejected')}>Voltar</Button>
+              <Button onClick={handleSalvarMonitoramento} disabled={loadingMonitoramento}>
+                {loadingMonitoramento ? 'Salvando...' : 'Confirmar Monitoramentos'}
+              </Button>
             </ActionArea>
           </div>
         )}

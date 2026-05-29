@@ -24,6 +24,8 @@ const modulosSistema = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'audit-logs', label: 'Auditoria' },
     { key: 'check-saude', label: 'Saúde do NPS' },
+    { key: 'linhadotempo', label: 'Linha do Tempo' },
+  
 
 
 ];

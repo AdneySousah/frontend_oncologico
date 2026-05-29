@@ -5,8 +5,8 @@ import * as S from './styles';
 
 import EvaluationModal from './components/EvaluationModal';
 import TermoModal from './components/TermoModal';
-import FilterBar from './components/FilterBar';       // <-- NOVO IMPORT
-import Pagination from './components/Pagination';     // <-- NOVO IMPORT
+import FilterBar from './components/FilterBar';
+import Pagination from './components/Pagination';
 
 import { LuArrowUpDown, LuEye, LuRefreshCw } from "react-icons/lu";
 
@@ -24,12 +24,13 @@ export default function ListaEntrevistas() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCheckingSync, setIsCheckingSync] = useState(true);
 
-  // --- NOVOS ESTADOS: FILTROS E PAGINAÇÃO ---
+  // --- ESTADOS: FILTROS E PAGINAÇÃO ---
   const [filters, setFilters] = useState({
     buscaGeral: '',
     cuidador: '',
     telefone: '',
-    operadora: ''
+    operadora: '',
+    statusTermo: 'Pendente' // <-- Já inicia filtrando apenas os Pendentes
   });
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -73,7 +74,6 @@ export default function ListaEntrevistas() {
     checkSyncStatus();
   }, []);
 
-  // Reseta para a página 1 sempre que os filtros mudarem
   useEffect(() => {
     setCurrentPage(1);
   }, [filters]);
@@ -104,6 +104,31 @@ export default function ListaEntrevistas() {
   };
 
   // =========================================================================
+  // LÓGICA DOS CONTADORES (CÍRCULOS DE STATUS DO TERMO)
+  // =========================================================================
+  const termoCounts = useMemo(() => {
+    let baseData = [...pacientesNavegacao];
+    
+    // Respeita a regra de negócio da operadora logada antes de contar
+    if (!isMaster && nomeOperadoraUsuario) {
+      baseData = baseData.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
+    }
+
+    const counts = { Aceito: 0, Recusado: 0, Pendente: 0, Todos: baseData.length };
+    
+    baseData.forEach(p => {
+      const status = p.status_termo || 'Pendente';
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      } else {
+        counts['Pendente']++; // Garantia caso venha nulo/vazio
+      }
+    });
+
+    return counts;
+  }, [pacientesNavegacao, isMaster, nomeOperadoraUsuario]);
+
+  // =========================================================================
   // LÓGICA DE FILTRAGEM COMBINADA E ORDENAÇÃO
   // =========================================================================
   const filteredAndSortedPacientes = useMemo(() => {
@@ -114,7 +139,12 @@ export default function ListaEntrevistas() {
       result = result.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
 
-    // 2. Filtros de Busca Combinada
+    // 2. Filtro do Status do Termo (Novo)
+    if (filters.statusTermo && filters.statusTermo !== 'Todos') {
+      result = result.filter(p => (p.status_termo || 'Pendente') === filters.statusTermo);
+    }
+
+    // 3. Filtros de Busca Combinada
     if (filters.buscaGeral) {
       const termo = filters.buscaGeral.toLowerCase();
       result = result.filter(p => 
@@ -130,7 +160,6 @@ export default function ListaEntrevistas() {
     }
 
     if (filters.telefone) {
-      // Limpa os caracteres do filtro para buscar apenas números
       const termo = filters.telefone.replace(/\D/g, '');
       result = result.filter(p => {
         const cel = p.celular ? p.celular.replace(/\D/g, '') : '';
@@ -143,7 +172,7 @@ export default function ListaEntrevistas() {
       result = result.filter(p => p.operadoras?.nome === filters.operadora);
     }
 
-    // 3. Ordenação por preço
+    // 4. Ordenação por preço
     return result.sort((a, b) => {
       const priceA = Number(a.price) || 0;
       const priceB = Number(b.price) || 0;
@@ -152,7 +181,7 @@ export default function ListaEntrevistas() {
   }, [pacientesNavegacao, sortOrder, isMaster, nomeOperadoraUsuario, filters]);
 
   // =========================================================================
-  // LÓGICA DE PAGINAÇÃO (Fatiamento do Array final)
+  // LÓGICA DE PAGINAÇÃO
   // =========================================================================
   const paginatedPacientes = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -164,6 +193,10 @@ export default function ListaEntrevistas() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
   };
 
+  const changeStatusFilter = (status) => {
+    setFilters(prev => ({ ...prev, statusTermo: status }));
+  };
+
   return (
     <S.Container>
       <S.Header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -173,7 +206,6 @@ export default function ListaEntrevistas() {
         </div>
 
         <S.SyncPanel>
-          {/* LÓGICA DE AVISO DINÂMICO DE SINCRONIZAÇÃO */}
           {isCheckingSync ? (
             <span style={{ fontSize: '14px', color: '#888', fontWeight: 'bold' }}>
               🔄 Verificando novos pacientes no servidor...
@@ -208,6 +240,45 @@ export default function ListaEntrevistas() {
         </S.SyncPanel>
       </S.Header>
 
+      {/* --- CÍRCULOS DE CONTABILIZAÇÃO E FILTRO DE STATUS --- */}
+      <S.CountersContainer>
+        <S.CounterCircle 
+          color="#faad14" 
+          active={filters.statusTermo === 'Pendente'} 
+          onClick={() => changeStatusFilter('Pendente')}
+        >
+          <span className="count">{termoCounts.Pendente}</span>
+          <span className="label">Pendentes</span>
+        </S.CounterCircle>
+
+        <S.CounterCircle 
+          color="#52c41a" 
+          active={filters.statusTermo === 'Aceito'} 
+          onClick={() => changeStatusFilter('Aceito')}
+        >
+          <span className="count">{termoCounts.Aceito}</span>
+          <span className="label">Aceitos</span>
+        </S.CounterCircle>
+
+        <S.CounterCircle 
+          color="#f5222d" 
+          active={filters.statusTermo === 'Recusado'} 
+          onClick={() => changeStatusFilter('Recusado')}
+        >
+          <span className="count">{termoCounts.Recusado}</span>
+          <span className="label">Recusados</span>
+        </S.CounterCircle>
+
+        <S.CounterCircle 
+          color="#1890ff" 
+          active={filters.statusTermo === 'Todos'} 
+          onClick={() => changeStatusFilter('Todos')}
+        >
+          <span className="count">{termoCounts.Todos}</span>
+          <span className="label">Todos</span>
+        </S.CounterCircle>
+      </S.CountersContainer>
+
       {/* --- RENDER DO FILTRO --- */}
       <FilterBar 
         filters={filters} 
@@ -235,7 +306,6 @@ export default function ListaEntrevistas() {
           </tr>
         </thead>
         <tbody>
-          {/* MUDOU DE sortedPacientes PARA paginatedPacientes */}
           {paginatedPacientes.map(paciente => {
             const statusTermo = paciente.status_termo || 'Pendente';
             const isHighlighted = highlightId === String(paciente.id);
@@ -276,8 +346,8 @@ export default function ListaEntrevistas() {
 
                 <td>
                   <S.StatusBadge
-                    bg={statusTermo === 'Aceito' ? 'rgba(82, 196, 26, 0.15)' : 'rgba(250, 173, 20, 0.15)'}
-                    color={statusTermo === 'Aceito' ? '#52c41a' : '#faad14'}
+                    bg={statusTermo === 'Aceito' ? 'rgba(82, 196, 26, 0.15)' : statusTermo === 'Recusado' ? 'rgba(245, 34, 45, 0.15)' : 'rgba(250, 173, 20, 0.15)'}
+                    color={statusTermo === 'Aceito' ? '#52c41a' : statusTermo === 'Recusado' ? '#f5222d' : '#faad14'}
                   >
                     {statusTermo}
                   </S.StatusBadge>

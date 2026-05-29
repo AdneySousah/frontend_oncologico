@@ -21,7 +21,7 @@ const PacientesElegiveisChart = ({ chartData, reportData, total }) => {
   return (
     <>
       <ChartHeader>
-        <h3>Pacientes Elegíveis: {total}</h3>
+        <h3>Pacientes Elegíveis (Termo aceito): {total}</h3>
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       

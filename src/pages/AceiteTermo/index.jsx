@@ -149,7 +149,6 @@ export default function TelaAceiteTermo() {
                 </Text>
                 <Text>Você aceita os termos para este acompanhamento?</Text>
 
-                {/* ✅ Checkbox e Link para o PDF */}
                 {/* ✅ Checkbox e Link para o PDF dinâmico */}
                 <CheckboxContainer>
                     <Checkbox

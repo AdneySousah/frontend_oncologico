@@ -13,12 +13,39 @@ export default function AvaliacaoModal({
   pacienteId,
   evaluationId,
   pendingTemplatesCount,
-  requireMedicationSetup // 👇 Propriedade nova e direta
+  requireMedicationSetup
 }) {
   const [modalStep, setModalStep] = useState('success');
   const [medicamentoState, setMedicamentoState] = useState({});
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
   const [missingQtdCapsula, setMissingQtdCapsula] = useState(false);
+
+  const calculateTelemonitoramentoDate = (baseDate) => {
+    // Se baseDate não for passada, usa a data atual
+    const date = baseDate ? new Date(`${baseDate}T12:00:00`) : new Date();
+    date.setDate(date.getDate() + 15); // Soma 15 dias
+
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 6) {
+      // Se cair no Sábado (6), joga pra Segunda (+2 dias)
+      date.setDate(date.getDate() + 2);
+    } else if (dayOfWeek === 0) {
+      // Se cair no Domingo (0), joga pra Segunda (+1 dia)
+      date.setDate(date.getDate() + 1);
+    }
+
+    // Retorna no formato YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  };
+
+  const getDayOfWeek = (dateString) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    // Cria a data com timezone local para evitar variação de fuso horário
+    const date = new Date(year, month - 1, day);
+    const dia = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+    return dia.charAt(0).toUpperCase() + dia.slice(1);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -26,19 +53,21 @@ export default function AvaliacaoModal({
       setMissingQtdCapsula(false);
 
       if (pacienteData?.medicamento) {
-        let defaultDate = '';
-        if (pacienteData.data_entrega_medicamento) {
-          defaultDate = String(pacienteData.data_entrega_medicamento).substring(0, 10);
-        } else if (pacienteData.events?.[0]?.date_delivery) {
-          defaultDate = String(pacienteData.events[0].date_delivery).substring(0, 10);
-        }
+        // Usa a data de entrega sincronizada (se houver) ou a data atual
+        const defaultEntrega = pacienteData.data_entrega_medicamento 
+          ? pacienteData.data_entrega_medicamento.split('T')[0] 
+          : new Date().toISOString().split('T')[0];
+          
+        const defaultTelemonitoramento = calculateTelemonitoramentoDate(defaultEntrega);
 
         setMedicamentoState({
           [pacienteData.medicamento.id]: {
             usa: true,
             posologia: '',
-            date_delivery: defaultDate,
-            qtd_capsula_manual: ''
+            data_entrega: defaultEntrega,
+            data_telemonitoramento: defaultTelemonitoramento,
+            qtd_capsula_manual: '',
+            qtd_caixas: pacienteData.qtd_caixas || 1 // Puxa do cadastro do paciente
           }
         });
       }
@@ -60,7 +89,7 @@ export default function AvaliacaoModal({
         paciente_id: Number(pacienteId),
         patient_evaluation_id: evaluationId
       });
-      
+
       window.dispatchEvent(new Event('updateAlerts'));
       setModalStep('nextTemplate');
     } catch (error) {
@@ -73,8 +102,7 @@ export default function AvaliacaoModal({
 
   const handleAvancarParaMedicamentos = () => {
     if (pacienteData?.medicamento) {
-      // 👇 AGORA USA A REGRA DEFINITIVA DO PAI 👇
-      if (!requireMedicationSetup) { 
+      if (!requireMedicationSetup) {
         handleUpdateSilencioso();
       } else {
         setModalStep('medicamentos');
@@ -85,10 +113,16 @@ export default function AvaliacaoModal({
   };
 
   const handleMonitoramentoChange = (medId, field, value) => {
-    setMedicamentoState(prev => ({
-      ...prev,
-      [medId]: { ...prev[medId], [field]: value }
-    }));
+    setMedicamentoState(prev => {
+      const updatedMed = { ...prev[medId], [field]: value };
+      
+      // Recalcula o telemonitoramento automaticamente se a data de entrega mudar
+      if (field === 'data_entrega' && value) {
+        updatedMed.data_telemonitoramento = calculateTelemonitoramentoDate(value);
+      }
+      
+      return { ...prev, [medId]: updatedMed };
+    });
   };
 
   const handleSalvarMonitoramento = async () => {
@@ -98,13 +132,15 @@ export default function AvaliacaoModal({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
         usa: data.usa,
-        date_delivery: data.date_delivery,
+        data_entrega: data.data_entrega,
+        data_telemonitoramento: data.data_telemonitoramento,
+        qtd_caixas: data.qtd_caixas ? Number(data.qtd_caixas) : 1, // Envia para o backend
         qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
       }))
       .filter(item => item.usa === true);
 
-    if (confirmados.some(item => item.posologia_diaria <= 0 || !item.date_delivery)) {
-      toast.error("Preencha a posologia e a data de entrega.");
+    if (confirmados.some(item => item.posologia_diaria <= 0 || !item.data_entrega || !item.data_telemonitoramento)) {
+      toast.error("Preencha a posologia e as datas corretamente.");
       setLoadingMonitoramento(false);
       return;
     }
@@ -160,11 +196,74 @@ export default function AvaliacaoModal({
             <div style={{ textAlign: 'left', margin: '20px 0' }}>
                <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
                  <strong>{pacienteData.medicamento.nome}</strong>
-                 <div style={{ marginTop: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
-                    <Input type="number" value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''} onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)} style={{ width: '100%', marginBottom: '10px' }} />
-                    <label style={{ display: 'block', fontSize: '0.9rem' }}>Data de Entrega</label>
-                    <Input type="date" value={medicamentoState[pacienteData.medicamento.id]?.date_delivery || ''} onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'date_delivery', e.target.value)} style={{ width: '100%' }} />
+                 <div style={{ marginTop: '15px' }}>
+                    
+                    <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          value={medicamentoState[pacienteData.medicamento.id]?.posologia || ''} 
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'posologia', e.target.value)} 
+                          style={{ width: '100%', marginTop: '5px' }} 
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem' }}>Qtd. Caixas:</label>
+                        <Input 
+                          type="number" 
+                          min="1"
+                          value={medicamentoState[pacienteData.medicamento.id]?.qtd_caixas || ''} 
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'qtd_caixas', e.target.value)} 
+                          style={{ width: '100%', marginTop: '5px' }} 
+                        />
+                      </div>
+                    </div>
+
+                    {missingQtdCapsula && (
+                      <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '5px', border: '1px solid #ffeeba' }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#856404' }}>Qtd. de Comprimidos na Caixa</label>
+                        <Input
+                          type="number"
+                          value={medicamentoState[pacienteData.medicamento.id]?.qtd_capsula_manual || ''}
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'qtd_capsula_manual', e.target.value)}
+                          placeholder="Ex: 30"
+                          style={{ width: '100%', marginTop: '5px', borderColor: '#ffc107' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold' }}>Data de Início/Entrega do Medicamento</label>
+                      <Input 
+                        type="date" 
+                        value={medicamentoState[pacienteData.medicamento.id]?.data_entrega || ''} 
+                        onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'data_entrega', e.target.value)} 
+                        style={{ width: '100%', marginTop: '5px' }} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold' }}>Data do primeiro telemonitoramento</label>
+                      <p style={{ fontSize: '0.8rem', color: '#666', margin: '3px 0 10px 0' }}>
+                        Agendado para aproximadamente 15 dias após a entrega.
+                      </p>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Input 
+                          type="date" 
+                          value={medicamentoState[pacienteData.medicamento.id]?.data_telemonitoramento || ''} 
+                          onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'data_telemonitoramento', e.target.value)} 
+                          style={{ width: '100%' }} 
+                        />
+                        {medicamentoState[pacienteData.medicamento.id]?.data_telemonitoramento && (
+                          <span style={{ fontSize: '0.9rem', color: '#333', whiteSpace: 'nowrap', fontWeight: '500' }}>
+                            ({getDayOfWeek(medicamentoState[pacienteData.medicamento.id].data_telemonitoramento)})
+                          </span>
+                        )}
+                      </div>
+                    </div>
                  </div>
                </div>
             </div>

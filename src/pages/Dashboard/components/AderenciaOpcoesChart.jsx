@@ -19,7 +19,7 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
   return (
     <>
       <ChartHeader>
-        <h3>% Aderência (Monitoramento)</h3>
+        <h3>% Aderência (Uso de medicamento)</h3>
         {/* SVG aplicado e title adicionado para acessibilidade */}
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>

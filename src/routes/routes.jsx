@@ -25,6 +25,7 @@ import ForgotPasswordPage from '../pages/LoginPage/ForgotPasswordPage';
 import AuditoriaPage from '../pages/Auditoria';
 import ManualPage from '../pages/GuiaUso';
 import ChatModule from '../pages/Chat';
+import TelaNpsPaciente from '../pages/TelaNpsPaciente';
 
 // ==========================================
 // NOVO: COMPONENTE DE PROTEÇÃO DE ROTA
@@ -44,6 +45,8 @@ export default function Routes() {
             <Route path='/login' element={<LoginPage />} />
             <Route path='/reset' element={<ForgotPasswordPage />} />
             <Route path="/paciente/termo/:id" element={<TelaAceiteTermo />} />
+            <Route path="/paciente/nps/:paciente_id/:monitoramento_id" element={<TelaNpsPaciente />} />
+
             <Route path='/primeiro-acesso' element={<FirstAccess />} />
             
             {/* ============================== */}
