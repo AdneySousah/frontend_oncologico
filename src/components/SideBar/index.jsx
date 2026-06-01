@@ -82,9 +82,18 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
+      // 1. Verifica as permissões antes de fazer as requisições
+      const canAccessTele = temPermissaoDeAcesso('telemonitoramento');
+      const canAccessEval = temPermissaoDeAcesso('avaliacoes');
+
+      // 2. Dispara a requisição apenas se houver permissão, caso contrário retorna um mock vazio silenciosamente
       const [resTele, resEval] = await Promise.all([
-        api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] })),
-        api.get('/evaluations/pendentes-alerta').catch(() => ({ data: [] }))
+        canAccessTele 
+          ? api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] }),
+        canAccessEval 
+          ? api.get('/evaluations/pendentes-alerta').catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] })
       ]);
 
       const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
