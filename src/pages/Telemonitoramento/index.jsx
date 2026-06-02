@@ -404,7 +404,7 @@ export default function Telemonitoramento() {
                                 <SubTable>
                                   <thead>
                                     <tr>
-                                      <th>Data Entrega Med.</th> 
+                                      <th>Data Prev administracao.</th> 
                                       <th>Data Programada Contato</th>
                                       <th>Previsão Fim da Caixa</th>
                                       <th>Adesão do tele</th>

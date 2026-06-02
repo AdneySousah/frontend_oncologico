@@ -12,7 +12,7 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
       filtered = alertsList.filter(a => a.type === filterType);
     }
 
-    return [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => { 
       if (sortBy === 'SCORE') {
         const scoreA = a.score != null ? Number(a.score) : -1;
         const scoreB = b.score != null ? Number(b.score) : -1;

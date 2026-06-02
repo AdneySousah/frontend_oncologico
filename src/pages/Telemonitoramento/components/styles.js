@@ -184,3 +184,12 @@ export const NpsScoreDisplay = styled.div`
   }};
   text-shadow: 0px 4px 10px rgba(0,0,0,0.1);
 `;
+
+export const PreMonitoramentoTitle = styled.h3`
+  color: ${props => props.theme.colors.primary};
+  text-align: center;
+  font-size: 1.4rem;
+  margin-bottom: 25px;
+  border-bottom: 2px solid ${props => props.theme.colors.border};
+  padding-bottom: 15px;
+`;

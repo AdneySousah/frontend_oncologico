@@ -113,7 +113,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   // ==========================================
   const calculateTelemonitoramentoDate = (baseDate) => {
     const date = baseDate ? new Date(`${baseDate}T12:00:00`) : new Date();
-    date.setDate(date.getDate() + 15); // Soma 15 dias
+    date.setDate(date.getDate() + 5); // Soma 5 dias
 
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 6) {
@@ -377,6 +377,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
                           <label style={{ display: 'block', fontSize: '0.9rem' }}>Comprimidos ao dia?</label>
                           <Input
                             type="number"
+                            required={true}
                             min="1"
                             value={medicamentoState[paciente.medicamento.id]?.posologia || ''}
                             onChange={(e) => handleMonitoramentoChange(paciente.medicamento.id, 'posologia', e.target.value)}
@@ -415,7 +416,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
                           Data do primeiro telemonitoramento
                         </label>
                         <p style={{ fontSize: '0.8rem', color: '#666', margin: '3px 0 8px 0' }}>
-                          Agendado para aproximadamente 15 dias após a entrega.
+                          Agendado para aproximadamente 5 dias após a data de previsão de administração.
                         </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <Input

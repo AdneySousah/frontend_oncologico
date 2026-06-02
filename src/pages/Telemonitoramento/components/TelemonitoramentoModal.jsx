@@ -13,44 +13,73 @@ import { getAdherenceClassification } from '../index';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
 import NpsModal from './NpsModal';
 import ResumoAnterior from './ResumoAnterior';
+import PreMonitoramento from './PreMonitoramento'; // 👇 Importação do novo componente
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
   const theme = useTheme();
 
+  // 👇 Estado local para o monitoramento (permite atualizar na tela logo após o pré-monitoramento)
+  const [localMonitoramento, setLocalMonitoramento] = useState(null);
+
+  // Estados gerais
+  const [loading, setLoading] = useState(false);
+  const [showNpsPrompt, setShowNpsPrompt] = useState(false);
+
+  // Estados do Monitoramento Padrão
   const [qtdInformada, setQtdInformada] = useState('');
   const [dataAbertura, setDataAbertura] = useState(''); 
   const [isReacao, setIsReacao] = useState(false);
   const [reacoesSelecionadas, setReacoesSelecionadas] = useState([]);
   const [listaReacoes, setListaReacoes] = useState([]);
-  const [loading, setLoading] = useState(false);
-
   const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
-
-  const [showNpsPrompt, setShowNpsPrompt] = useState(false);
   const [observacao, setObservacao] = useState('');
 
+  // Sincroniza a prop 'monitoramento' com o estado local ao abrir o modal
+  useEffect(() => {
+    if (monitoramento) {
+      setLocalMonitoramento(monitoramento);
+    }
+  }, [monitoramento]);
+
+  useEffect(() => {
+    if (isOpen && localMonitoramento) {
+      setQtdInformada('');
+      setDataAbertura('');
+      setIsReacao(false);
+      setReacoesSelecionadas([]);
+      setContatoEfetivo(true);
+      setNivelAdesao('COMPLETAMENTE');
+      setShowNpsPrompt(false);
+      setObservacao('');
+
+      api.get('/reacao-adversa')
+        .then(response => setListaReacoes(response.data))
+        .catch(() => toast.error('Erro ao carregar reações adversas.'));
+    }
+  }, [isOpen, monitoramento]); // Reseta quando a prop principal mudar
+
+  // Lógica de cálculo de estoque usando o estado local
   let idealRemaining = 0;
   let margemMin = 0;
   let margemMax = 0;
-  let dataEntregaFormatada = '-';
+  let dataReferenciaFormatada = '-';
 
-  const qtdCaixas = Number(monitoramento?.qtd_caixas || 1);
+  const qtdCaixas = Number(localMonitoramento?.qtd_caixas || 1);
   const qtdTotalCaixa = Number(
-    monitoramento?.qtd_total_capsulas || (monitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
+    localMonitoramento?.qtd_total_capsulas || (localMonitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
   );
-  const posologia = Number(monitoramento?.posologia_diaria || 1);
+  const posologia = Number(localMonitoramento?.posologia_diaria || 1);
 
-  // Formata a data de entrega apenas para exibição
-  if (monitoramento?.data_entrega) {
-    const dataApenasData = monitoramento.data_entrega.split('T')[0];
+  const dataUsoReferencia = localMonitoramento?.data_administracao || localMonitoramento?.data_entrega;
+  if (dataUsoReferencia) {
+    const dataApenasData = dataUsoReferencia.split('T')[0];
     const [ano, mes, dia] = dataApenasData.split('-');
-    dataEntregaFormatada = `${dia}/${mes}/${ano}`;
+    dataReferenciaFormatada = `${dia}/${mes}/${ano}`;
   }
 
-  // LÓGICA DEFINITIVA DE CÁLCULO DE ESTOQUE
-  if (monitoramento?.data_calculada_fim_caixa) {
-    const [ano, mes, dia] = monitoramento.data_calculada_fim_caixa.split('-');
+  if (localMonitoramento?.data_calculada_fim_caixa) {
+    const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
     const dataFim = new Date(ano, mes - 1, dia);
 
     const hoje = new Date();
@@ -65,27 +94,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   }
 
   useEffect(() => {
-    if (isOpen) {
-      setQtdInformada('');
-      setDataAbertura('');
-      setIsReacao(false);
-      setReacoesSelecionadas([]);
-      setContatoEfetivo(true);
-      setNivelAdesao('COMPLETAMENTE');
-      setShowNpsPrompt(false);
-      setObservacao('');
-
-      api.get('/reacao-adversa')
-        .then(response => setListaReacoes(response.data))
-        .catch(() => toast.error('Erro ao carregar reações adversas.'));
-    }
-  }, [isOpen, monitoramento]);
-
-  useEffect(() => {
-    if (qtdInformada === '' || !monitoramento) return;
+    if (qtdInformada === '' || !localMonitoramento) return;
 
     const qtdInformadaNum = Number(qtdInformada);
-
     const diferencaComprimidos = Math.abs(idealRemaining - qtdInformadaNum);
     const diferencaEmDias = diferencaComprimidos / posologia;
 
@@ -96,7 +107,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     } else {
       setNivelAdesao('NAO_ADERE');
     }
-  }, [qtdInformada, monitoramento, idealRemaining, posologia]);
+  }, [qtdInformada, localMonitoramento, idealRemaining, posologia]);
 
   useEffect(() => {
     if (qtdInformada !== '') {
@@ -128,12 +139,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   }, [qtdInformada, nivelAdesao]);
 
-  if (!isOpen || !monitoramento) return null;
+  if (!isOpen || !localMonitoramento) return null;
 
   if (showNpsPrompt) {
     return (
       <NpsModal
-        monitoramento={monitoramento}
+        monitoramento={localMonitoramento}
         onClose={() => {
           onClose();
         }}
@@ -141,30 +152,42 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     );
   }
 
-  const scoreAtual = monitoramento.avaliacao?.total_score;
-  const adInfo = getAdherenceClassification(scoreAtual);
+  // 👇 VERIFICAÇÃO PARA O COMPONENTE DE PRÉ-MONITORAMENTO
+  const isPreMonitoramento = !monitoramentoAnterior && !localMonitoramento.data_administracao;
 
-  const hojeDate = new Date();
-  const yearHoje = hojeDate.getFullYear();
-  const monthHoje = String(hojeDate.getMonth() + 1).padStart(2, '0');
-  const dayHoje = String(hojeDate.getDate()).padStart(2, '0');
-  const dataHoje = `${yearHoje}-${monthHoje}-${dayHoje}`;
+  // Handler que atualiza o estado local quando o Pré-Monitoramento é concluído
+  const handlePreMonitoramentoSuccess = (novaDataAdmin, novaDataFimCaixa) => {
+    setLocalMonitoramento(prev => ({
+      ...prev,
+      data_administracao: novaDataAdmin,
+      data_calculada_fim_caixa: novaDataFimCaixa
+    }));
+  };
 
-  const opcoesReacoes = listaReacoes.map(reacao => ({
-    value: reacao.id,
-    label: reacao.name
-  }));
+  // Se precisar de pré-monitoramento, renderiza ele e aborta o render principal
+  if (isPreMonitoramento) {
+    return (
+      <PreMonitoramento 
+        monitoramento={localMonitoramento} 
+        onClose={onClose} 
+        onSuccess={handlePreMonitoramentoSuccess} 
+      />
+    );
+  }
 
+  // --- SUBMIT DO MONITORAMENTO PADRÃO ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const hojeDate = new Date();
+    const dataHojeFormat = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
 
     if (contatoEfetivo) {
       if (!qtdInformada || !dataAbertura) {
         toast.error('Preencha os dados da caixa do medicamento.');
         return;
       }
-      
-      if (dataAbertura < dataHoje) {
+      if (dataAbertura < dataHojeFormat) {
         toast.error('A data do próximo contato não pode ser no passado.');
         return;
       }
@@ -174,7 +197,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setLoading(true);
       const reacoesIds = reacoesSelecionadas ? reacoesSelecionadas.map(r => r.value) : [];
 
-      await api.put(`/monitoramento-medicamentos/${monitoramento.id}`, {
+      await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}`, {
         contato_efetivo: contatoEfetivo,
         nivel_adesao: contatoEfetivo ? nivelAdesao : 'NAO_ADERE',
         qtd_informada_caixa: contatoEfetivo ? Number(qtdInformada) : null,
@@ -197,29 +220,37 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   };
 
+  const scoreAtual = localMonitoramento.avaliacao?.total_score;
+  const adInfo = getAdherenceClassification(scoreAtual);
+  
+  const hojeDate = new Date();
+  const dataHoje = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
+
+  const opcoesReacoes = listaReacoes.map(reacao => ({
+    value: reacao.id,
+    label: reacao.name
+  }));
+
   return (
     <ModalOverlay>
-      {/* Contêiner flexível para alinhar o histórico e o formulário */}
       <div style={{ display: 'flex', gap: '20px', maxWidth: '1200px', width: '95%', margin: '0 auto', justifyContent: 'center', alignItems: 'flex-start' }}>
         
-        {/* Lado Esquerdo: Resumo do Contato Anterior */}
         {monitoramentoAnterior && (
           <ResumoAnterior monitoramento={monitoramentoAnterior} />
         )}
 
-        {/* Lado Direito: Formulário Original */}
         <ModalContent style={{ flex: 1, maxWidth: '800px', margin: 0 }}>
-          <h3>Registrar Contato - {monitoramento.paciente?.nome} {monitoramento.paciente?.sobrenome} </h3>
+          <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} </h3>
 
           <InfoBox>
-            <p><strong>Medicamento:</strong> {monitoramento.medicamento?.nome}</p>
+            <p><strong>Medicamento:</strong> {localMonitoramento.medicamento?.nome}</p>
             <p className="sub-text">
               Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
             </p>
 
             <ProjectedStockBox>
               <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
-                <strong>Data de Entrega Prev. (Início do Uso):</strong> {dataEntregaFormatada}
+                <strong>Data administração informada pelo paciente:</strong> {dataReferenciaFormatada}
               </p>
               <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
                 Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>

@@ -23,7 +23,7 @@ export default function AvaliacaoModal({
   const calculateTelemonitoramentoDate = (baseDate) => {
     // Se baseDate não for passada, usa a data atual
     const date = baseDate ? new Date(`${baseDate}T12:00:00`) : new Date();
-    date.setDate(date.getDate() + 15); // Soma 15 dias
+    date.setDate(date.getDate() + 5); // Soma 15 dias
 
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 6) {
@@ -226,6 +226,7 @@ export default function AvaliacaoModal({
                         <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', color: '#856404' }}>Qtd. de Comprimidos na Caixa</label>
                         <Input
                           type="number"
+                          required={true}
                           value={medicamentoState[pacienteData.medicamento.id]?.qtd_capsula_manual || ''}
                           onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'qtd_capsula_manual', e.target.value)}
                           placeholder="Ex: 30"
@@ -247,12 +248,13 @@ export default function AvaliacaoModal({
                     <div>
                       <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold' }}>Data do primeiro telemonitoramento</label>
                       <p style={{ fontSize: '0.8rem', color: '#666', margin: '3px 0 10px 0' }}>
-                        Agendado para aproximadamente 15 dias após a entrega.
+                        Agendado para aproximadamente 5 dias após a data de previsão de administração.
                       </p>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Input 
                           type="date" 
+                          
                           value={medicamentoState[pacienteData.medicamento.id]?.data_telemonitoramento || ''} 
                           onChange={(e) => handleMonitoramentoChange(pacienteData.medicamento.id, 'data_telemonitoramento', e.target.value)} 
                           style={{ width: '100%' }} 
