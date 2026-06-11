@@ -21,6 +21,8 @@ export const ModalContent = styled.div`
     border-bottom: 1px solid ${props => props.theme.colors.border}; 
     padding-bottom: 10px; 
   }
+
+
 `;
 
 export const FormGroup = styled.div`

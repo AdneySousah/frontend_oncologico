@@ -51,8 +51,6 @@ export default function Telemonitoramento() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
   const [selectedMonitoramento, setSelectedMonitoramento] = useState(null);
-  
-  // 👇 Estado adicionado para gerenciar o contato anterior
   const [monitoramentoAnterior, setMonitoramentoAnterior] = useState(null);
 
   const [searchParams] = useSearchParams();
@@ -101,8 +99,10 @@ export default function Telemonitoramento() {
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
+      // 1. Agrupa os contatos apenas pelo ID do Paciente (garante 1 linha por pessoa)
       const agrupados = data.reduce((acc, item) => {
-        const key = `${item.paciente.id}_${item.medicamento.id}`;
+        const key = item.paciente?.id;
+        if (!key) return acc;
 
         let scoreMaisRecente = item.avaliacao?.total_score;
         if (item.paciente?.avaliacoes && item.paciente.avaliacoes.length > 0) {
@@ -114,14 +114,11 @@ export default function Telemonitoramento() {
           acc[key] = {
             key: key,
             paciente: item.paciente,
-            medicamento: item.medicamento,
             avaliacao: { total_score: scoreMaisRecente }, 
             historico: [],
             niveisAdesao: [],
             qtdConcluido: 0,
-            qtdPendente: 0,
-            proximoContatoData: null,
-            estoqueProjetado: null
+            qtdPendente: 0
           };
         } else {
           acc[key].avaliacao = { total_score: scoreMaisRecente };
@@ -139,6 +136,7 @@ export default function Telemonitoramento() {
         return acc;
       }, {});
 
+      // 2. Processa as informações do grupo para descobrir qual é o "Medicamento Atual"
       const agrupadosArray = Object.values(agrupados).map(grupo => {
 
         if (grupo.niveisAdesao.length > 0) {
@@ -152,26 +150,45 @@ export default function Telemonitoramento() {
           grupo.mediaAdesao = null;
         }
 
+        // Filtra para encontrar o contato atual (o pendente mais urgente)
         const pendentes = grupo.historico.filter(h => h.status === 'PENDENTE');
+        
         if (pendentes.length > 0) {
-          pendentes.sort((a, b) => new Date(a.data_proximo_contato) - new Date(b.data_proximo_contato));
-          const contatoAtual = pendentes[0];
+          // Ordena pela data do contato (ascendente)
+          pendentes.sort((a, b) => new Date(a.data_proximo_contato).getTime() - new Date(b.data_proximo_contato).getTime());
+          grupo.contatoAtual = pendentes[0];
+          grupo.proximoContatoData = grupo.contatoAtual.data_proximo_contato;
+        } else {
+          // Se não houver pendente (ciclo concluído), pega o último registro criado
+          const historicoOrdenado = [...grupo.historico].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          grupo.contatoAtual = historicoOrdenado[0];
+          grupo.proximoContatoData = null;
+        }
 
-          grupo.proximoContatoData = contatoAtual.data_proximo_contato;
+        // 🛠️ Isola estritamente o medicamento vinculado a esse contato atual encontrado
+        grupo.medicamentoAtual = grupo.contatoAtual?.medicamento || null;
+        grupo.estoqueProjetado = null;
 
-          if (contatoAtual.data_calculada_fim_caixa && contatoAtual.posologia_diaria) {
-            const [ano, mes, dia] = contatoAtual.data_calculada_fim_caixa.split('-');
+        // Calcula o estoque de forma segura contra erros de conversão de data
+        if (grupo.contatoAtual?.status === 'PENDENTE' && grupo.contatoAtual.data_calculada_fim_caixa && grupo.contatoAtual.posologia_diaria) {
+          try {
+            const dataFimStr = grupo.contatoAtual.data_calculada_fim_caixa.split('T')[0];
+            const [ano, mes, dia] = dataFimStr.split('-');
             const dataFim = new Date(ano, mes - 1, dia);
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
 
             const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
-            let calculado = Math.max(0, diffDays * contatoAtual.posologia_diaria);
+            let calculado = Math.max(0, diffDays * grupo.contatoAtual.posologia_diaria);
 
-            const qtdCaixa = grupo.medicamento?.qtd_capsula || calculado;
+            const qtdCaixa = grupo.medicamentoAtual?.qtd_capsula || calculado;
             grupo.estoqueProjetado = Math.min(qtdCaixa, calculado);
+          } catch (err) {
+            console.error("Erro na conversão de data para o estoque:", err);
+            grupo.estoqueProjetado = null;
           }
         }
+
         return grupo;
       });
 
@@ -189,7 +206,7 @@ export default function Telemonitoramento() {
         if (!a.proximoContatoData) return 1;
         if (!b.proximoContatoData) return -1;
 
-        return new Date(a.proximoContatoData) - new Date(b.proximoContatoData);
+        return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
       });
 
       setMonitoramentosAgrupados(agrupadosArray);
@@ -204,12 +221,10 @@ export default function Telemonitoramento() {
     setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // 👇 Função ajustada para receber o histórico completo e filtrar o último contato concluído
   const handleOpenModal = (hist, latestScore, historicoDoGrupo) => {
-    // Filtra apenas os que já foram concluídos
     const concluidos = historicoDoGrupo.filter(item => item.status === 'CONCLUIDO');
-    
-    // Pega o mais recente. Como atualizamos o backend para DESC (do mais novo pro mais velho), o índice 0 é o último contato.
+    // Ordena os concluídos do mais recente para o mais antigo para garantir que o anterior seja o correto
+    concluidos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const ultimoConcluido = concluidos.length > 0 ? concluidos[0] : null;
 
     const updatedHist = {
@@ -290,7 +305,7 @@ export default function Telemonitoramento() {
                     <th>Nome Cuidador</th>
                     <th>Contato Cuidador</th>
                     <th>Operadora</th>
-                    <th>Medicamento</th>
+                    <th>Medicamento Atual</th>
                     <th>Próximo Contato</th>
                     <th>Status Geral</th>
                     <th style={{ textAlign: 'right' }}>Detalhes</th>
@@ -300,7 +315,7 @@ export default function Telemonitoramento() {
                   {monitoramentosAgrupados.map(grupo => {
                     const adInfo = getAdherenceClassification(grupo.avaliacao?.total_score);
                     const tempoProximoContato = calcularStatusTempo(grupo.proximoContatoData);
-                    const isHighlighted = highlightKey === grupo.key;
+                    const isHighlighted = highlightKey === String(grupo.key);
 
                     return (
                       <React.Fragment key={grupo.key}>
@@ -352,21 +367,28 @@ export default function Telemonitoramento() {
                           <td>{grupo.paciente?.contato_cuidador || '-'}</td>
                           <td>{grupo.paciente?.operadoras?.nome}</td>
 
+                          {/* 🛠️ Renderização Isolada: Apenas o Medicamento do Telemonitoramento Atual */}
                           <td>
-                            <div style={{ fontWeight: '500' }}>{grupo.medicamento?.nome}</div>
-                            {grupo.estoqueProjetado != null && (
-                              <div style={{
-                                fontSize: '0.8rem',
-                                color: 'var(--primary-color)',
-                                backgroundColor: 'rgba(0,0,0,0.04)',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                display: 'inline-block',
-                                marginTop: '6px',
-                                border: '1px solid var(--border-color)'
-                              }}>
-                                ~{grupo.estoqueProjetado} un. estimadas
-                              </div>
+                            {grupo.medicamentoAtual ? (
+                              <>
+                                <div style={{ fontWeight: '500' }}>{grupo.medicamentoAtual.nome}</div>
+                                {grupo.estoqueProjetado != null && (
+                                  <div style={{
+                                    fontSize: '0.8rem',
+                                    color: 'var(--primary-color)',
+                                    backgroundColor: 'rgba(0,0,0,0.04)',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    display: 'inline-block',
+                                    marginTop: '6px',
+                                    border: '1px solid var(--border-color)'
+                                  }}>
+                                    ~{grupo.estoqueProjetado} un. estimadas
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div style={{ color: '#888', fontStyle: 'italic' }}>Medicamento não encontrado</div>
                             )}
                           </td>
 
@@ -406,6 +428,7 @@ export default function Telemonitoramento() {
                                     <tr>
                                       <th>Data Prev administracao.</th> 
                                       <th>Data Programada Contato</th>
+                                      <th>Medicamento do Contato</th> {/* 🛠️ Nova Coluna no Expandido */}
                                       <th>Previsão Fim da Caixa</th>
                                       <th>Adesão do tele</th>
                                       <th>Status do Contato</th>
@@ -414,7 +437,14 @@ export default function Telemonitoramento() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {grupo.historico.map(hist => {
+                                    {/* Ordena os detalhes para mostrar os pendentes primeiro, e depois os concluídos (mais recentes primeiro) */}
+                                    {[...grupo.historico]
+                                      .sort((a, b) => {
+                                        if (a.status === 'PENDENTE' && b.status !== 'PENDENTE') return -1;
+                                        if (a.status !== 'PENDENTE' && b.status === 'PENDENTE') return 1;
+                                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                                      })
+                                      .map(hist => {
                                       const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
                                       const observacaoExibir = hist.observacao || '-';
 
@@ -427,6 +457,12 @@ export default function Telemonitoramento() {
                                           <td>
                                             <strong>{formatarData(hist.data_proximo_contato)}</strong>
                                           </td>
+
+                                          {/* 🛠️ Aqui é o medicamento específico de cada vez que o contato foi feito */}
+                                          <td style={{ fontWeight: '500', color: 'var(--text-color)' }}>
+                                            {hist.medicamento?.nome || '-'}
+                                          </td>
+
                                           <td>{formatarData(hist.data_calculada_fim_caixa)}</td>
                                           <td>{hist.nivel_adesao === 'NAO_ADERE' ? 'NAO ADERE' : hist.nivel_adesao }</td>
                                           <td>
@@ -451,7 +487,6 @@ export default function Telemonitoramento() {
 
                                           <td>
                                             {hist.status === 'PENDENTE' ? (
-                                              // 👇 Passando o histórico do grupo inteiro para encontrar o anterior
                                               <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}>
                                                 Registrar Contato
                                               </ActionButton>
@@ -504,7 +539,7 @@ export default function Telemonitoramento() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         monitoramento={selectedMonitoramento}
-        monitoramentoAnterior={monitoramentoAnterior} // 👇 Repassando para o modal
+        monitoramentoAnterior={monitoramentoAnterior} 
         onSucesso={fetchMonitoramentos}
       />
 
