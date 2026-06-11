@@ -16,7 +16,8 @@ import {
   LuLogs,
   // Ícones com nomes de exportação MAIS ESTÁVEIS (Padrão Lucide)
   LuClipboardList, 
-  LuFileWarning 
+  LuFileWarning, 
+  LuDollarSign
 } from "react-icons/lu";
 
 export const navOptions = [
@@ -57,4 +58,5 @@ export const registerOptions = [
 
 export const adminOptions = [
   { id: "auditoria", label: "Auditoria", icon: LuLogs, path: "/auditoria", modulo: "audit-logs" },
+   { id: "faturamento", label: "Faturamento", icon: LuDollarSign, path: "/faturamento", modulo: "faturamento" },
 ];

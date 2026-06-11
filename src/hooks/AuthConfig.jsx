@@ -40,7 +40,6 @@ function AuthProvider({ children }) {
             );
 
             const { data } = response;
-            
             localStorage.setItem('oncologico:UserData', JSON.stringify(data));
             setUser(data);
             api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;

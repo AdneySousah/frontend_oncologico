@@ -8,8 +8,9 @@ import FichaRamChart from './components/FichaRamChart';
 import TotalPacientesChart from './components/TotalPacientesChart';
 import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
 import PacientesElegiveisChart from './components/PacientesElegiveisChart';
-// IMPORT NOVO
 import NpsChart from './components/NpsChart';
+// IMPORT DO NOVO INDICADOR
+import HistoricoTrocaTable from './components/HistoricoTrocaTable';
 
 import { Container, Title, Grid, Card, ControlsPanel, FilterGroup, SelectGroup } from './styles';
 
@@ -62,7 +63,6 @@ export default function Dashboard() {
           <label>Visualizar Gráfico:</label>
           <select value={graficoSelecionado} onChange={(e) => setGraficoSelecionado(e.target.value)}>
             <option value="todos">Ver Todos</option>
-            {/* NOVO OPTION DO NPS ADICIONADO AQUI */}
             <option value="nps">NPS - Índice de Satisfação</option>
             <option value="total_pacientes">Total de Pacientes</option>
             <option value="pacientes_monitorados">Pacientes Monitorados</option>
@@ -71,12 +71,13 @@ export default function Dashboard() {
             <option value="adesao_score">Adesão (Score Questionário)</option>
             <option value="aderencia_opcoes">Aderência (Opções Monitoramento)</option>
             <option value="ficha_ram">Fichas RAM (Eventos Adversos)</option>
+            {/* NOVO OPTION ADICIONADO AQUI */}
+            <option value="troca_medicamentos">Histórico de Troca de Medicamentos</option>
           </select>
         </SelectGroup>
       </ControlsPanel>
 
       <Grid>
-        {/* COMPONENTE DO NPS NO TOPO */}
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'nps') && data.nps && (
           <Card $isFullWidth={true}>
             <NpsChart 
@@ -131,6 +132,16 @@ export default function Dashboard() {
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'ficha_ram') && (
           <Card style={{ gridColumn: graficoSelecionado === 'todos' ? '1 / -1' : 'auto' }}>
             <FichaRamChart chartData={data.fichaRam.chart} reportData={data.fichaRam.report} />
+          </Card>
+        )}
+
+        {/* COMPONENTE NOVO: TROCA DE MEDICAMENTOS NO FINAL DA GRID */}
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'troca_medicamentos') && data.historicoTrocas && (
+          <Card style={{ gridColumn: '1 / -1' }}>
+            <HistoricoTrocaTable 
+              tableData={data.historicoTrocas?.table || []} 
+              reportData={data.historicoTrocas?.report || []} 
+            />
           </Card>
         )}
       </Grid>

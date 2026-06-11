@@ -25,6 +25,8 @@ const modulosSistema = [
     { key: 'audit-logs', label: 'Auditoria' },
     { key: 'check-saude', label: 'Saúde do NPS' },
     { key: 'linhadotempo', label: 'Linha do Tempo' },
+    { key: 'faturamento', label: 'Faturamento' },
+    
   
 
 

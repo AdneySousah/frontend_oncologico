@@ -24,13 +24,16 @@ export default function ListaEntrevistas() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCheckingSync, setIsCheckingSync] = useState(true);
 
+  // Novo estado para carregar dinamicamente as operadoras disponíveis
+  const [operadoras, setOperadoras] = useState([]);
+
   // --- ESTADOS: FILTROS E PAGINAÇÃO ---
   const [filters, setFilters] = useState({
     buscaGeral: '',
     cuidador: '',
     telefone: '',
-    operadora: '',
-    statusTermo: 'Pendente' // <-- Já inicia filtrando apenas os Pendentes
+    operadora: '', // Já mapeia a String ou ID que será filtrado
+    statusTermo: 'Pendente' 
   });
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -41,12 +44,14 @@ export default function ListaEntrevistas() {
   const highlightId = searchParams.get('highlight');
 
   const usuarioLogado = useMemo(() => {
-    const userStorage = localStorage.getItem('@SeuApp:user');
+    const userStorage = localStorage.getItem('oncologico:UserData');
     return userStorage ? JSON.parse(userStorage) : null;
   }, []);
 
-  const nomeOperadoraUsuario = usuarioLogado?.company?.name || usuarioLogado?.operadora?.nome;
-  const isMaster = nomeOperadoraUsuario === 'CLÍNICA DE INFUSÃO COMPARTILHADA';
+  
+  const nomeOperadoraUsuario = usuarioLogado?.user?.operadora || usuarioLogado?.operadora?.nome;
+
+  const isMaster = nomeOperadoraUsuario === 'CICFARMA';
 
   const loadLocalData = async () => {
     try {
@@ -54,6 +59,15 @@ export default function ListaEntrevistas() {
       setPacientesNavegacao(res.data);
     } catch (error) {
       console.error("Erro ao buscar dados locais", error);
+    }
+  };
+
+  const loadOperadoras = async () => {
+    try {
+      const res = await api.get('/operadoras'); // Ajuste o endpoint se necessário
+      setOperadoras(res.data || []);
+    } catch (error) {
+      console.error("Erro ao buscar operadoras", error);
     }
   };
 
@@ -71,6 +85,7 @@ export default function ListaEntrevistas() {
 
   useEffect(() => {
     loadLocalData();
+    loadOperadoras(); // Carrega as operadoras na montagem da página
     checkSyncStatus();
   }, []);
 
@@ -104,12 +119,11 @@ export default function ListaEntrevistas() {
   };
 
   // =========================================================================
-  // LÓGICA DOS CONTADORES (CÍRCULOS DE STATUS DO TERMO)
+  // LÓGICA DOS CONTADORES
   // =========================================================================
   const termoCounts = useMemo(() => {
     let baseData = [...pacientesNavegacao];
     
-    // Respeita a regra de negócio da operadora logada antes de contar
     if (!isMaster && nomeOperadoraUsuario) {
       baseData = baseData.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
@@ -121,7 +135,7 @@ export default function ListaEntrevistas() {
       if (counts[status] !== undefined) {
         counts[status]++;
       } else {
-        counts['Pendente']++; // Garantia caso venha nulo/vazio
+        counts['Pendente']++;
       }
     });
 
@@ -134,12 +148,12 @@ export default function ListaEntrevistas() {
   const filteredAndSortedPacientes = useMemo(() => {
     let result = [...pacientesNavegacao];
 
-    // 1. Regra de Negócio (Master vs Operadora)
+    // 1. Regra de Negócio de Escopo do Usuário (Master vs Operadora Comum)
     if (!isMaster && nomeOperadoraUsuario) {
       result = result.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
 
-    // 2. Filtro do Status do Termo (Novo)
+    // 2. Filtro do Status do Termo
     if (filters.statusTermo && filters.statusTermo !== 'Todos') {
       result = result.filter(p => (p.status_termo || 'Pendente') === filters.statusTermo);
     }
@@ -164,10 +178,11 @@ export default function ListaEntrevistas() {
       result = result.filter(p => {
         const cel = p.celular ? p.celular.replace(/\D/g, '') : '';
         const tel = p.telefone ? p.telefone.replace(/\D/g, '') : '';
-        return cel.includes(termo) || tel.includes(termo);
+        return cel.includes(termo) || tel.includes(tel);
       });
     }
 
+    // Filtro unificado por nome de Operadora (Caso mude para filtrar por ID, altere para p.operadoras?.id === filters.operadora)
     if (filters.operadora) {
       result = result.filter(p => p.operadoras?.nome === filters.operadora);
     }
@@ -240,7 +255,6 @@ export default function ListaEntrevistas() {
         </S.SyncPanel>
       </S.Header>
 
-      {/* --- CÍRCULOS DE CONTABILIZAÇÃO E FILTRO DE STATUS --- */}
       <S.CountersContainer>
         <S.CounterCircle 
           color="#faad14" 
@@ -279,12 +293,13 @@ export default function ListaEntrevistas() {
         </S.CounterCircle>
       </S.CountersContainer>
 
-      {/* --- RENDER DO FILTRO --- */}
+      {/* Repassando o estado de 'operadoras' carregadas para a barra de filtros */}
       <FilterBar 
         filters={filters} 
         setFilters={setFilters} 
         pacientes={pacientesNavegacao} 
         isMaster={isMaster} 
+        operadoras={operadoras} 
       />
 
       <S.Table>
@@ -405,7 +420,6 @@ export default function ListaEntrevistas() {
         </tbody>
       </S.Table>
 
-      {/* --- RENDER DA PAGINAÇÃO --- */}
       {filteredAndSortedPacientes.length > 0 && (
         <Pagination 
           totalItems={filteredAndSortedPacientes.length}

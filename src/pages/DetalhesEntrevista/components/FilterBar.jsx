@@ -3,7 +3,7 @@ import * as S from '../styles';
 
 export default function FilterBar({ filters, setFilters, pacientes, isMaster }) {
   
-  // Extrai uma lista única de operadoras para o Select
+  // Extrai de forma dinâmica e única as operadoras presentes na lista de pacientes carregada
   const operadorasDisponiveis = useMemo(() => {
     const ops = pacientes
       .map(p => p.operadoras?.nome)
@@ -17,10 +17,25 @@ export default function FilterBar({ filters, setFilters, pacientes, isMaster }) 
   };
 
   const clearFilters = () => {
-    setFilters({ buscaGeral: '', cuidador: '', telefone: '', operadora: '' });
+    // CORREÇÃO: Mantém o statusTermo atual que o usuário selecionou nos círculos do topo
+    setFilters(prev => ({ 
+      ...prev,
+      buscaGeral: '', 
+      cuidador: '', 
+      telefone: '', 
+      operadora: '' 
+    }));
   };
 
-  const hasActiveFilters = Object.values(filters).some(val => val !== '');
+  // Verifica se há algum filtro textual ou de operadora ativo (ignora o statusTermo na verificação do botão "Limpar")
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.buscaGeral !== '' ||
+      filters.cuidador !== '' ||
+      filters.telefone !== '' ||
+      filters.operadora !== ''
+    );
+  }, [filters.buscaGeral, filters.cuidador, filters.telefone, filters.operadora]);
 
   return (
     <S.FilterContainer>

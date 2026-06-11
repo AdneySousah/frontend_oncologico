@@ -26,6 +26,7 @@ import AuditoriaPage from '../pages/Auditoria';
 import ManualPage from '../pages/GuiaUso';
 import ChatModule from '../pages/Chat';
 import TelaNpsPaciente from '../pages/TelaNpsPaciente';
+import ListaFaturamento from '../pages/Faturamento';
 
 // ==========================================
 // NOVO: COMPONENTE DE PROTEÇÃO DE ROTA
@@ -80,6 +81,7 @@ export default function Routes() {
                     <Route path='/ficha-ram' element={<ReacoesAdversasPage />} />
                     <Route path='/auditoria' element={<AuditoriaPage />} />
                     <Route path='/manual' element={<ManualPage />} />
+                    <Route path='/faturamento' element={<ListaFaturamento />} />
                 </Route>
 
             </Route>
