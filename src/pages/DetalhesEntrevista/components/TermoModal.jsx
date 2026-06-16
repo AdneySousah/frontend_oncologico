@@ -18,16 +18,24 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
   const [missingQtdCapsula, setMissingQtdCapsula] = useState(false);
 
+  // Novos estados para o fallback manual de 10 segundos
+  const [waitCountdown, setWaitCountdown] = useState(10);
+  const [showManualFallback, setShowManualFallback] = useState(false);
+  const [loadingManual, setLoadingManual] = useState(false);
+
   useEffect(() => {
     if (isOpen && paciente) {
       setStep('initial');
       setCountdown(3);
+      setWaitCountdown(10);
+      setShowManualFallback(false);
       setMissingQtdCapsula(false);
       // Se tiver cuidador, o padrão já vira o cuidador
       setDestinoEnvio(paciente.possui_cuidador ? 'cuidador' : 'paciente');
     }
   }, [isOpen, paciente]);
 
+  // Polling para checar o status (Acontece a cada 3 segundos enquanto estiver no aguardo)
   useEffect(() => {
     let intervalId;
 
@@ -55,6 +63,29 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
     };
   }, [step, paciente]);
 
+  // Contador de 10 segundos para exibir o fallback manual
+  useEffect(() => {
+    let timerId;
+
+    if (step === 'waiting' && !showManualFallback) {
+      timerId = setInterval(() => {
+        setWaitCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerId);
+            setShowManualFallback(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerId) clearInterval(timerId);
+    };
+  }, [step, showManualFallback]);
+
+  // Timer final quando o termo é aceito
   useEffect(() => {
     let timerId;
 
@@ -95,12 +126,32 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
       });
 
       setTimeout(() => {
+        // Reseta o fallback ao enviar um novo link
+        setWaitCountdown(10);
+        setShowManualFallback(false);
         setStep('waiting');
       }, 1000);
 
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao enviar link');
       setStep('initial');
+    }
+  };
+
+  // Função para registrar a resposta manual pelo atendente
+  const handleManualResponse = async (aceita) => {
+    setLoadingManual(true);
+    try {
+      await api.post(`/termos/paciente/${paciente.id}`, { aceite: aceita });
+      if (aceita) {
+        setStep('accepted');
+      } else {
+        setStep('rejected');
+      }
+    } catch (error) {
+      toast.error("Erro ao registrar a resposta manualmente.");
+    } finally {
+      setLoadingManual(false);
     }
   };
 
@@ -113,25 +164,21 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
   // ==========================================
   const calculateTelemonitoramentoDate = (baseDate) => {
     const date = baseDate ? new Date(`${baseDate}T12:00:00`) : new Date();
-    date.setDate(date.getDate() + 5); // Soma 5 dias
+    date.setDate(date.getDate() + 5); 
 
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 6) {
-      // Se cair no Sábado (6), joga pra Segunda (+2 dias)
       date.setDate(date.getDate() + 2);
     } else if (dayOfWeek === 0) {
-      // Se cair no Domingo (0), joga pra Segunda (+1 dia)
       date.setDate(date.getDate() + 1);
     }
 
-    // Retorna no formato YYYY-MM-DD
     return date.toISOString().split('T')[0];
   };
 
   const getDayOfWeek = (dateString) => {
     if (!dateString) return '';
     const [year, month, day] = dateString.split('-');
-    // Cria a data com timezone local para evitar variação de fuso horário
     const date = new Date(year, month - 1, day);
     const dia = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
     return dia.charAt(0).toUpperCase() + dia.slice(1);
@@ -155,7 +202,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
           data_entrega: defaultEntrega,
           data_telemonitoramento: defaultTelemonitoramento,
           qtd_capsula_manual: '',
-          qtd_caixas: paciente.qtd_caixas || 1 // Puxa do cadastro do paciente vindo do evento sync
+          qtd_caixas: paciente.qtd_caixas || 1 
         }
       });
       setMissingQtdCapsula(false);
@@ -169,7 +216,6 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
     setMedicamentoState(prev => {
       const updatedMed = { ...prev[medId], [field]: value };
 
-      // Recalcula o telemonitoramento automaticamente se a data de entrega mudar
       if (field === 'data_entrega' && value) {
         updatedMed.data_telemonitoramento = calculateTelemonitoramentoDate(value);
       }
@@ -188,7 +234,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
         usa: data.usa,
         data_entrega: data.data_entrega,
         data_telemonitoramento: data.data_telemonitoramento,
-        qtd_caixas: data.qtd_caixas ? Number(data.qtd_caixas) : 1, // Envia as caixas para o controller
+        qtd_caixas: data.qtd_caixas ? Number(data.qtd_caixas) : 1, 
         qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
       }))
       .filter(item => item.usa && item.posologia_diaria > 0);
@@ -218,12 +264,12 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
     try {
       await api.post('/monitoramento-medicamentos', {
         paciente_id: Number(paciente.id),
-        patient_evaluation_id: null, // <-- ENVIAMOS NULL POIS NÃO HOUVE AVALIAÇÃO
+        patient_evaluation_id: null, 
         medicamentos_confirmados: confirmados
       });
       window.dispatchEvent(new Event('updateAlerts'));
       toast.success("Paciente incluído no telemonitoramento com sucesso!");
-      handleClose(); // Fecha o modal e conclui o processo
+      handleClose(); 
     } catch (error) {
       if (error.response?.data?.needs_qtd_capsula) {
         toast.warning(error.response.data.message, { autoClose: 6000 });
@@ -301,12 +347,42 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess }) {
         {step === 'waiting' && (
           <WaitingBox>
             <h3>Link Enviado!</h3>
-            <p>Aguardando resposta...</p>
-            <small style={{ color: '#888' }}>Esta tela atualizará automaticamente.</small>
-
-            <ActionArea style={{ marginTop: '20px' }}>
-              <Button variant="cancel" onClick={handleClose}>Fechar e aguardar em 2º plano</Button>
-            </ActionArea>
+            
+            {!showManualFallback ? (
+              <>
+                <p>Aguardando resposta pelo WhatsApp...</p>
+                <p style={{ marginTop: '10px', fontSize: '1.2rem', fontWeight: 'bold' }}>{waitCountdown}s</p>
+                <small style={{ color: '#888', display: 'block', marginTop: '10px' }}>Esta tela atualizará automaticamente caso o paciente responda.</small>
+                
+                <ActionArea style={{ marginTop: '20px' }}>
+                  <Button variant="cancel" onClick={handleClose}>Fechar e aguardar em 2º plano</Button>
+                </ActionArea>
+              </>
+            ) : (
+              <div style={{ marginTop: '15px', padding: '15px', border: '1px solid #ffeeba', backgroundColor: '#fff3cd', borderRadius: '8px', color: '#856404' }}>
+                <h4 style={{ marginBottom: '10px' }}>Parece que o paciente não recebeu ou não acessou o termo.</h4>
+                <p style={{ fontWeight: 'bold' }}>Por telefone, o paciente aceitou o termo?</p>
+                
+                <ActionArea style={{ marginTop: '15px', justifyContent: 'center', gap: '15px' }}>
+                  <Button 
+                    variant="success" 
+                    onClick={() => handleManualResponse(true)}
+                    disabled={loadingManual}
+                    style={{ flex: 1, backgroundColor: '#28a745', color: '#fff' }}
+                  >
+                    {loadingManual ? 'Aguarde...' : 'SIM'}
+                  </Button>
+                  <Button 
+                    variant="danger" 
+                    onClick={() => handleManualResponse(false)}
+                    disabled={loadingManual}
+                    style={{ flex: 1, backgroundColor: '#dc3545', color: '#fff' }}
+                  >
+                    {loadingManual ? 'Aguarde...' : 'NÃO'}
+                  </Button>
+                </ActionArea>
+              </div>
+            )}
           </WaitingBox>
         )}
 
