@@ -7,6 +7,8 @@ import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 const COLORS = ['#8B5CF6', '#D1D5DB']; // Roxo moderno para Monitorados, Cinza para o resto
 
 const PacientesMonitoradosChart = ({ chartData, reportData, total }) => {
+
+  console.log('Dados do gráfico de pacientes monitorados:', reportData);
   const handleExport = () => {
     const columns = [
       { header: 'ID Paciente', key: 'paciente_id', width: 15 },

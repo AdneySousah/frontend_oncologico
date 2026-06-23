@@ -13,7 +13,7 @@ import {
   Input
 } from './styles';
 
-export default function NpsModal({ monitoramento, onClose }) {
+export default function NpsModal({ monitoramento, onClose, onBackground }) {
   const [step, setStep] = useState('prompt');
   const [score, setScore] = useState(null);
   const [manualScore, setManualScore] = useState('');
@@ -45,7 +45,7 @@ export default function NpsModal({ monitoramento, onClose }) {
       setStep('sending');
       await api.post('/nps/send', {
         paciente_id: pacienteInfo.id,
-        monitoramento_id: monitoramento.id, // <--- ADICIONE ESTA LINHA
+        monitoramento_id: monitoramento.id,
         telefone_destino: telefoneFinal,
         destino_tipo: destinoEnvio
       });
@@ -69,7 +69,7 @@ export default function NpsModal({ monitoramento, onClose }) {
     try {
       await api.post('/nps/manual', {
         paciente_id: pacienteInfo.id,
-        monitoramento_id: monitoramento.id, // <--- ADICIONE ESTA LINHA
+        monitoramento_id: monitoramento.id,
         nota: notaNumber,
         destino_tipo: destinoEnvio
       });
@@ -83,10 +83,31 @@ export default function NpsModal({ monitoramento, onClose }) {
     }
   };
 
+  // ==========================================
+  // NOVA FUNÇÃO: Colocar em 2º Plano
+  // ==========================================
+  const handleBackground = () => {
+    const waitingNps = JSON.parse(localStorage.getItem('oncologico:nps_waiting') || '[]');
+
+    // Verifica se já não está na fila para evitar duplicidade
+    if (!waitingNps.find(n => n.monitoramentoId === monitoramento.id)) {
+      waitingNps.push({
+        pacienteId: pacienteInfo.id,
+        monitoramentoId: monitoramento.id,
+        nome: `${pacienteInfo.nome} ${pacienteInfo.sobrenome || ''}`.trim()
+      });
+      localStorage.setItem('oncologico:nps_waiting', JSON.stringify(waitingNps));
+    }
+
+    toast.info("Aguardando NPS em 2º plano. Você será notificado na caixa de entrada.");
+    if (onBackground) onBackground(monitoramento.id);
+    onClose();
+  };
+
   useEffect(() => {
     let interval;
 
-    // A escuta continua a mesma: verificando se o status no banco mudou
+    // A escuta continua a mesma: verificando se o status no banco mudou enquanto o modal está aberto
     if (step === 'waiting') {
       interval = setInterval(async () => {
         try {
@@ -104,7 +125,7 @@ export default function NpsModal({ monitoramento, onClose }) {
     }
 
     return () => clearInterval(interval);
-  }, [step, pacienteInfo.id]);
+  }, [step, pacienteInfo.id, monitoramento.id]);
 
   return (
     <ModalOverlay>
@@ -164,7 +185,6 @@ export default function NpsModal({ monitoramento, onClose }) {
             <PulseText>Enviando link para o WhatsApp...</PulseText>
           )}
 
-          {/* AJUSTES AQUI NO PASSO WAITING */}
           {step === 'waiting' && (
             <>
               <h3>Aguardando Resposta...</h3>
@@ -172,6 +192,16 @@ export default function NpsModal({ monitoramento, onClose }) {
               <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>O link da pesquisa já foi entregue. Assim que a nota for registrada na página, ela aparecerá aqui automaticamente.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px', width: '100%' }}>
+                
+                {/* BOTÃO PARA SEGUNDO PLANO */}
+                <Button 
+                  variant="cancel" 
+                  onClick={handleBackground}
+                  style={{ width: '100%' }}
+                >
+                  Colocar em 2º Plano (Aguardar em Fundo)
+                </Button>
+
                 <Button variant="secondary" onClick={() => setStep('manual')}>
                   O paciente prefere falar a nota? Insira manualmente
                 </Button>

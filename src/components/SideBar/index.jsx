@@ -88,10 +88,10 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
       // 2. Dispara a requisição apenas se houver permissão, caso contrário retorna um mock vazio silenciosamente
       const [resTele, resEval] = await Promise.all([
-        canAccessTele 
+        canAccessTele
           ? api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }))
           : Promise.resolve({ data: [] }),
-        canAccessEval 
+        canAccessEval
           ? api.get('/evaluations/pendentes-alerta').catch(() => ({ data: [] }))
           : Promise.resolve({ data: [] })
       ]);
@@ -179,7 +179,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       }
     }
 
-    loadAlerts();
+    // ❌ REMOVA a linha "loadAlerts();" daqui
     loadNpsHealth();
 
     const alertInterval = setInterval(() => loadAlerts(), 300000);
@@ -194,6 +194,13 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       window.removeEventListener('updateAlerts', handleUpdateAlerts);
     };
   }, []);
+
+  useEffect(() => {
+    if (userProfileData || userStorage) {
+      loadAlerts();
+    }
+    // Toda vez que as permissões ou perfil atualizarem, ele busca os alertas novamente
+  }, [userProfileData, userStorage]);
 
   useEffect(() => {
     if (collapsed) {

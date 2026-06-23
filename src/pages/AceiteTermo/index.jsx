@@ -22,8 +22,10 @@ export default function TelaAceiteTermo() {
     const [loading, setLoading] = useState(true);
     const [showConfirmReject, setShowConfirmReject] = useState(false);
     const [operadora, setOperadora] = useState(null);
+    
+    // ✅ NOVO: Estado para armazenar a data em que o termo foi aceito
+    const [dataAceite, setDataAceite] = useState(null); 
 
-    // ✅ NOVOS: Estados para o checkbox e mensagem de erro
     const [termosAceitos, setTermosAceitos] = useState(false);
     const [erroCheckbox, setErroCheckbox] = useState(false);
 
@@ -32,8 +34,15 @@ export default function TelaAceiteTermo() {
         async function carregarStatusPaciente() {
             try {
                 const response = await api.get(`/pacientes/${id}`);
-                setStatusTermo(response.data.paciente.status_termo);
-                setOperadora(response.data.paciente.operadoras.nome);
+                const paciente = response.data.paciente;
+                
+                setStatusTermo(paciente.status_termo);
+                setOperadora(paciente.operadoras?.nome);
+                
+                // ✅ NOVO: Salva a data de aceite se ela existir
+                if (paciente.termo_data_aceite) {
+                    setDataAceite(paciente.termo_data_aceite);
+                }
             } catch (error) {
                 console.error("Erro ao buscar dados do paciente", error);
             } finally {
@@ -55,8 +64,14 @@ export default function TelaAceiteTermo() {
         setErroCheckbox(false); // Limpa o erro caso estivesse ativo
 
         try {
-            await api.post(`/termos/paciente/${id}`, { aceite: aceita });
+            const response = await api.post(`/termos/paciente/${id}`, { aceite: aceita });
             setStatusTermo(aceita ? 'Aceito' : 'Recusado');
+            
+            // ✅ NOVO: Atualiza a data instantaneamente caso o usuário acabe de aceitar
+            if (aceita && response.data.termo_data_aceite) {
+                setDataAceite(response.data.termo_data_aceite);
+            }
+            
             setShowConfirmReject(false);
         } catch (error) {
             alert('Erro ao registrar resposta. Tente novamente.');
@@ -73,6 +88,19 @@ export default function TelaAceiteTermo() {
         }
     };
 
+    // ✅ NOVO: Função para formatar a ISO String do banco em data/hora legível
+    const formatarDataHora = (dataIso) => {
+        if (!dataIso) return '';
+        const data = new Date(dataIso);
+        return data.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     // 2. Tela de carregamento inicial
     if (loading && !statusTermo) {
         return <LoadingContainer>Carregando informações...</LoadingContainer>;
@@ -85,7 +113,15 @@ export default function TelaAceiteTermo() {
                 <Card>
                     <Title variant="success">Atenção</Title>
                     <Text large>Você já respondeu a este termo anteriormente e aceitou o acompanhamento.</Text>
-                    <Text>A página já pode ser fechada com segurança.</Text>
+                    
+                    {/* ✅ NOVO: Exibição da data e hora formatada */}
+                    {dataAceite && (
+                        <Text style={{ marginTop: '10px', fontWeight: 'bold', color: '#666' }}>
+                            Aceito em: {formatarDataHora(dataAceite)}
+                        </Text>
+                    )}
+                    
+                    <Text mt="20px">A página já pode ser fechada com segurança.</Text>
                 </Card>
             </Container>
         );
@@ -149,7 +185,7 @@ export default function TelaAceiteTermo() {
                 </Text>
                 <Text>Você aceita os termos para este acompanhamento?</Text>
 
-                {/* ✅ Checkbox e Link para o PDF dinâmico */}
+                {/* Checkbox e Link para o PDF dinâmico */}
                 <CheckboxContainer>
                     <Checkbox
                         id="aceite-termos"
@@ -159,7 +195,6 @@ export default function TelaAceiteTermo() {
                     <CheckboxLabel htmlFor="aceite-termos">
                         Aceito os{' '}
                         <TermLink
-                            // Substitua api.defaults.baseURL pelo endereço base da sua API
                             href={`${api.defaults.baseURL}/termos/paciente/${id}/preview-pdf`}
                             target="_blank"
                             rel="noopener noreferrer"

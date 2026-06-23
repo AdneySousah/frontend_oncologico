@@ -6,11 +6,11 @@ import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuSearch } from "react
 import { useSearchParams } from 'react-router-dom';
 
 import {
-  Container, SectionWrapper, Title, TableContainer, Table,
+  Container, SectionWrapper, Title, TableWrapper, Table,
   SubTableWrapper, SubTable, StatusBadge, ActionButton,
   HeaderFlex, InfoButton, ModalOverlay, ModalContent, Button,
   AdherenceBadge, LegendList,
-  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo, TooltipWrapper, TooltipContainer, TruncatedText
+  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo, TooltipContainer, TruncatedText
 } from './styles';
 
 export const getAdherenceClassification = (score) => {
@@ -99,7 +99,6 @@ export default function Telemonitoramento() {
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
-      // 1. Agrupa os contatos apenas pelo ID do Paciente (garante 1 linha por pessoa)
       const agrupados = data.reduce((acc, item) => {
         const key = item.paciente?.id;
         if (!key) return acc;
@@ -136,9 +135,7 @@ export default function Telemonitoramento() {
         return acc;
       }, {});
 
-      // 2. Processa as informações do grupo para descobrir qual é o "Medicamento Atual"
       const agrupadosArray = Object.values(agrupados).map(grupo => {
-
         if (grupo.niveisAdesao.length > 0) {
           const somaPercentual = grupo.niveisAdesao.reduce((totalValor, nivel) => {
             if (nivel === 'COMPLETAMENTE') return totalValor + 100;
@@ -150,26 +147,21 @@ export default function Telemonitoramento() {
           grupo.mediaAdesao = null;
         }
 
-        // Filtra para encontrar o contato atual (o pendente mais urgente)
         const pendentes = grupo.historico.filter(h => h.status === 'PENDENTE');
         
         if (pendentes.length > 0) {
-          // Ordena pela data do contato (ascendente)
           pendentes.sort((a, b) => new Date(a.data_proximo_contato).getTime() - new Date(b.data_proximo_contato).getTime());
           grupo.contatoAtual = pendentes[0];
           grupo.proximoContatoData = grupo.contatoAtual.data_proximo_contato;
         } else {
-          // Se não houver pendente (ciclo concluído), pega o último registro criado
           const historicoOrdenado = [...grupo.historico].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           grupo.contatoAtual = historicoOrdenado[0];
           grupo.proximoContatoData = null;
         }
 
-        // 🛠️ Isola estritamente o medicamento vinculado a esse contato atual encontrado
         grupo.medicamentoAtual = grupo.contatoAtual?.medicamento || null;
         grupo.estoqueProjetado = null;
 
-        // Calcula o estoque de forma segura contra erros de conversão de data
         if (grupo.contatoAtual?.status === 'PENDENTE' && grupo.contatoAtual.data_calculada_fim_caixa && grupo.contatoAtual.posologia_diaria) {
           try {
             const dataFimStr = grupo.contatoAtual.data_calculada_fim_caixa.split('T')[0];
@@ -223,7 +215,6 @@ export default function Telemonitoramento() {
 
   const handleOpenModal = (hist, latestScore, historicoDoGrupo) => {
     const concluidos = historicoDoGrupo.filter(item => item.status === 'CONCLUIDO');
-    // Ordena os concluídos do mais recente para o mais antigo para garantir que o anterior seja o correto
     concluidos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const ultimoConcluido = concluidos.length > 0 ? concluidos[0] : null;
 
@@ -269,12 +260,12 @@ export default function Telemonitoramento() {
         <HeaderFlex>
           <Title><LuPhoneCall style={{ marginRight: '10px' }} /> Telemonitoramentos agendados</Title>
           <InfoButton onClick={() => setIsLegendModalOpen(true)}>
-            <LuInfo size={20} /> Entenda as Pontuações
+            <LuInfo size={18} /> Entenda as Pontuações
           </InfoButton>
         </HeaderFlex>
 
         <ControlsContainer>
-          <p style={{ margin: 0, color: 'var(--text-color)', opacity: 0.8 }}>
+          <p style={{ margin: 0, color: 'var(--text-color)', opacity: 0.8, fontSize: '0.95rem' }}>
             Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
           </p>
           <SearchInputContainer>
@@ -289,21 +280,19 @@ export default function Telemonitoramento() {
         </ControlsContainer>
 
         {loading && monitoramentosAgrupados.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', fontSize: '1.2rem' }}>Carregando contatos agendados...</div>
+          <div style={{ padding: 40, textAlign: 'center', fontSize: '1.1rem' }}>Carregando contatos agendados...</div>
         ) : monitoramentosAgrupados.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', background: 'var(--surface-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <h3>Nenhum paciente encontrado para este filtro.</h3>
           </div>
         ) : (
           <>
-            <TableContainer>
+            <TableWrapper>
               <Table>
                 <thead>
                   <tr>
                     <th>Paciente e Adesão</th>
-                    <th>Cuidador?</th>
-                    <th>Nome Cuidador</th>
-                    <th>Contato Cuidador</th>
+                    <th>Cuidador</th> {/* Coluna Consolidada */}
                     <th>Operadora</th>
                     <th>Medicamento Atual</th>
                     <th>Próximo Contato</th>
@@ -328,8 +317,8 @@ export default function Telemonitoramento() {
                           <td>
                             <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
 
-                            <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span>Score Atual: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
+                            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span>Score: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
 
                               {grupo.mediaAdesao !== null && (
                                 <>
@@ -342,7 +331,7 @@ export default function Telemonitoramento() {
                                     borderRadius: '4px',
                                     border: '1px solid var(--border-color)'
                                   }}>
-                                    Média de adesão: {grupo.mediaAdesao}%
+                                    Média: {grupo.mediaAdesao}%
                                   </span>
                                 </>
                               )}
@@ -355,32 +344,35 @@ export default function Telemonitoramento() {
                             )}
                           </td>
 
+                          {/* CUIDADOR CONSOLIDADO */}
                           <td>
-                            <StatusBadge
-                              bg={grupo.paciente?.possui_cuidador ? 'rgba(23, 162, 184, 0.15)' : 'rgba(108, 117, 125, 0.15)'}
-                              color={grupo.paciente?.possui_cuidador ? '#17a2b8' : '#6c757d'}
-                            >
-                              {grupo.paciente?.possui_cuidador ? 'Sim' : 'Não'}
-                            </StatusBadge>
+                            {grupo.paciente?.possui_cuidador ? (
+                              <div style={{ lineHeight: '1.4' }}>
+                                <strong>{grupo.paciente?.nome_cuidador || 'Não informado'}</strong><br />
+                                <small style={{ opacity: 0.8 }}>{grupo.paciente?.contato_cuidador || '-'}</small>
+                              </div>
+                            ) : (
+                              <StatusBadge status="none" style={{ backgroundColor: 'rgba(108, 117, 125, 0.1)', color: '#6c757d', borderColor: 'transparent' }}>
+                                Não Possui
+                              </StatusBadge>
+                            )}
                           </td>
-                          <td>{grupo.paciente?.nome_cuidador || '-'}</td>
-                          <td>{grupo.paciente?.contato_cuidador || '-'}</td>
+                          
                           <td>{grupo.paciente?.operadoras?.nome}</td>
 
-                          {/* 🛠️ Renderização Isolada: Apenas o Medicamento do Telemonitoramento Atual */}
                           <td>
                             {grupo.medicamentoAtual ? (
                               <>
                                 <div style={{ fontWeight: '500' }}>{grupo.medicamentoAtual.nome}</div>
                                 {grupo.estoqueProjetado != null && (
                                   <div style={{
-                                    fontSize: '0.8rem',
+                                    fontSize: '0.75rem',
                                     color: 'var(--primary-color)',
                                     backgroundColor: 'rgba(0,0,0,0.04)',
-                                    padding: '2px 8px',
+                                    padding: '2px 6px',
                                     borderRadius: '4px',
                                     display: 'inline-block',
-                                    marginTop: '6px',
+                                    marginTop: '4px',
                                     border: '1px solid var(--border-color)'
                                   }}>
                                     ~{grupo.estoqueProjetado} un. estimadas
@@ -388,7 +380,7 @@ export default function Telemonitoramento() {
                                 )}
                               </>
                             ) : (
-                              <div style={{ color: '#888', fontStyle: 'italic' }}>Medicamento não encontrado</div>
+                              <div style={{ color: '#888', fontStyle: 'italic' }}>Não encontrado</div>
                             )}
                           </td>
 
@@ -396,7 +388,7 @@ export default function Telemonitoramento() {
                             {grupo.proximoContatoData ? (
                               <>
                                 <div style={{ fontWeight: 'bold' }}>{formatarData(grupo.proximoContatoData)}</div>
-                                <span style={{ fontSize: '0.85rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
+                                <span style={{ fontSize: '0.8rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
                                   {tempoProximoContato.texto}
                                 </span>
                               </>
@@ -406,38 +398,39 @@ export default function Telemonitoramento() {
                           </td>
 
                           <td>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#2ecc71', marginRight: '15px' }}>
-                              {grupo.qtdConcluido} Concluído(s)
-                            </span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f39c12' }}>
-                              {grupo.qtdPendente} Pendente(s)
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#2ecc71' }}>
+                                ✓ {grupo.qtdConcluido} Concluído(s)
+                              </span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#f39c12' }}>
+                                ⏳ {grupo.qtdPendente} Pendente(s)
+                              </span>
+                            </div>
                           </td>
 
                           <td style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
-                            {expandedRows[grupo.key] ? <LuChevronUp size={24} /> : <LuChevronDown size={24} />}
+                            {expandedRows[grupo.key] ? <LuChevronUp size={22} /> : <LuChevronDown size={22} />}
                           </td>
                         </tr>
 
                         {expandedRows[grupo.key] && (
                           <tr className="details-row">
-                            <td colSpan="9">
+                            <td colSpan="7">
                               <SubTableWrapper>
                                 <SubTable>
                                   <thead>
                                     <tr>
-                                      <th>Data Prev administracao.</th> 
-                                      <th>Data Programada Contato</th>
-                                      <th>Medicamento do Contato</th> {/* 🛠️ Nova Coluna no Expandido */}
-                                      <th>Previsão Fim da Caixa</th>
-                                      <th>Adesão do tele</th>
-                                      <th>Status do Contato</th>
+                                      <th>Data Prev. Adm.</th> 
+                                      <th>Data Prog. Contato</th>
+                                      <th>Medicamento</th>
+                                      <th>Fim da Caixa</th>
+                                      <th>Adesão Tele.</th>
+                                      <th>Status Contato</th>
                                       <th>Observações</th>
                                       <th>Ações</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {/* Ordena os detalhes para mostrar os pendentes primeiro, e depois os concluídos (mais recentes primeiro) */}
                                     {[...grupo.historico]
                                       .sort((a, b) => {
                                         if (a.status === 'PENDENTE' && b.status !== 'PENDENTE') return -1;
@@ -450,21 +443,11 @@ export default function Telemonitoramento() {
 
                                       return (
                                         <tr key={hist.id}>
-                                          <td>
-                                            {formatarData(hist.data_entrega)}
-                                          </td>
-
-                                          <td>
-                                            <strong>{formatarData(hist.data_proximo_contato)}</strong>
-                                          </td>
-
-                                          {/* 🛠️ Aqui é o medicamento específico de cada vez que o contato foi feito */}
-                                          <td style={{ fontWeight: '500', color: 'var(--text-color)' }}>
-                                            {hist.medicamento?.nome || '-'}
-                                          </td>
-
-                                          <td>{formatarData(hist.data_calculada_fim_caixa)}</td>
-                                          <td>{hist.nivel_adesao === 'NAO_ADERE' ? 'NAO ADERE' : hist.nivel_adesao }</td>
+                                          <td style={{ whiteSpace: 'nowrap' }}>{formatarData(hist.data_entrega)}</td>
+                                          <td style={{ whiteSpace: 'nowrap' }}><strong>{formatarData(hist.data_proximo_contato)}</strong></td>
+                                          <td style={{ fontWeight: '500', color: 'var(--text-color)' }}>{hist.medicamento?.nome || '-'}</td>
+                                          <td style={{ whiteSpace: 'nowrap' }}>{formatarData(hist.data_calculada_fim_caixa)}</td>
+                                          <td>{hist.nivel_adesao === 'NAO_ADERE' ? 'NAO ADERE' : hist.nivel_adesao || '-'}</td>
                                           <td>
                                             {hist.status === 'CONCLUIDO' ? (
                                               <StatusBadge status="concluido">CONCLUÍDO</StatusBadge>
@@ -474,8 +457,7 @@ export default function Telemonitoramento() {
                                               </StatusBadge>
                                             )}
                                           </td>
-
-                                          <td style={{ maxWidth: '220px', fontSize: '0.85rem', color: '#555' }}>
+                                          <td style={{ maxWidth: '180px', fontSize: '0.85rem', color: '#555' }}>
                                             {observacaoExibir !== '-' ? (
                                               <TooltipContainer data-tooltip={observacaoExibir}>
                                                 <TruncatedText>{observacaoExibir}</TruncatedText>
@@ -484,14 +466,13 @@ export default function Telemonitoramento() {
                                               '-'
                                             )}
                                           </td>
-
                                           <td>
                                             {hist.status === 'PENDENTE' ? (
                                               <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}>
                                                 Registrar Contato
                                               </ActionButton>
                                             ) : (
-                                              <span style={{ color: '#888', fontSize: '0.85rem' }}>Contato já realizado</span>
+                                              <span style={{ color: '#888', fontSize: '0.8rem' }}>Contato já realizado</span>
                                             )}
                                           </td>
                                         </tr>
@@ -508,7 +489,7 @@ export default function Telemonitoramento() {
                   })}
                 </tbody>
               </Table>
-            </TableContainer>
+            </TableWrapper>
 
             {totalPages > 0 && (
               <PaginationContainer>

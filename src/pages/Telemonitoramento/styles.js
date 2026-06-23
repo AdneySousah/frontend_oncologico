@@ -4,7 +4,7 @@ export const Container = styled.div`
   width: 100%;
   min-height: 100vh;
   background-color: ${props => props.theme.colors.background};
-  padding: 40px 20px;
+  padding: 20px; /* Reduzido de 40px 20px */
   transition: background-color 0.3s ease;
 `;
 
@@ -17,15 +17,11 @@ export const HeaderFlex = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap; /* Evita quebra forçada na horizontal */
+  gap: 15px;
   border-bottom: 2px solid ${props => props.theme.colors.border};
   padding-bottom: 10px;
   margin-bottom: 20px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-  }
 `;
 
 export const Title = styled.h2`
@@ -33,33 +29,42 @@ export const Title = styled.h2`
   display: flex;
   align-items: center;
   margin: 0; 
+  font-size: 1.6rem;
 `;
 
-export const TableContainer = styled.div`
+/* Novo Wrapper para conter qualquer vazamento da tabela */
+export const TableWrapper = styled.div`
+  width: 100%;
+  overflow-x: auto;
   background: ${props => props.theme.colors.surface};
   border: 1px solid ${props => props.theme.colors.border};
-  border-bottom: none; /* Removido para encaixar com a paginação */
+  border-bottom: none; 
   border-radius: 8px 8px 0 0;
-  overflow-x: auto;
   margin-top: 10px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 `;
 
 export const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  min-width: 900px; /* Garante estrutura básica */
 
   th, td {
-    padding: 18px 20px;
+    padding: 12px 14px; /* Reduzido consideravelmente para ganhar espaço */
     border-bottom: 1px solid ${props => props.theme.colors.border};
     color: ${props => props.theme.colors.text};
     vertical-align: middle;
+    font-size: 13px;
   }
 
   th {
     background-color: ${props => props.theme.colors.inputBg};
-    font-weight: bold;
+    font-weight: 600;
     color: ${props => props.theme.colors.textLight};
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
   }
 
   .summary-row {
@@ -77,9 +82,9 @@ export const Table = styled.table`
 `;
 
 export const SubTableWrapper = styled.div`
-  padding: 30px 40px; 
+  padding: 20px 30px; /* Reduzido de 30px 40px */
   background-color: rgba(0, 0, 0, 0.015);
-  border-left: 5px solid ${props => props.theme.colors.primary};
+  border-left: 4px solid ${props => props.theme.colors.primary};
   box-shadow: inset 0 3px 6px rgba(0,0,0,0.02);
 `;
 
@@ -93,9 +98,9 @@ export const SubTable = styled.table`
   overflow: hidden;
   
   th, td {
-    padding: 16px 24px; 
+    padding: 10px 14px; /* Reduzido de 16px 24px */
     border-bottom: 1px solid ${props => props.theme.colors.border};
-    font-size: 0.95rem;
+    font-size: 13px;
     vertical-align: middle; 
   }
 
@@ -103,9 +108,10 @@ export const SubTable = styled.table`
     background-color: ${props => props.theme.colors.inputBg}; 
     color: ${props => props.theme.colors.textLight};
     text-transform: uppercase;
-    font-size: 0.85rem;
+    font-size: 11px;
     letter-spacing: 0.5px;
     font-weight: bold;
+    white-space: nowrap;
   }
 
   tr:last-child td {
@@ -115,24 +121,27 @@ export const SubTable = styled.table`
 
 export const StatusBadge = styled.span`
   display: inline-block;
-  padding: 8px 14px;
-  border-radius: 20px;
-  font-size: 0.85rem;
+  padding: 4px 10px; /* Mais enxuto */
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: bold;
   text-align: center;
   white-space: nowrap;
   
   background-color: ${props => {
+    if (props.status === 'none') return props.style?.backgroundColor;
     if (props.status === 'atrasado') return 'rgba(217, 83, 79, 0.1)';
     if (props.status === 'concluido') return 'rgba(46, 204, 113, 0.1)';
     return 'rgba(243, 156, 18, 0.1)';
   }};
   color: ${props => {
+    if (props.status === 'none') return props.style?.color;
     if (props.status === 'atrasado') return props.theme.colors.danger;
     if (props.status === 'concluido') return '#2ecc71';
     return '#f39c12';
   }};
   border: 1px solid ${props => {
+    if (props.status === 'none') return 'transparent';
     if (props.status === 'atrasado') return props.theme.colors.danger;
     if (props.status === 'concluido') return '#2ecc71';
     return '#f39c12';
@@ -143,9 +152,9 @@ export const AdherenceBadge = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 4px 8px; /* Reduzido */
   border-radius: 12px;
-  font-size: 0.8rem;
+  font-size: 11px;
   font-weight: bold;
   margin-top: 6px;
   background-color: ${props => {
@@ -166,12 +175,13 @@ export const ActionButton = styled.button`
   background-color: ${props => props.theme.colors.primary};
   color: white;
   border: none;
-  padding: 10px 18px;
+  padding: 8px 14px; /* Mais fino */
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 12px;
   transition: filter 0.2s;
+  white-space: nowrap;
 
   &:hover {
     filter: brightness(1.2);
@@ -185,9 +195,10 @@ export const InfoButton = styled.button`
   background-color: transparent;
   color: ${props => props.theme.colors.primary};
   border: 1px solid ${props => props.theme.colors.primary};
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 13px;
   font-weight: bold;
   transition: all 0.2s;
 
@@ -205,33 +216,31 @@ export const ModalOverlay = styled.div`
 export const ModalContent = styled.div`
   background: ${props => props.theme.colors.surface}; 
   color: ${props => props.theme.colors.text};
-  padding: 40px; border-radius: 12px; max-width: 600px; width: 90%;
+  padding: 30px; border-radius: 12px; max-width: 550px; width: 90%;
   border: 1px solid ${props => props.theme.colors.border};
-  h3 { margin-bottom: 20px; border-bottom: 1px solid ${props => props.theme.colors.border}; padding-bottom: 10px; }
+  h3 { margin-bottom: 15px; border-bottom: 1px solid ${props => props.theme.colors.border}; padding-bottom: 10px; }
 `;
 
 export const Button = styled.button`
   background: ${props => props.variant === 'secondary' ? '#555' : props.theme.colors.primary};
-  color: #fff; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;
+  color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: bold;
   &:hover { filter: brightness(1.2); }
 `;
 
 export const LegendList = styled.ul`
   list-style: none;
   padding: 0;
-  margin: 20px 0;
+  margin: 15px 0;
   text-align: left;
   
   li {
     margin-bottom: 15px;
-    font-size: 1rem;
+    font-size: 14px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
   }
 `;
-
-/* --- NOVOS ESTILOS PARA BUSCA E PAGINAÇÃO --- */
 
 export const ControlsContainer = styled.div`
   display: flex;
@@ -239,20 +248,14 @@ export const ControlsContainer = styled.div`
   align-items: center;
   margin-bottom: 20px;
   gap: 15px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  flex-wrap: wrap;
 `;
 
 export const SearchInputContainer = styled.div`
   position: relative;
-  width: 350px;
-
-  @media (max-width: 768px) {
-    width: 100%;
-  }
+  flex: 1;
+  max-width: 350px; /* Mantém controle no desktop */
+  min-width: 250px;
 
   svg {
     position: absolute;
@@ -265,12 +268,12 @@ export const SearchInputContainer = styled.div`
 
 export const SearchInput = styled.input`
   width: 100%;
-  padding: 12px 15px 12px 38px;
+  padding: 10px 15px 10px 38px;
   border: 1px solid ${props => props.theme.colors.border};
   border-radius: 6px;
   background-color: ${props => props.theme.colors.inputBg};
   color: ${props => props.theme.colors.text};
-  font-size: 0.95rem;
+  font-size: 13px;
 
   &:focus {
     outline: none;
@@ -282,26 +285,29 @@ export const PaginationContainer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 12px 20px;
   background-color: ${props => props.theme.colors.surface};
   border: 1px solid ${props => props.theme.colors.border};
   border-radius: 0 0 8px 8px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  flex-wrap: wrap;
+  gap: 10px;
 `;
 
 export const PaginationInfo = styled.div`
   color: ${props => props.theme.colors.text};
-  font-size: 0.9rem;
+  font-size: 13px;
 `;
 
 export const PageButton = styled.button`
-  padding: 8px 16px;
+  padding: 6px 14px;
   margin-left: 8px;
   border: 1px solid ${props => props.theme.colors.border};
   background-color: ${props => props.theme.colors.inputBg};
   color: ${props => props.theme.colors.text};
   border-radius: 4px;
   cursor: pointer;
+  font-size: 13px;
   font-weight: bold;
   transition: all 0.2s;
 
@@ -317,75 +323,13 @@ export const PageButton = styled.button`
   }
 `;
 
-/* --- TOOLTIP PARA OBSERVAÇÕES --- */
-export const TooltipWrapper = styled.div`
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: help; /* Muda o cursor para uma interrogação, indicando que tem mais info */
-
-  /* O Balão do Tooltip */
-  &::after {
-    content: attr(data-tooltip); /* Pega o texto do atributo data-tooltip */
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 8px;
-    padding: 10px 14px;
-    background-color: #333;
-    color: #fff;
-    font-size: 0.85rem;
-    border-radius: 6px;
-    white-space: normal; /* Permite quebrar linha dentro do balão */
-    width: max-content;
-    max-width: 300px; /* Largura máxima do balão antes de quebrar a linha */
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    pointer-events: none;
-    line-height: 1.4;
-  }
-
-  /* A Setinha do Tooltip */
-  &::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 2px;
-    border-width: 6px;
-    border-style: solid;
-    border-color: #333 transparent transparent transparent;
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease;
-    pointer-events: none;
-  }
-
-  /* Mostra o balão e a seta no hover */
-  &:hover::after,
-  &:hover::before {
-    opacity: 1;
-    visibility: visible;
-  }
-`;
-
-/* --- TOOLTIP PARA OBSERVAÇÕES --- */
+/* --- TOOLTIP PARA OBSERVAÇÕES LIMPO --- */
 export const TooltipContainer = styled.div`
   position: relative;
   display: flex;
   width: 100%;
   cursor: help;
 
-  /* O Balão do Tooltip */
   &::after {
     content: attr(data-tooltip);
     position: absolute;
@@ -393,15 +337,15 @@ export const TooltipContainer = styled.div`
     left: 50%;
     transform: translateX(-50%);
     margin-bottom: 8px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     background-color: #333;
     color: #fff;
-    font-size: 0.85rem;
+    font-size: 12px;
     border-radius: 6px;
-    white-space: pre-wrap; /* Garante que quebras de linha da observação sejam respeitadas */
+    white-space: pre-wrap; 
     word-wrap: break-word;
     width: max-content;
-    max-width: 300px;
+    max-width: 250px; /* Reduzido um pouco para não estourar telas pequenas */
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
@@ -411,7 +355,6 @@ export const TooltipContainer = styled.div`
     line-height: 1.4;
   }
 
-  /* A Setinha do Tooltip */
   &::before {
     content: '';
     position: absolute;
@@ -429,7 +372,6 @@ export const TooltipContainer = styled.div`
     pointer-events: none;
   }
 
-  /* Mostra o balão e a seta no hover */
   &:hover::after,
   &:hover::before {
     opacity: 1;
@@ -444,3 +386,5 @@ export const TruncatedText = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
 `;
+
+

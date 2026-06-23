@@ -17,6 +17,7 @@ export default function HistoricoAvaliacoes({
   };
 
   // Função para verificar se a avaliação vence em 10 dias ou menos (ou se já passou)
+  // Mantida para fins visuais (cor da data)
   const isWithin10Days = (dateStr) => {
     if (!dateStr) return false;
     
@@ -37,8 +38,6 @@ export default function HistoricoAvaliacoes({
     const latest = new Set();
     const seenTemplates = new Set();
 
-    // Como o historyData vem ordenado por DESC (mais novo primeiro),
-    // o primeiro que aparece de cada template é o atual.
     historyData.forEach(hist => {
       if (!seenTemplates.has(hist.template_id)) {
         seenTemplates.add(hist.template_id);
@@ -77,8 +76,9 @@ export default function HistoricoAvaliacoes({
               {historyData.map(hist => {
                 // Checa se é a última avaliação feita deste questionário
                 const isLatest = latestByTemplate.has(hist.id);
-                // Só pode refazer se for a mais recente E estiver no prazo de 10 dias
-                const canRetake = isLatest && isWithin10Days(hist.data_proxima_avaliacao);
+                
+                // Usado agora apenas para estilizar a cor da data (alerta visual)
+                const isCloseToDate = isWithin10Days(hist.data_proxima_avaliacao);
                 
                 return (
                   <Tr key={hist.id}>
@@ -86,20 +86,22 @@ export default function HistoricoAvaliacoes({
                     <Td>{hist.template?.title}</Td>
                     <Td>{formatarData(hist.createdAt?.split('T')[0])}</Td>
                     <Td style={{ fontWeight: 'bold' }}>{hist.total_score} pts</Td>
-                    <Td style={{ color: canRetake ? '#d9534f' : isLatest ? '#007BFF' : '#888', fontWeight: 'bold' }}>
+                    
+                    {/* A cor fica vermelha se estiver perto, azul se for a mais recente com folga, ou cinza se for antiga */}
+                    <Td style={{ color: (isLatest && isCloseToDate) ? '#d9534f' : isLatest ? '#007BFF' : '#888', fontWeight: 'bold' }}>
                       {formatarData(hist.data_proxima_avaliacao)}
                     </Td>
+                    
                     <Td style={{ textAlign: 'center' }}>
                       {!isLatest ? (
                         <span style={{ color: '#28a745', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                           <LuCheckCheck size={16} /> Atualizada
                         </span>
-                      ) : canRetake ? (
+                      ) : (
+                        // O botão agora é renderizado sempre que isLatest for true, ignorando o prazo
                         <ActionButton onClick={() => onRetake(hist.template_id)}>
                           <LuRefreshCw size={16} /> Refazer
                         </ActionButton>
-                      ) : (
-                        <span style={{ color: '#888', fontSize: '0.9rem' }}>No Prazo</span>
                       )}
                     </Td>
                   </Tr>
