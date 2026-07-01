@@ -59,4 +59,5 @@ export const registerOptions = [
 export const adminOptions = [
   { id: "auditoria", label: "Auditoria", icon: LuLogs, path: "/auditoria", modulo: "audit-logs" },
    { id: "faturamento", label: "Faturamento", icon: LuDollarSign, path: "/faturamento", modulo: "faturamento" },
+   { id: "termo", label: "Termos Assinados", icon: LuFileSearch, path: "/termo", modulo: "termo" },
 ];

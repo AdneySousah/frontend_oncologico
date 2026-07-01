@@ -17,70 +17,74 @@ import {
 } from './styles';
 
 export default function TelaAceiteTermo() {
+    // 1. Pega o ID do paciente diretamente da URL pública (/paciente/termo/:id)
     const { id } = useParams();
+    
     const [statusTermo, setStatusTermo] = useState(null); // 'Aceito', 'Recusado', 'Pendente'
     const [loading, setLoading] = useState(true);
     const [showConfirmReject, setShowConfirmReject] = useState(false);
     const [operadora, setOperadora] = useState(null);
-    
-    // ✅ NOVO: Estado para armazenar a data em que o termo foi aceito
     const [dataAceite, setDataAceite] = useState(null); 
-
     const [termosAceitos, setTermosAceitos] = useState(false);
     const [erroCheckbox, setErroCheckbox] = useState(false);
 
-    // 1. Busca o status atual do paciente ao carregar a página
+    // 2. Busca o status atual do paciente ao carregar a página na rota pública GET /pacientes/:id
     useEffect(() => {
         async function carregarStatusPaciente() {
             try {
+                setLoading(true);
                 const response = await api.get(`/pacientes/${id}`);
                 const paciente = response.data.paciente;
                 
-                setStatusTermo(paciente.status_termo);
-                setOperadora(paciente.operadoras?.nome);
-                
-                // ✅ NOVO: Salva a data de aceite se ela existir
-                if (paciente.termo_data_aceite) {
-                    setDataAceite(paciente.termo_data_aceite);
+                if (paciente) {
+                    setStatusTermo(paciente.status_termo);
+                    setOperadora(paciente.operadoras?.nome || 'nossa equipe de saúde');
+                    
+                    if (paciente.termo_data_aceite) {
+                        setDataAceite(paciente.termo_data_aceite);
+                    }
                 }
             } catch (error) {
-                console.error("Erro ao buscar dados do paciente", error);
+                console.error("Erro ao buscar dados do paciente:", error);
             } finally {
                 setLoading(false);
             }
         }
 
-        if (id) carregarStatusPaciente();
+        if (id) {
+            carregarStatusPaciente();
+        }
     }, [id]);
 
+    // 3. Envia a resposta do paciente (Aceito ou Recusado) para o backend
     const handleResponder = async (aceita) => {
-        // Validação: Se a pessoa clicou em "Aceitar", o checkbox DEVE estar marcado
         if (aceita && !termosAceitos) {
             setErroCheckbox(true);
-            return; // Interrompe a função aqui
+            return;
         }
 
-        setLoading(true);
-        setErroCheckbox(false); // Limpa o erro caso estivesse ativo
-
         try {
+            setLoading(true);
+            setErroCheckbox(false);
+
+            // POST público para /termos/paciente/:id
             const response = await api.post(`/termos/paciente/${id}`, { aceite: aceita });
+            
             setStatusTermo(aceita ? 'Aceito' : 'Recusado');
             
-            // ✅ NOVO: Atualiza a data instantaneamente caso o usuário acabe de aceitar
             if (aceita && response.data.termo_data_aceite) {
                 setDataAceite(response.data.termo_data_aceite);
             }
             
             setShowConfirmReject(false);
         } catch (error) {
-            alert('Erro ao registrar resposta. Tente novamente.');
+            console.error(error);
+            alert('Erro ao registrar sua resposta. Por favor, tente novamente.');
         } finally {
             setLoading(false);
         }
     };
 
-    // Função auxiliar para marcar/desmarcar e limpar o erro automaticamente
     const handleCheckboxChange = (e) => {
         setTermosAceitos(e.target.checked);
         if (e.target.checked) {
@@ -88,7 +92,6 @@ export default function TelaAceiteTermo() {
         }
     };
 
-    // ✅ NOVO: Função para formatar a ISO String do banco em data/hora legível
     const formatarDataHora = (dataIso) => {
         if (!dataIso) return '';
         const data = new Date(dataIso);
@@ -101,12 +104,14 @@ export default function TelaAceiteTermo() {
         });
     };
 
-    // 2. Tela de carregamento inicial
+    // --- RENDERIZAÇÕES CONDICIONAIS DE TELA ---
+
+    // Tela de Carregamento
     if (loading && !statusTermo) {
         return <LoadingContainer>Carregando informações...</LoadingContainer>;
     }
 
-    // 3. Lógica principal: Se já foi respondido como ACEITO
+    // Fluxo 1: Paciente já havia ACEITADO o termo anteriormente
     if (statusTermo === 'Aceito') {
         return (
             <Container>
@@ -114,7 +119,6 @@ export default function TelaAceiteTermo() {
                     <Title variant="success">Atenção</Title>
                     <Text large>Você já respondeu a este termo anteriormente e aceitou o acompanhamento.</Text>
                     
-                    {/* ✅ NOVO: Exibição da data e hora formatada */}
                     {dataAceite && (
                         <Text style={{ marginTop: '10px', fontWeight: 'bold', color: '#666' }}>
                             Aceito em: {formatarDataHora(dataAceite)}
@@ -127,29 +131,29 @@ export default function TelaAceiteTermo() {
         );
     }
 
-    // 4. Lógica principal: Se já foi respondido como RECUSADO (Mensagem Final)
+    // Fluxo 2: Paciente já havia RECUSADO o termo anteriormente
     if (statusTermo === 'Recusado') {
         return (
             <Container>
                 <Card>
                     <Title variant="danger">Atendimento Suspenso</Title>
-                    <Text large>Ok, como não aceitou não conseguimos dar seguimento ao seu atendimento.</Text>
+                    <Text large>Entendemos a sua escolha. Como o termo não foi aceito, não conseguiremos dar seguimento ao seu acompanhamento programado.</Text>
                     <Text variant="muted" mt="20px">
-                        Caso tenha escolhido a opção errada, informe ao atendente no WhatsApp para que ele gere um novo link.
+                        Caso tenha escolhido a opção errada por engano, informe ao atendente no WhatsApp para que ele possa gerar um novo link para você.
                     </Text>
                 </Card>
             </Container>
         );
     }
 
-    // 5. Tela de Confirmação de Recusa ("Tem Certeza?")
+    // Fluxo 3: Janela de confirmação caso ele clique em "Não aceito"
     if (showConfirmReject) {
         return (
             <Container>
                 <Card isAlert>
                     <Title variant="alert">Tem certeza que não quer aceitar o termo?</Title>
                     <Text variant="alert">
-                        Ao recusar, nós não conseguiremos dar seguimento a classificação do seu atedimento, ele é de suma importância para que possamos acompanhar melhor a trajetória do seu tratamento.
+                        O acompanhamento é fundamental para monitorarmos a trajetória do seu tratamento e garantir uma melhor assistência à sua saúde.
                     </Text>
 
                     <ButtonGroup>
@@ -174,18 +178,18 @@ export default function TelaAceiteTermo() {
         );
     }
 
-    // 6. Renderização padrão (Pergunta Inicial)
+    // Fluxo Padrão: Tela Inicial do Termo (Pendente)
     return (
         <Container>
             <Card>
-                <Title>Termo de aceite para Navegação</Title>
+                <Title>Termo de Aceite para Navegação</Title>
                 <Text large>
-                    A {operadora} solicita sua permissão para realizar contatos telefônicos
-                    com o objetivo de acompanhar a evolução do seu tratamento.
+                    A <strong>{operadora}</strong> solicita sua permissão para realizar contatos telefônicos e digitais 
+                    com o objetivo de acompanhar de perto a evolução do seu tratamento de saúde.
                 </Text>
                 <Text>Você aceita os termos para este acompanhamento?</Text>
 
-                {/* Checkbox e Link para o PDF dinâmico */}
+                {/* Checkbox de leitura obrigatória ligada ao PDF de Preview */}
                 <CheckboxContainer>
                     <Checkbox
                         id="aceite-termos"
@@ -193,7 +197,7 @@ export default function TelaAceiteTermo() {
                         onChange={handleCheckboxChange}
                     />
                     <CheckboxLabel htmlFor="aceite-termos">
-                        Aceito os{' '}
+                        Li e aceito os{' '}
                         <TermLink
                             href={`${api.defaults.baseURL}/termos/paciente/${id}/preview-pdf`}
                             target="_blank"
@@ -201,13 +205,12 @@ export default function TelaAceiteTermo() {
                         >
                             termos e condições
                         </TermLink>
-                        {' '}para aplicação do score.
+                        {' '}para aplicação do acompanhamento.
                     </CheckboxLabel>
                 </CheckboxContainer>
 
-                {/* Mensagem de erro que aparece só se tentar avançar sem marcar */}
                 <ErrorMessage>
-                    {erroCheckbox ? 'Por favor, aceite os termos antes de continuar.' : ''}
+                    {erroCheckbox ? 'Por favor, marque a caixa de aceite dos termos antes de continuar.' : ''}
                 </ErrorMessage>
 
                 <ButtonGroup>
