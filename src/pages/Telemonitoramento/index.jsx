@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
 import NpsModal from './components/NpsModal'; 
-import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento';
+import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento'; // <-- COMPONENTE INSERIDO AQUI
 import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo } from "react-icons/lu";
 import { useSearchParams } from 'react-router-dom';
 
@@ -27,7 +27,7 @@ export default function Telemonitoramento() {
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
 
-  // Estados de Filtros e Busca
+  // Estados de Filtros e Busca (Agora passados para o componente)
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
@@ -107,22 +107,42 @@ export default function Telemonitoramento() {
         }
       });
 
-      // Extraímos totaisGerais diretamente do backend
-      const { data, total, totalPages: fetchedTotalPages, totaisGerais } = response.data;
+      const { data, total, totalPages: fetchedTotalPages } = response.data;
 
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
-      // Atualiza o resumo com os dados globais do backend
-      if (totaisGerais) {
-        setResumo({
-          concluidos: totaisGerais.concluidos || 0,
-          pendentes: totaisGerais.pendentes || 0,
-          detalhes: totaisGerais.detalhes || {}
-        });
-      } else {
-        setResumo({ concluidos: 0, pendentes: 0, detalhes: {} });
-      }
+      // --- INÍCIO DA LÓGICA DE RESUMO (REGRA DE CONTAR TODOS OS CONTATOS) ---
+      let totalConcluidosMes = 0;
+      let totalPendentesMes = 0;
+      const detalhesMed = {};
+
+      data.forEach(item => {
+        const dataReferencia = item.data_proximo_contato || item.createdAt;
+        if (!dataReferencia) return;
+
+        const mesItem = dataReferencia.substring(0, 7);
+        if (filterMonth && mesItem !== filterMonth) return;
+
+        const medNome = item.medicamento?.nome || 'Desconhecido';
+        
+        if (!detalhesMed[medNome]) {
+          detalhesMed[medNome] = { concluidos: 0, pendentes: 0 };
+        }
+
+        // Cada item soma individualmente (mesma lógica de volume do faturamento)
+        if (item.status === 'CONCLUIDO') {
+          totalConcluidosMes++;
+          detalhesMed[medNome].concluidos++;
+        }
+        if (item.status === 'PENDENTE') {
+          totalPendentesMes++;
+          detalhesMed[medNome].pendentes++;
+        }
+      });
+
+      setResumo({ concluidos: totalConcluidosMes, pendentes: totalPendentesMes, detalhes: detalhesMed });
+      // --- FIM DA LÓGICA DE RESUMO ---
 
       // O Agrupamento visual da Tabela (mantido para a interface)
       const agrupados = data.reduce((acc, item) => {
@@ -291,6 +311,7 @@ export default function Telemonitoramento() {
             Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
           </p>
           
+          {/* O COMPONENTE DE FILTRO É RENDERIZADO AQUI */}
           <FiltrosTelemonitoramento 
             searchTerm={searchTerm} 
             setSearchTerm={setSearchTerm} 
@@ -299,6 +320,7 @@ export default function Telemonitoramento() {
           />
         </ControlsContainer>
 
+        {/* CARDS DE RESUMO DO MÊS */}
         <div style={{ display: 'flex', gap: '20px', margin: '20px 0', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 300px', padding: '20px', backgroundColor: 'rgba(46, 204, 113, 0.08)', borderLeft: '5px solid #2ecc71', borderRadius: '8px' }}>
             <h3 style={{ margin: '0 0 12px 0', color: '#27ae60', display: 'flex', alignItems: 'center', gap: '8px' }}>
