@@ -13,8 +13,8 @@ import {
   Input
 } from './styles';
 
-export default function NpsModal({ monitoramento, onClose, onBackground }) {
-  const [step, setStep] = useState('prompt');
+export default function NpsModal({ monitoramento, onClose, onBackground, initialStep = 'prompt' }) {
+  const [step, setStep] = useState(initialStep);
   const [score, setScore] = useState(null);
   const [manualScore, setManualScore] = useState('');
 
@@ -23,12 +23,27 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
 
   const pacienteInfo = monitoramento.paciente;
 
+  // Garante que o step inicie corretamente caso o modal seja reaberto com outro paciente
+  useEffect(() => {
+    if (monitoramento) {
+      setStep(initialStep);
+    }
+  }, [monitoramento, initialStep]);
+
   useEffect(() => {
     if (pacienteInfo) {
       // Se tiver cuidador, o padrão vira o cuidador
       setDestinoEnvio(pacienteInfo.possui_cuidador ? 'cuidador' : 'paciente');
     }
   }, [pacienteInfo]);
+
+  // Remove o monitoramento do 2º plano e avisa a aplicação
+  const removeFromBackground = (id) => {
+    const waiting = JSON.parse(localStorage.getItem('oncologico:nps_waiting') || '[]');
+    const updated = waiting.filter(n => n.monitoramentoId !== id);
+    localStorage.setItem('oncologico:nps_waiting', JSON.stringify(updated));
+    window.dispatchEvent(new Event('updateNpsWaiting'));
+  };
 
   const handleSendNps = async () => {
     // Validação de segurança: se tem cuidador e o atendente escolheu paciente
@@ -77,15 +92,14 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
       setScore(notaNumber);
       setStep('received');
       toast.success('Nota registrada manualmente com sucesso!');
+      removeFromBackground(monitoramento.id); // Tira do 2º plano se estivesse lá
     } catch (error) {
       console.error(error);
       toast.error('Erro ao registrar NPS manualmente.');
     }
   };
 
-  // ==========================================
-  // NOVA FUNÇÃO: Colocar em 2º Plano
-  // ==========================================
+  // Função: Colocar em 2º Plano
   const handleBackground = () => {
     const waitingNps = JSON.parse(localStorage.getItem('oncologico:nps_waiting') || '[]');
 
@@ -97,6 +111,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
         nome: `${pacienteInfo.nome} ${pacienteInfo.sobrenome || ''}`.trim()
       });
       localStorage.setItem('oncologico:nps_waiting', JSON.stringify(waitingNps));
+      window.dispatchEvent(new Event('updateNpsWaiting')); // Atualiza as telas abertas
     }
 
     toast.info("Aguardando NPS em 2º plano. Você será notificado na caixa de entrada.");
@@ -117,6 +132,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
             setStep('received');
             clearInterval(interval);
             toast.success('A nota acabou de ser registrada no sistema!');
+            removeFromBackground(monitoramento.id); // Tira do 2º plano
           }
         } catch (error) {
           console.error("Erro na escuta do NPS", error);
@@ -136,7 +152,6 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
               <h3>Avaliação de Atendimento (NPS)</h3>
               <p>Deseja enviar a pesquisa de satisfação (NPS) via WhatsApp sobre o atendimento prestado a <strong>{pacienteInfo?.nome}</strong>?</p>
 
-              {/* ALERTA SE POSSUI CUIDADOR */}
               {pacienteInfo?.possui_cuidador && (
                 <div style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeeba', padding: '15px', borderRadius: '6px', marginTop: '15px', textAlign: 'left', fontSize: '0.9rem' }}>
                   <strong>⚠️ ATENÇÃO:</strong> Esse paciente possui um cuidador/responsável. Por questões de cuidado, o disparo do NPS está selecionado para o cuidador.
@@ -192,8 +207,6 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
               <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>O link da pesquisa já foi entregue. Assim que a nota for registrada na página, ela aparecerá aqui automaticamente.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px', width: '100%' }}>
-                
-                {/* BOTÃO PARA SEGUNDO PLANO */}
                 <Button 
                   variant="cancel" 
                   onClick={handleBackground}
@@ -242,7 +255,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground }) {
               <h3>Pesquisa Concluída!</h3>
               <p>O atendimento foi avaliado com a nota:</p>
               <NpsScoreDisplay score={score}>{score}</NpsScoreDisplay>
-              <Button onClick={onClose} style={{ marginTop: '20px', width: '100%' }}>Finalizar</Button>
+              <Button onClick={() => { onClose(); window.dispatchEvent(new Event('updateNpsWaiting')); }} style={{ marginTop: '20px', width: '100%' }}>Finalizar</Button>
             </>
           )}
         </NpsContainer>

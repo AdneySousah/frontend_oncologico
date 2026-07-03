@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
-import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuSearch } from "react-icons/lu";
+import NpsModal from './components/NpsModal'; 
+import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento'; // <-- COMPONENTE INSERIDO AQUI
+import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo } from "react-icons/lu";
 import { useSearchParams } from 'react-router-dom';
 
 import {
@@ -10,30 +12,14 @@ import {
   SubTableWrapper, SubTable, StatusBadge, ActionButton,
   HeaderFlex, InfoButton, ModalOverlay, ModalContent, Button,
   AdherenceBadge, LegendList,
-  ControlsContainer, SearchInputContainer, SearchInput, PaginationContainer, PageButton, PaginationInfo, TooltipContainer, TruncatedText
+  ControlsContainer, PaginationContainer, PageButton, PaginationInfo, TooltipContainer, TruncatedText
 } from './styles';
 
 export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
-
-  if (score <= 9) {
-    return {
-      label: 'Paciente com alta tendência a adesão ao tratamento',
-      level: 'alta'
-    };
-  }
-
-  if (score <= 12) {
-    return {
-      label: 'Paciente com tendência moderada a adesão ao tratamento',
-      level: 'media'
-    };
-  }
-
-  return {
-    label: 'Paciente com tendência baixa a adesão ao tratamento',
-    level: 'baixa'
-  };
+  if (score <= 9) return { label: 'Paciente com alta tendência a adesão ao tratamento', level: 'alta' };
+  if (score <= 12) return { label: 'Paciente com tendência moderada a adesão ao tratamento', level: 'media' };
+  return { label: 'Paciente com tendência baixa a adesão ao tratamento', level: 'baixa' };
 };
 
 export default function Telemonitoramento() {
@@ -41,34 +27,60 @@ export default function Telemonitoramento() {
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
 
+  // Estados de Filtros e Busca (Agora passados para o componente)
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
+  
+  // Resumo
+  const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0, detalhes: {} });
+
+  // Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
 
+  // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
   const [selectedMonitoramento, setSelectedMonitoramento] = useState(null);
   const [monitoramentoAnterior, setMonitoramentoAnterior] = useState(null);
 
+  // Estados para o NPS
+  const [npsWaitingItems, setNpsWaitingItems] = useState([]);
+  const [isNpsModalOpen, setIsNpsModalOpen] = useState(false);
+  const [monitoramentoParaNps, setMonitoramentoParaNps] = useState(null);
+
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
+
+  useEffect(() => {
+    const loadNpsWaiting = () => {
+      const waiting = JSON.parse(localStorage.getItem('oncologico:nps_waiting') || '[]');
+      setNpsWaitingItems(waiting);
+    };
+
+    loadNpsWaiting();
+    window.addEventListener('updateNpsWaiting', loadNpsWaiting);
+    return () => window.removeEventListener('updateNpsWaiting', loadNpsWaiting);
+  }, []);
 
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setCurrentPage(1);
     }, 500);
-
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMonth]);
+
+  useEffect(() => {
     if (highlightKey && monitoramentosAgrupados.length > 0) {
       setExpandedRows(prev => ({ ...prev, [highlightKey]: true }));
-
       setTimeout(() => {
         const element = document.getElementById(`row-${highlightKey}`);
         if (element) {
@@ -80,7 +92,7 @@ export default function Telemonitoramento() {
 
   useEffect(() => {
     fetchMonitoramentos();
-  }, [currentPage, debouncedSearch]);
+  }, [currentPage, debouncedSearch, filterMonth]);
 
   async function fetchMonitoramentos() {
     try {
@@ -90,7 +102,8 @@ export default function Telemonitoramento() {
         params: {
           page: currentPage,
           limit: limit,
-          search: debouncedSearch
+          search: debouncedSearch,
+          mes: filterMonth
         }
       });
 
@@ -99,6 +112,39 @@ export default function Telemonitoramento() {
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
+      // --- INÍCIO DA LÓGICA DE RESUMO (REGRA DE CONTAR TODOS OS CONTATOS) ---
+      let totalConcluidosMes = 0;
+      let totalPendentesMes = 0;
+      const detalhesMed = {};
+
+      data.forEach(item => {
+        const dataReferencia = item.data_proximo_contato || item.createdAt;
+        if (!dataReferencia) return;
+
+        const mesItem = dataReferencia.substring(0, 7);
+        if (filterMonth && mesItem !== filterMonth) return;
+
+        const medNome = item.medicamento?.nome || 'Desconhecido';
+        
+        if (!detalhesMed[medNome]) {
+          detalhesMed[medNome] = { concluidos: 0, pendentes: 0 };
+        }
+
+        // Cada item soma individualmente (mesma lógica de volume do faturamento)
+        if (item.status === 'CONCLUIDO') {
+          totalConcluidosMes++;
+          detalhesMed[medNome].concluidos++;
+        }
+        if (item.status === 'PENDENTE') {
+          totalPendentesMes++;
+          detalhesMed[medNome].pendentes++;
+        }
+      });
+
+      setResumo({ concluidos: totalConcluidosMes, pendentes: totalPendentesMes, detalhes: detalhesMed });
+      // --- FIM DA LÓGICA DE RESUMO ---
+
+      // O Agrupamento visual da Tabela (mantido para a interface)
       const agrupados = data.reduce((acc, item) => {
         const key = item.paciente?.id;
         if (!key) return acc;
@@ -187,17 +233,14 @@ export default function Telemonitoramento() {
       agrupadosArray.sort((a, b) => {
         const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
         const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
-
         if (scoreA !== scoreB) return scoreB - scoreA;
 
         const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
         const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
-
         if (mediaA !== mediaB) return mediaA - mediaB;
 
         if (!a.proximoContatoData) return 1;
         if (!b.proximoContatoData) return -1;
-
         return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
       });
 
@@ -236,7 +279,6 @@ export default function Telemonitoramento() {
 
   const calcularStatusTempo = (dataStr) => {
     if (!dataStr) return { texto: '-', status: 'pendente' };
-
     const dataApenasData = dataStr.split('T')[0];
     const dataContato = new Date(dataApenasData + 'T00:00:00');
     const hoje = new Date();
@@ -268,16 +310,37 @@ export default function Telemonitoramento() {
           <p style={{ margin: 0, color: 'var(--text-color)', opacity: 0.8, fontSize: '0.95rem' }}>
             Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
           </p>
-          <SearchInputContainer>
-            <LuSearch size={18} />
-            <SearchInput
-              type="text"
-              placeholder="Buscar paciente por nome..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </SearchInputContainer>
+          
+          {/* O COMPONENTE DE FILTRO É RENDERIZADO AQUI */}
+          <FiltrosTelemonitoramento 
+            searchTerm={searchTerm} 
+            setSearchTerm={setSearchTerm} 
+            filterMonth={filterMonth} 
+            setFilterMonth={setFilterMonth} 
+          />
         </ControlsContainer>
+
+        {/* CARDS DE RESUMO DO MÊS */}
+        <div style={{ display: 'flex', gap: '20px', margin: '20px 0', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 300px', padding: '20px', backgroundColor: 'rgba(46, 204, 113, 0.08)', borderLeft: '5px solid #2ecc71', borderRadius: '8px' }}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#27ae60', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ✓ Concluídos no Mês ({resumo.concluidos})
+            </h3>
+            {Object.keys(resumo.detalhes).length === 0 && <span style={{ fontSize: '0.85rem', color: '#666' }}>Nenhum contato concluído no filtro atual.</span>}
+          </div>
+
+          <div style={{ flex: '1 1 300px', padding: '20px', backgroundColor: 'rgba(243, 156, 18, 0.08)', borderLeft: '5px solid #f39c12', borderRadius: '8px' }}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#d35400', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⏳ Pendentes no Mês ({resumo.pendentes})
+            </h3>
+            {Object.keys(resumo.detalhes).length === 0 && <span style={{ fontSize: '0.85rem', color: '#666' }}>Nenhum contato pendente no filtro atual.</span>}
+            {Object.entries(resumo.detalhes).map(([med, counts]) => counts.pendentes > 0 && (
+              <div key={`pend-${med}`} style={{ fontSize: '0.95rem', marginBottom: '6px', color: 'var(--text-color)' }}>
+                <strong>{med}</strong>: {counts.pendentes}
+              </div>
+            ))}
+          </div>
+        </div>
 
         {loading && monitoramentosAgrupados.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', fontSize: '1.1rem' }}>Carregando contatos agendados...</div>
@@ -292,7 +355,7 @@ export default function Telemonitoramento() {
                 <thead>
                   <tr>
                     <th>Paciente e Adesão</th>
-                    <th>Cuidador</th> {/* Coluna Consolidada */}
+                    <th>Cuidador</th>
                     <th>Operadora</th>
                     <th>Medicamento Atual</th>
                     <th>Próximo Contato</th>
@@ -316,10 +379,8 @@ export default function Telemonitoramento() {
                         >
                           <td>
                             <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
-
                             <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span>Score: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
-
                               {grupo.mediaAdesao !== null && (
                                 <>
                                   <span style={{ color: '#ccc' }}>|</span>
@@ -336,15 +397,12 @@ export default function Telemonitoramento() {
                                 </>
                               )}
                             </div>
-
                             {grupo.avaliacao?.total_score != null && (
                               <AdherenceBadge level={adInfo.level}>
                                 {adInfo.label}
                               </AdherenceBadge>
                             )}
                           </td>
-
-                          {/* CUIDADOR CONSOLIDADO */}
                           <td>
                             {grupo.paciente?.possui_cuidador ? (
                               <div style={{ lineHeight: '1.4' }}>
@@ -357,23 +415,16 @@ export default function Telemonitoramento() {
                               </StatusBadge>
                             )}
                           </td>
-                          
                           <td>{grupo.paciente?.operadoras?.nome}</td>
-
                           <td>
                             {grupo.medicamentoAtual ? (
                               <>
                                 <div style={{ fontWeight: '500' }}>{grupo.medicamentoAtual.nome}</div>
                                 {grupo.estoqueProjetado != null && (
                                   <div style={{
-                                    fontSize: '0.75rem',
-                                    color: 'var(--primary-color)',
-                                    backgroundColor: 'rgba(0,0,0,0.04)',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    display: 'inline-block',
-                                    marginTop: '4px',
-                                    border: '1px solid var(--border-color)'
+                                    fontSize: '0.75rem', color: 'var(--primary-color)', backgroundColor: 'rgba(0,0,0,0.04)',
+                                    padding: '2px 6px', borderRadius: '4px', display: 'inline-block',
+                                    marginTop: '4px', border: '1px solid var(--border-color)'
                                   }}>
                                     ~{grupo.estoqueProjetado} un. estimadas
                                   </div>
@@ -383,7 +434,6 @@ export default function Telemonitoramento() {
                               <div style={{ color: '#888', fontStyle: 'italic' }}>Não encontrado</div>
                             )}
                           </td>
-
                           <td>
                             {grupo.proximoContatoData ? (
                               <>
@@ -396,7 +446,6 @@ export default function Telemonitoramento() {
                               <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>Ciclo Concluído</span>
                             )}
                           </td>
-
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#2ecc71' }}>
@@ -407,12 +456,10 @@ export default function Telemonitoramento() {
                               </span>
                             </div>
                           </td>
-
                           <td style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
                             {expandedRows[grupo.key] ? <LuChevronUp size={22} /> : <LuChevronDown size={22} />}
                           </td>
                         </tr>
-
                         {expandedRows[grupo.key] && (
                           <tr className="details-row">
                             <td colSpan="7">
@@ -440,6 +487,7 @@ export default function Telemonitoramento() {
                                       .map(hist => {
                                       const infoTempo = calcularStatusTempo(hist.data_proximo_contato);
                                       const observacaoExibir = hist.observacao || '-';
+                                      const isNpsWaiting = npsWaitingItems.some(n => n.monitoramentoId === hist.id);
 
                                       return (
                                         <tr key={hist.id}>
@@ -452,9 +500,7 @@ export default function Telemonitoramento() {
                                             {hist.status === 'CONCLUIDO' ? (
                                               <StatusBadge status="concluido">CONCLUÍDO</StatusBadge>
                                             ) : (
-                                              <StatusBadge status={infoTempo.status}>
-                                                {infoTempo.texto}
-                                              </StatusBadge>
+                                              <StatusBadge status={infoTempo.status}>{infoTempo.texto}</StatusBadge>
                                             )}
                                           </td>
                                           <td style={{ maxWidth: '180px', fontSize: '0.85rem', color: '#555' }}>
@@ -462,18 +508,29 @@ export default function Telemonitoramento() {
                                               <TooltipContainer data-tooltip={observacaoExibir}>
                                                 <TruncatedText>{observacaoExibir}</TruncatedText>
                                               </TooltipContainer>
-                                            ) : (
-                                              '-'
-                                            )}
+                                            ) : '-'}
                                           </td>
                                           <td>
-                                            {hist.status === 'PENDENTE' ? (
-                                              <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}>
-                                                Registrar Contato
-                                              </ActionButton>
-                                            ) : (
-                                              <span style={{ color: '#888', fontSize: '0.8rem' }}>Contato já realizado</span>
-                                            )}
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                              {hist.status === 'PENDENTE' ? (
+                                                <ActionButton onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}>
+                                                  Registrar Contato
+                                                </ActionButton>
+                                              ) : (
+                                                <span style={{ color: '#888', fontSize: '0.8rem' }}>Contato já realizado</span>
+                                              )}
+                                              {isNpsWaiting && (
+                                                <ActionButton
+                                                  style={{ backgroundColor: '#8a2be2', borderColor: '#8a2be2', color: '#fff' }}
+                                                  onClick={() => {
+                                                    setMonitoramentoParaNps({ ...hist, paciente: grupo.paciente });
+                                                    setIsNpsModalOpen(true);
+                                                  }}
+                                                >
+                                                  Acompanhar NPS
+                                                </ActionButton>
+                                              )}
+                                            </div>
                                           </td>
                                         </tr>
                                       )
@@ -497,16 +554,10 @@ export default function Telemonitoramento() {
                   Mostrando página <strong>{currentPage}</strong> de <strong>{totalPages}</strong> (Total: {totalItems} pendentes)
                 </PaginationInfo>
                 <div>
-                  <PageButton
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                  >
+                  <PageButton disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>
                     Anterior
                   </PageButton>
-                  <PageButton
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                  >
+                  <PageButton disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>
                     Próxima
                   </PageButton>
                 </div>
@@ -524,6 +575,18 @@ export default function Telemonitoramento() {
         onSucesso={fetchMonitoramentos}
       />
 
+      {isNpsModalOpen && monitoramentoParaNps && (
+        <NpsModal
+          monitoramento={monitoramentoParaNps}
+          initialStep="waiting"
+          onClose={() => {
+            setIsNpsModalOpen(false);
+            setMonitoramentoParaNps(null);
+          }}
+          onBackground={() => setIsNpsModalOpen(false)}
+        />
+      )}
+
       {isLegendModalOpen && (
         <ModalOverlay onClick={() => setIsLegendModalOpen(false)}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
@@ -531,7 +594,6 @@ export default function Telemonitoramento() {
             <p style={{ color: '#666', marginBottom: '15px' }}>
               A pontuação máxima do questionário é 17 pontos. Ela nos ajuda a prever a probabilidade do paciente abandonar ou falhar na adesão ao tratamento.
             </p>
-
             <LegendList>
               <li>
                 <AdherenceBadge level="alta" style={{ fontSize: '1rem', padding: '6px 14px' }}>0 a 9 pontos: Alta Probabilidade de Adesão</AdherenceBadge>
@@ -546,12 +608,10 @@ export default function Telemonitoramento() {
                 <span style={{ fontSize: '0.9rem', color: '#555', marginTop: '8px', marginLeft: '5px' }}>Alta chance de interrupção do tratamento. Necessário acompanhamento próximo e escuta ativa.</span>
               </li>
             </LegendList>
-
             <Button style={{ width: '100%' }} onClick={() => setIsLegendModalOpen(false)}>Entendi</Button>
           </ModalContent>
         </ModalOverlay>
       )}
-
     </Container>
   );
 }
