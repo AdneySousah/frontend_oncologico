@@ -334,11 +334,7 @@ export default function Telemonitoramento() {
               ⏳ Pendentes no Mês ({resumo.pendentes})
             </h3>
             {Object.keys(resumo.detalhes).length === 0 && <span style={{ fontSize: '0.85rem', color: '#666' }}>Nenhum contato pendente no filtro atual.</span>}
-            {Object.entries(resumo.detalhes).map(([med, counts]) => counts.pendentes > 0 && (
-              <div key={`pend-${med}`} style={{ fontSize: '0.95rem', marginBottom: '6px', color: 'var(--text-color)' }}>
-                <strong>{med}</strong>: {counts.pendentes}
-              </div>
-            ))}
+            
           </div>
         </div>
 
