@@ -218,13 +218,13 @@ export default function ListaEntrevistas() {
       result = result.filter(p => (p.status_termo || 'Pendente') === filters.statusTermo);
     }
 
+    // CORREÇÃO APLICADA AQUI: Busca agora junta nome e sobrenome antes de comparar
     if (filters.buscaGeral) {
       const termo = filters.buscaGeral.toLowerCase();
-      result = result.filter(p => 
-        p.nome?.toLowerCase().includes(termo) ||
-        p.sobrenome?.toLowerCase().includes(termo) ||
-        p.cpf?.includes(termo)
-      );
+      result = result.filter(p => {
+        const nomeCompleto = `${p.nome || ''} ${p.sobrenome || ''}`.toLowerCase();
+        return nomeCompleto.includes(termo) || p.cpf?.includes(termo);
+      });
     }
 
     if (filters.cuidador) {

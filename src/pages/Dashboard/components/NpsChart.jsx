@@ -80,10 +80,11 @@ const NpsChart = ({ chartData = [], reportData = [] }) => {
   };
 
   const handleExport = () => {
+    console.log(reportData);
     const columns = [
       { header: 'ID Paciente', key: 'paciente_id', width: 15 },
       { header: 'Nota', key: 'nota', width: 15 },
-      { header: 'Data da Resposta', key: 'created_at', width: 20 },
+      { header: 'Data da Resposta', key: 'data_registro', width: 20 },
     ];
     exportToXLSX(reportData, columns, 'Relatorio_NPS', 'Respostas do NPS');
   };

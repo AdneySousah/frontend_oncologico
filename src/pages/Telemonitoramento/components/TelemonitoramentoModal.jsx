@@ -48,7 +48,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [loading, setLoading] = useState(false);
   const [showNpsPrompt, setShowNpsPrompt] = useState(false);
 
+  // Estados de Sincronização
   const [loadingCompra, setLoadingCompra] = useState(false);
+  const [syncPrompt, setSyncPrompt] = useState(null);
   const [dadosNovaCompra, setDadosNovaCompra] = useState(null);
   const [aplicarNovaCompra, setAplicarNovaCompra] = useState(false);
   
@@ -70,6 +72,42 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   }, [monitoramento]);
 
+  const setupDates = (monit) => {
+    if (monit.data_calculada_fim_caixa) {
+      const [ano, mes, dia] = monit.data_calculada_fim_caixa.split('T')[0].split('-');
+      const dateObj = new Date(ano, mes - 1, dia);
+      dateObj.setDate(dateObj.getDate() + 1);
+
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      setDataRealInicioNovaCaixa(`${y}-${m}-${d}`);
+    }
+  };
+
+  const checkFuturePurchase = async (monit) => {
+    try {
+      setLoadingCompra(true);
+      const response = await api.get(`/monitoramento-medicamentos/${monit.id}/verificar-compra`);
+      if (response.data && response.data.novaCompraDetectada) {
+        setDadosNovaCompra(response.data.detalhes);
+        setAplicarNovaCompra(true);
+        setPosologiaNovaCaixa(monit.posologia_diaria || '');
+        
+        if (response.data.detalhes.data_novo_inicio) {
+          const dataDoBackend = response.data.detalhes.data_novo_inicio.split('T')[0];
+          setDataRealInicioNovaCaixa(dataDoBackend);
+        }
+      }
+    } catch (error) {
+      if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      }
+    } finally {
+      setLoadingCompra(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -86,58 +124,74 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setDadosNovaCompra(null);
       setAplicarNovaCompra(false);
       setPosologiaNovaCaixa('');
+      setSyncPrompt(null);
 
-      if (localMonitoramento.data_calculada_fim_caixa) {
-        const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
-        const dateObj = new Date(ano, mes - 1, dia);
-        dateObj.setDate(dateObj.getDate() + 1);
-
-        const y = dateObj.getFullYear();
-        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const d = String(dateObj.getDate()).padStart(2, '0');
-        setDataRealInicioNovaCaixa(`${y}-${m}-${d}`);
-      }
+      setupDates(localMonitoramento);
 
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
 
+      // Inicia verificação do evento atual
       setLoadingCompra(true);
-      api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-compra`)
-        .then(response => {
+      api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
+        .then(resSync => {
           if (!isMounted) return;
-          if (response.data && response.data.novaCompraDetectada) {
-            setDadosNovaCompra(response.data.detalhes);
-            setAplicarNovaCompra(true);
-            setPosologiaNovaCaixa(localMonitoramento.posologia_diaria || '');
-            
-            if (response.data.detalhes.data_novo_inicio) {
-              const dataDoBackend = response.data.detalhes.data_novo_inicio.split('T')[0];
-              setDataRealInicioNovaCaixa(dataDoBackend);
-            }
-          }
-        })
-        .catch((error) => {
-          if (!isMounted) return;
-          if (error.response?.data?.error) {
-            toast.error(error.response.data.error);
+          
+          if (resSync.data?.requiresConfirmation) {
+            // Se tem mudança, trava no alerta de prompt
+            setSyncPrompt(resSync.data.details);
+            setLoadingCompra(false);
           } else {
-            console.log('Sem compras futuras adicionais encontradas.');
+            // Se não mudou o atual, segue para checar compra futura
+            checkFuturePurchase(localMonitoramento);
           }
         })
-        .finally(() => {
-          if (isMounted) setLoadingCompra(false);
+        .catch(err => {
+          if (!isMounted) return;
+          setLoadingCompra(false);
         });
     }
 
     return () => { isMounted = false; };
-  }, [isOpen, localMonitoramento?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // Retirado dependency profunda para não rodar duplo ao setar estado local
 
+  // Handlers para o Prompt de Sincronização
+  const handleConfirmSync = async () => {
+    try {
+      setLoadingCompra(true);
+      const res = await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}/confirmar-sincronizacao-atual`, {
+        novo_medicamento_id: syncPrompt.novoMedicamentoId,
+        nova_qtd_caixas: syncPrompt.qtdCaixasNova,
+        nova_qtd_capsula_por_caixa: syncPrompt.novaQtdCapsulaPorCaixa,
+        mudou_medicamento: syncPrompt.mudouMedicamento
+      });
+
+      setLocalMonitoramento(res.data.monitoramento);
+      setupDates(res.data.monitoramento);
+      toast.success('Fornecimento atualizado com sucesso!');
+      setSyncPrompt(null);
+      
+      // Após atualizar o atual, checamos por compras futuras
+      await checkFuturePurchase(res.data.monitoramento);
+    } catch (error) {
+      toast.error('Erro ao confirmar atualização');
+      setLoadingCompra(false);
+    }
+  };
+
+  const handleIgnoreSync = async () => {
+    setSyncPrompt(null);
+    await checkFuturePurchase(localMonitoramento);
+  };
+
+  // Cálculos visuais e de margem
   let idealRemaining = 0;
   let margemMin = 0;
   let margemMax = 0;
   let dataReferenciaFormatada = '-';
-  let dataFimCicloAtualFormatada = '-'; // <--- Variável nova para a data do Fim
+  let dataFimCicloAtualFormatada = '-'; 
   let isAntesDoInicio = false; 
 
   const qtdCaixas = Number(localMonitoramento?.qtd_caixas || 1);
@@ -164,7 +218,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   if (localMonitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
-    dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`; // <--- Setando a variável de exibição
+    dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`; 
     const dataFim = new Date(ano, mes - 1, dia);
 
     const hoje = new Date();
@@ -233,17 +287,61 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   if (!isOpen || !localMonitoramento) return null;
 
+  // Intercepta o NPS primeiro
   if (showNpsPrompt) {
     return (
       <NpsModal
         monitoramento={localMonitoramento}
-        onClose={() => {
-          onClose();
-        }}
+        onClose={() => onClose()}
       />
     );
   }
 
+  // === TELA DE AVISO DE SINCRONIZAÇÃO ===
+  if (syncPrompt) {
+    return (
+      <ModalOverlay>
+        <ModalContent style={{ maxWidth: '600px', margin: 'auto' }}>
+          <h3 style={{ color: 'var(--primary-color, #d9534f)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            ⚠️ Alteração no Fornecimento Detectada
+          </h3>
+          <p style={{ marginBottom: '20px', lineHeight: '1.5' }}>
+            O sistema externo relata que houve uma modificação nos dados do fornecimento atual (Evento: <strong>{localMonitoramento?.evento_externo_id}</strong>). Você deseja aplicar essa atualização antes de continuar o registro?
+          </p>
+
+          <InfoBox style={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #ffeeba', color: '#856404' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold', opacity: 0.7 }}>Informação Anterior (Local)</span>
+              <p style={{ margin: '5px 0 0 0' }}>💊 {syncPrompt.medicamentoAntigo}</p>
+              <p style={{ margin: 0, fontSize: '0.9em' }}>📦 {syncPrompt.qtdCaixasAntiga} caixa(s)</p>
+            </div>
+            
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', margin: '10px 0' }}></div>
+            
+            <div>
+              <span style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold', opacity: 0.7 }}>Informação Atualizada (Externa)</span>
+              <p style={{ margin: '5px 0 0 0' }}>💊 <strong>{syncPrompt.medicamentoNovo}</strong></p>
+              <p style={{ margin: 0, fontSize: '0.9em' }}>📦 <strong>{syncPrompt.qtdCaixasNova} caixa(s)</strong></p>
+            </div>
+          </InfoBox>
+
+          
+
+          <ButtonGroup style={{ marginTop: '30px' }}>
+            <Button type="button" variant="secondary" onClick={handleIgnoreSync} disabled={loadingCompra}>
+              Ignorar
+            </Button>
+            <Button type="button" onClick={handleConfirmSync} disabled={loadingCompra}>
+              {loadingCompra ? 'Aplicando...' : 'Confirmar Troca'}
+            </Button>
+          </ButtonGroup>
+        </ModalContent>
+      </ModalOverlay>
+    );
+  }
+
+  // Intercepta e checa se precisa do PreMonitoramento 
+  // (Caso seja novo ou se a data foi zerada no Backend ao confirmar a Sincronização de remédio)
   const isPreMonitoramento = !monitoramentoAnterior && !localMonitoramento.data_administracao;
 
   const handlePreMonitoramentoSuccess = (novaDataAdmin, novaDataFimCaixa) => {
@@ -348,7 +446,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             <SkeletonLoader>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)' }} />
-                <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'bold' }}>Consultando fornecimento externo...</span>
+                <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'bold' }}>Consultando atualizações externas...</span>
               </div>
               <div className="text-line"></div>
               <div className="text-line short"></div>
@@ -376,14 +474,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             </p>
 
             <ProjectedStockBox>
-              {/* === INICIO DA MODIFICAÇÃO VISUAL === */}
               <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
                 <strong>Data administração informada pelo paciente:</strong> {dataReferenciaFormatada}
               </p>
               <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
                 <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
               </p>
-              {/* === FIM DA MODIFICAÇÃO VISUAL === */}
               
               <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
                 Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
+import EditTelemonitoramentoModal from './components/EditTelemonitoramentoModal';
 import NpsModal from './components/NpsModal'; 
-import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento'; // <-- COMPONENTE INSERIDO AQUI
-import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo } from "react-icons/lu";
+import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento'; 
+import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuPencil } from "react-icons/lu"; 
 import { useSearchParams } from 'react-router-dom';
 
 import {
@@ -27,27 +28,29 @@ export default function Telemonitoramento() {
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
 
-  // Estados de Filtros e Busca (Agora passados para o componente)
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
   
-  // Resumo
-  const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0, detalhes: {} });
+  // Resumo global retornado do backend
+  const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0 });
 
-  // Paginação
+  // Estado para controle da ordenação
+  const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const limit = 20;
 
-  // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLegendModalOpen, setIsLegendModalOpen] = useState(false);
   const [selectedMonitoramento, setSelectedMonitoramento] = useState(null);
   const [monitoramentoAnterior, setMonitoramentoAnterior] = useState(null);
 
-  // Estados para o NPS
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedEditId, setSelectedEditId] = useState(null);
+
   const [npsWaitingItems, setNpsWaitingItems] = useState([]);
   const [isNpsModalOpen, setIsNpsModalOpen] = useState(false);
   const [monitoramentoParaNps, setMonitoramentoParaNps] = useState(null);
@@ -92,7 +95,7 @@ export default function Telemonitoramento() {
 
   useEffect(() => {
     fetchMonitoramentos();
-  }, [currentPage, debouncedSearch, filterMonth]);
+  }, [currentPage, debouncedSearch, filterMonth, sortConfig]);
 
   async function fetchMonitoramentos() {
     try {
@@ -107,44 +110,16 @@ export default function Telemonitoramento() {
         }
       });
 
-      const { data, total, totalPages: fetchedTotalPages } = response.data;
+      const { data, total, totalPages: fetchedTotalPages, resumoGlobal } = response.data;
 
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
-      // --- INÍCIO DA LÓGICA DE RESUMO (REGRA DE CONTAR TODOS OS CONTATOS) ---
-      let totalConcluidosMes = 0;
-      let totalPendentesMes = 0;
-      const detalhesMed = {};
+      // Preenche o resumo vindo do backend global
+      if (resumoGlobal) {
+        setResumo({ concluidos: resumoGlobal.concluidos, pendentes: resumoGlobal.pendentes });
+      }
 
-      data.forEach(item => {
-        const dataReferencia = item.data_proximo_contato || item.createdAt;
-        if (!dataReferencia) return;
-
-        const mesItem = dataReferencia.substring(0, 7);
-        if (filterMonth && mesItem !== filterMonth) return;
-
-        const medNome = item.medicamento?.nome || 'Desconhecido';
-        
-        if (!detalhesMed[medNome]) {
-          detalhesMed[medNome] = { concluidos: 0, pendentes: 0 };
-        }
-
-        // Cada item soma individualmente (mesma lógica de volume do faturamento)
-        if (item.status === 'CONCLUIDO') {
-          totalConcluidosMes++;
-          detalhesMed[medNome].concluidos++;
-        }
-        if (item.status === 'PENDENTE') {
-          totalPendentesMes++;
-          detalhesMed[medNome].pendentes++;
-        }
-      });
-
-      setResumo({ concluidos: totalConcluidosMes, pendentes: totalPendentesMes, detalhes: detalhesMed });
-      // --- FIM DA LÓGICA DE RESUMO ---
-
-      // O Agrupamento visual da Tabela (mantido para a interface)
       const agrupados = data.reduce((acc, item) => {
         const key = item.paciente?.id;
         if (!key) return acc;
@@ -230,18 +205,29 @@ export default function Telemonitoramento() {
         return grupo;
       });
 
+      // Aplica as regras de ordenação dinâmica
       agrupadosArray.sort((a, b) => {
-        const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
-        const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
-        if (scoreA !== scoreB) return scoreB - scoreA;
+        if (sortConfig.key === 'data') {
+          const timeA = a.proximoContatoData ? new Date(a.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
+          const timeB = b.proximoContatoData ? new Date(b.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
+          return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
+        } else {
+          // Default: Score
+          const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
+          const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
+          
+          if (scoreA !== scoreB) {
+            return sortConfig.direction === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+          }
 
-        const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
-        const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
-        if (mediaA !== mediaB) return mediaA - mediaB;
+          const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
+          const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
+          if (mediaA !== mediaB) return mediaA - mediaB;
 
-        if (!a.proximoContatoData) return 1;
-        if (!b.proximoContatoData) return -1;
-        return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
+          if (!a.proximoContatoData) return 1;
+          if (!b.proximoContatoData) return -1;
+          return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
+        }
       });
 
       setMonitoramentosAgrupados(agrupadosArray);
@@ -271,6 +257,11 @@ export default function Telemonitoramento() {
     setIsModalOpen(true);
   };
 
+  const handleOpenEditModal = (monitoramentoId) => {
+    setSelectedEditId(monitoramentoId);
+    setIsEditModalOpen(true);
+  };
+
   const formatarData = (dataStr) => {
     if (!dataStr) return '-';
     const dataApenasData = dataStr.split('T')[0];
@@ -295,6 +286,16 @@ export default function Telemonitoramento() {
     return { texto: `Atrasado há ${Math.abs(diffDays)} dias`, status: 'atrasado' };
   };
 
+  // Função para controlar a troca de ordenação nos cabeçalhos
+  const handleSort = (key) => {
+    setSortConfig((prevConfig) => {
+      if (prevConfig.key === key) {
+        return { key, direction: prevConfig.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: key === 'score' ? 'desc' : 'asc' };
+    });
+  };
+
   return (
     <Container>
       <SectionWrapper>
@@ -311,7 +312,6 @@ export default function Telemonitoramento() {
             Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
           </p>
           
-          {/* O COMPONENTE DE FILTRO É RENDERIZADO AQUI */}
           <FiltrosTelemonitoramento 
             searchTerm={searchTerm} 
             setSearchTerm={setSearchTerm} 
@@ -320,23 +320,6 @@ export default function Telemonitoramento() {
           />
         </ControlsContainer>
 
-        {/* CARDS DE RESUMO DO MÊS */}
-        <div style={{ display: 'flex', gap: '20px', margin: '20px 0', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 300px', padding: '20px', backgroundColor: 'rgba(46, 204, 113, 0.08)', borderLeft: '5px solid #2ecc71', borderRadius: '8px' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#27ae60', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ✓ Concluídos no Mês ({resumo.concluidos})
-            </h3>
-            {Object.keys(resumo.detalhes).length === 0 && <span style={{ fontSize: '0.85rem', color: '#666' }}>Nenhum contato concluído no filtro atual.</span>}
-          </div>
-
-          <div style={{ flex: '1 1 300px', padding: '20px', backgroundColor: 'rgba(243, 156, 18, 0.08)', borderLeft: '5px solid #f39c12', borderRadius: '8px' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#d35400', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⏳ Pendentes no Mês ({resumo.pendentes})
-            </h3>
-            {Object.keys(resumo.detalhes).length === 0 && <span style={{ fontSize: '0.85rem', color: '#666' }}>Nenhum contato pendente no filtro atual.</span>}
-            
-          </div>
-        </div>
 
         {loading && monitoramentosAgrupados.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', fontSize: '1.1rem' }}>Carregando contatos agendados...</div>
@@ -350,11 +333,29 @@ export default function Telemonitoramento() {
               <Table>
                 <thead>
                   <tr>
-                    <th>Paciente e Adesão</th>
+                    <th 
+                      onClick={() => handleSort('score')} 
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      title="Ordenar por Score de Adesão"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Paciente e Adesão 
+                        {sortConfig.key === 'score' && (sortConfig.direction === 'asc' ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />)}
+                      </div>
+                    </th>
                     <th>Cuidador</th>
                     <th>Operadora</th>
                     <th>Medicamento Atual</th>
-                    <th>Próximo Contato</th>
+                    <th 
+                      onClick={() => handleSort('data')} 
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      title="Ordenar por Data do Próximo Contato"
+                    >
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Próximo Contato 
+                        {sortConfig.key === 'data' && (sortConfig.direction === 'asc' ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />)}
+                      </div>
+                    </th>
                     <th>Status Geral</th>
                     <th style={{ textAlign: 'right' }}>Detalhes</th>
                   </tr>
@@ -513,7 +514,16 @@ export default function Telemonitoramento() {
                                                   Registrar Contato
                                                 </ActionButton>
                                               ) : (
-                                                <span style={{ color: '#888', fontSize: '0.8rem' }}>Contato já realizado</span>
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                  <span style={{ color: '#888', fontSize: '0.8rem' }}>Já realizado</span>
+                                                  <ActionButton 
+                                                    onClick={() => handleOpenEditModal(hist.id)}
+                                                    style={{ padding: '6px', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    title="Editar este contato concluído"
+                                                  >
+                                                    <LuPencil size={14} />
+                                                  </ActionButton>
+                                                </div>
                                               )}
                                               {isNpsWaiting && (
                                                 <ActionButton
@@ -568,6 +578,16 @@ export default function Telemonitoramento() {
         onClose={() => setIsModalOpen(false)}
         monitoramento={selectedMonitoramento}
         monitoramentoAnterior={monitoramentoAnterior} 
+        onSucesso={fetchMonitoramentos}
+      />
+
+      <EditTelemonitoramentoModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedEditId(null);
+        }}
+        monitoramentoId={selectedEditId}
         onSucesso={fetchMonitoramentos}
       />
 

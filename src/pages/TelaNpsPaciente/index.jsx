@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../../services/api'; // Verifique se o caminho da sua API está correto
+import api from '../../services/api'; 
 import {
   Container,
   Card,
@@ -14,7 +14,7 @@ import {
 } from './styles';
 
 export default function TelaNpsPaciente() {
-  const { id,paciente_id, monitoramento_id } = useParams();
+  const { id, paciente_id, monitoramento_id } = useParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [paciente, setPaciente] = useState(null);
@@ -26,7 +26,6 @@ export default function TelaNpsPaciente() {
   useEffect(() => {
     async function fetchPaciente() {
       try {
-        // Usa a nova rota passando os dois IDs
         const response = await api.get(`/nps/paciente/${paciente_id}/atendimento/${monitoramento_id}`);
         setPaciente(response.data.paciente);
         setJaRespondeu(response.data.ja_respondeu);
@@ -38,14 +37,13 @@ export default function TelaNpsPaciente() {
       }
     }
     fetchPaciente();
-  }, [id]);
+  }, [id, paciente_id, monitoramento_id]);
 
   // 2. Função acionada quando o paciente clica em uma nota
   const handleScoreSelect = async (nota) => {
     if (submitting) return;
     try {
       setSubmitting(true);
-      // Salva a nota referenciando o monitoramento correto
       await api.post(`/nps/paciente/${paciente_id}/atendimento/${monitoramento_id}/responder`, { nota });
       setSucesso(true);
     } catch (error) {
@@ -55,7 +53,6 @@ export default function TelaNpsPaciente() {
     }
   };
 
-  // Renderização: Telas de Loading ou Erro
   if (loading) {
     return (
       <Container>
@@ -101,12 +98,10 @@ export default function TelaNpsPaciente() {
     );
   }
 
-  // Renderização: Tela Principal de Pesquisa
   return (
     <Container>
       <Card>
         <Header>
-          {/* Se quiser, pode colocar a logo da clínica/agência aqui usando um <img src={logo} /> */}
           <Title>Pesquisa de Satisfação</Title>
         </Header>
         

@@ -13,7 +13,7 @@ export const Container = styled.div`
   justify-content: center;
   background-color: #f4f7f6;
   padding: 20px;
-  font-family: 'Inter', sans-serif; /* Adapte para a fonte do seu projeto */
+  font-family: 'Inter', sans-serif;
 `;
 
 export const Card = styled.div`
@@ -60,34 +60,36 @@ export const ScoreGrid = styled.div`
 // Lógica de cores baseada no padrão NPS:
 // 0-6 Detratores (Vermelho) | 7-8 Neutros (Amarelo) | 9-10 Promotores (Verde)
 const getScoreColor = (nota) => {
-  if (nota <= 6) return '#e74c3c'; 
-  if (nota <= 8) return '#f1c40f';
-  return '#2ecc71';
+  if (nota <= 6) return '#e74c3c'; // Detratores 
+  if (nota <= 8) return '#f39c12'; // Neutros (Usando um tom levemente mais alaranjado para contraste com o texto branco)
+  return '#2ecc71'; // Promotores
 };
 
 export const ScoreButton = styled.button`
   width: 45px;
   height: 45px;
   border-radius: 8px;
-  border: 1px solid #ddd;
-  background-color: #fff;
+  border: none;
+  background-color: ${(props) => getScoreColor(props.nota)};
   font-size: 1.1rem;
   font-weight: bold;
-  color: #333;
+  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background-color: ${(props) => getScoreColor(props.nota)};
-    color: #fff;
-    border-color: ${(props) => getScoreColor(props.nota)};
     transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    filter: brightness(0.9); /* Escurece levemente a cor no hover */
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+    filter: none;
+    box-shadow: none;
   }
 
   @media (max-width: 400px) {
@@ -108,6 +110,6 @@ export const Spinner = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border-left-color: #007bff; /* Ajuste para a cor primária do seu app */
+  border-left-color: #007bff;
   animation: ${spin} 1s linear infinite;
 `;

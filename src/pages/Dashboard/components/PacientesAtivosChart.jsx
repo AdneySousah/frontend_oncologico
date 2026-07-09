@@ -4,25 +4,23 @@ import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader } from '../styles';
 import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
-const COLORS = ['#8B5CF6', '#D1D5DB']; // Roxo moderno para Monitorados, Cinza para o resto
+const COLORS = ['#3B82F6']; // Azul para representar os ativos de forma sólida
 
-const PacientesMonitoradosChart = ({ chartData, reportData, total }) => {
-
-  
+const PacientesAtivosChart = ({ chartData, reportData, total }) => {
   const handleExport = () => {
     const columns = [
       { header: 'ID Paciente', key: 'paciente_id', width: 15 },
       { header: 'Nome Paciente', key: 'nome_paciente', width: 35 },
       { header: 'Operadora', key: 'operadora', width: 20 },
-      { header: 'Último Monitoramento', key: 'ultimo_monitoramento', width: 25 },
+      { header: 'Data Registro', key: 'data_registro', width: 20 },
     ];
-    exportToXLSX(reportData, columns, 'Relatorio_Pacientes_Monitorados', 'Pacientes Ativos e Monitorados');
+    exportToXLSX(reportData, columns, 'Relatorio_Pacientes_Ativos', 'Lista de Pacientes Ativos');
   };
 
   return (
     <>
       <ChartHeader>
-        <h3>Monitorados (Ativos): {total}</h3>
+        <h3>Total de Pacientes Ativos: {total}</h3>
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       
@@ -51,4 +49,4 @@ const PacientesMonitoradosChart = ({ chartData, reportData, total }) => {
   );
 };
 
-export default memo(PacientesMonitoradosChart);
+export default memo(PacientesAtivosChart);
