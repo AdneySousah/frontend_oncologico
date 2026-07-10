@@ -4,7 +4,29 @@ import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader } from '../styles';
 import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
-const COLORS = ['#6df512', '#f3df2a', '#f30c0c']; // Cores mantidas: Verde, Amarelo, Vermelho
+const COLORS = ['#6df512', '#f3df2a', '#f30c0c', '#D1D5DB']; 
+
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text 
+      x={x} 
+      y={y} 
+      fill="#FFFFFF" 
+      textAnchor="middle" 
+      dominantBaseline="central" 
+      fontSize={18} 
+      fontWeight="bold" 
+      style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.6)' }} 
+    >
+      {value > 0 ? value : ''}
+    </text>
+  );
+};
 
 const AdesaoScoreChart = ({ chartData, reportData }) => {
   const handleExport = () => {
@@ -30,11 +52,12 @@ const AdesaoScoreChart = ({ chartData, reportData }) => {
         <PieChart>
           <Pie 
             data={chartData} 
-            innerRadius={60}    
+            innerRadius={60}   
             outerRadius={100} 
-            paddingAngle={5}    
+            paddingAngle={5}   
             dataKey="value" 
             labelLine={false} 
+            label={renderCustomizedLabel}
             stroke="none"
           >
             {chartData.map((entry, index) => (

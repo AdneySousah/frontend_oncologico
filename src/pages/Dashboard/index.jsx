@@ -5,10 +5,8 @@ import api from '../../services/api';
 import AdesaoScoreChart from './components/AdesaoScoreChart';
 import AderenciaOpcoesChart from './components/AderenciaOpcoesChart';
 import FichaRamChart from './components/FichaRamChart';
-import TotalPacientesChart from './components/TotalPacientesChart';
-import PacientesAtivosChart from './components/PacientesAtivosChart';
+import PacientesAtivosChart from './components/PacientesAtivosChart'; // MANTIDO O NOME ORIGINAL
 import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
-import PacientesElegiveisChart from './components/PacientesElegiveisChart';
 import NpsChart from './components/NpsChart';
 import HistoricoTrocaTable from './components/HistoricoTrocaTable';
 import TermosChart from './components/TermosChart';
@@ -65,11 +63,9 @@ export default function Dashboard() {
           <select value={graficoSelecionado} onChange={(e) => setGraficoSelecionado(e.target.value)}>
             <option value="todos">Ver Todos</option>
             <option value="nps">NPS - Índice de Satisfação</option>
-            <option value="total_pacientes">Total de Pacientes (Todos)</option>
-            <option value="pacientes_ativos">Pacientes Ativos</option>
+            <option value="pacientes_sincronizados">Total de Pacientes Sincronizados</option>
             <option value="pacientes_monitorados">Pacientes Monitorados</option>
-            <option value="pacientes_elegiveis">Pacientes Elegíveis</option>
-            <option value="termos">Status dos Termos</option>
+            <option value="termos">Pacientes Elegíveis (Termo aceito)</option>
             <option value="adesao_score">Adesão (Score Questionário)</option>
             <option value="aderencia_opcoes">Aderência (Opções Monitoramento)</option>
             <option value="ficha_ram">Fichas RAM (Eventos Adversos)</option>
@@ -88,23 +84,13 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {(graficoSelecionado === 'todos' || graficoSelecionado === 'total_pacientes') && data.totalPacientes && (
-          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
-            <TotalPacientesChart 
-              chartData={data.totalPacientes.chart} 
-              reportData={data.totalPacientes.report} 
-              total={data.totalPacientes.total} 
-            />
-          </Card>
-        )}
-
-        {/* COMPONENTE NOVO: PACIENTES ATIVOS */}
-        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_ativos') && data.pacientesAtivos && (
+        {/* NOME DO COMPONENTE MANTIDO, APENAS OS DADOS SÃO PASSADOS COM A NOVA CHAVE DO BACKEND */}
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_sincronizados') && data.pacientesSincronizados && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <PacientesAtivosChart 
-              chartData={data.pacientesAtivos.chart} 
-              reportData={data.pacientesAtivos.report} 
-              total={data.pacientesAtivos.total} 
+              chartData={data.pacientesSincronizados.chart} 
+              reportData={data.pacientesSincronizados.report} 
+              total={data.pacientesSincronizados.total} 
             />
           </Card>
         )}
@@ -115,16 +101,6 @@ export default function Dashboard() {
               chartData={data.pacientesMonitorados.chart} 
               reportData={data.pacientesMonitorados.report} 
               total={data.pacientesMonitorados.total} 
-            />
-          </Card>
-        )}
-
-        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_elegiveis') && data.pacientesElegiveis && (
-          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
-            <PacientesElegiveisChart 
-              chartData={data.pacientesElegiveis.chart} 
-              reportData={data.pacientesElegiveis.report} 
-              total={data.pacientesElegiveis.total} 
             />
           </Card>
         )}

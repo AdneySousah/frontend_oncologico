@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader } from '../styles';
 import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
@@ -26,7 +26,6 @@ const FichaRamChart = ({ chartData, reportData }) => {
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} stroke="#888" />
-
           <XAxis
             dataKey="name"
             axisLine={false}
@@ -45,10 +44,12 @@ const FichaRamChart = ({ chartData, reportData }) => {
           />
           <Bar
             dataKey="value"
-            fill="#F43F5E" // Rose moderno
+            fill="#F43F5E" 
             radius={[6, 6, 0, 0]}
             maxBarSize={60}
-          />
+          >
+            <LabelList dataKey="value" position="top" fill="#374151" fontSize={16} fontWeight="900" />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </>

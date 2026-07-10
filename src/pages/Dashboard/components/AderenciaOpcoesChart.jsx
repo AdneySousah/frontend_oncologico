@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader } from '../styles';
 import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
@@ -20,15 +20,12 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
     <>
       <ChartHeader>
         <h3>% Aderência (Uso de medicamento)</h3>
-        {/* SVG aplicado e title adicionado para acessibilidade */}
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
 
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-          {/* vertical={false} remove a grade vertical e strokeOpacity deixa sutil */}
+        <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} stroke="#888" />
-          
           <XAxis 
             dataKey="name" 
             axisLine={false} 
@@ -42,15 +39,17 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
             tick={{ fill: '#888', fontSize: 12 }} 
           />
           <Tooltip 
-            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} // Hover da barra sutil
+            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} 
             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
           />
           <Bar 
             dataKey="value" 
-            fill="#6366F1" // Azul Indigo moderno
-            radius={[6, 6, 0, 0]} // Cantos superiores arredondados
-            maxBarSize={60} // Evita barras gigantes se tiver 1 dado só
-          />
+            fill="#6366F1" 
+            radius={[6, 6, 0, 0]} 
+            maxBarSize={60} 
+          >
+            <LabelList dataKey="value" position="top" fill="#374151" fontSize={16} fontWeight="900" />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </>
