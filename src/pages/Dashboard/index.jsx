@@ -95,16 +95,7 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_monitorados') && data.pacientesMonitorados && (
-          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
-            <PacientesMonitoradosChart 
-              chartData={data.pacientesMonitorados.chart} 
-              reportData={data.pacientesMonitorados.report} 
-              total={data.pacientesMonitorados.total} 
-            />
-          </Card>
-        )}
-        
+      
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'termos') && data.termos && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <TermosChart 
@@ -125,6 +116,16 @@ export default function Dashboard() {
             <AderenciaOpcoesChart chartData={data.aderenciaOpcoes.chart} reportData={data.aderenciaOpcoes.report} />
           </Card>
         )}
+          {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_monitorados') && data.pacientesMonitorados && (
+          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
+            <PacientesMonitoradosChart 
+              chartData={data.pacientesMonitorados.chart} 
+              reportData={data.pacientesMonitorados.report} 
+              total={data.pacientesMonitorados.total} 
+            />
+          </Card>
+        )}
+        
 
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'ficha_ram') && data.fichaRam && (
           <Card style={{ gridColumn: graficoSelecionado === 'todos' ? '1 / -1' : 'auto' }}>
