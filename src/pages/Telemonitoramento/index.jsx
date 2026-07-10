@@ -32,10 +32,7 @@ export default function Telemonitoramento() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
   
-  // Resumo global retornado do backend
   const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0 });
-
-  // Estado para controle da ordenação
   const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -115,7 +112,6 @@ export default function Telemonitoramento() {
       setTotalPages(fetchedTotalPages || 1);
       setTotalItems(total || 0);
 
-      // Preenche o resumo vindo do backend global
       if (resumoGlobal) {
         setResumo({ concluidos: resumoGlobal.concluidos, pendentes: resumoGlobal.pendentes });
       }
@@ -175,7 +171,11 @@ export default function Telemonitoramento() {
           grupo.contatoAtual = pendentes[0];
           grupo.proximoContatoData = grupo.contatoAtual.data_proximo_contato;
         } else {
-          const historicoOrdenado = [...grupo.historico].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const historicoOrdenado = [...grupo.historico].sort((a, b) => {
+            const dateA = a.data_telemonitoramento_efetivado ? new Date(a.data_telemonitoramento_efetivado) : new Date(a.createdAt);
+            const dateB = b.data_telemonitoramento_efetivado ? new Date(b.data_telemonitoramento_efetivado) : new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+          });
           grupo.contatoAtual = historicoOrdenado[0];
           grupo.proximoContatoData = null;
         }
@@ -205,14 +205,12 @@ export default function Telemonitoramento() {
         return grupo;
       });
 
-      // Aplica as regras de ordenação dinâmica
       agrupadosArray.sort((a, b) => {
         if (sortConfig.key === 'data') {
           const timeA = a.proximoContatoData ? new Date(a.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
           const timeB = b.proximoContatoData ? new Date(b.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
           return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
         } else {
-          // Default: Score
           const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
           const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
           
@@ -244,7 +242,11 @@ export default function Telemonitoramento() {
 
   const handleOpenModal = (hist, latestScore, historicoDoGrupo) => {
     const concluidos = historicoDoGrupo.filter(item => item.status === 'CONCLUIDO');
-    concluidos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    concluidos.sort((a, b) => {
+      const dateA = a.data_telemonitoramento_efetivado ? new Date(a.data_telemonitoramento_efetivado) : new Date(a.createdAt);
+      const dateB = b.data_telemonitoramento_efetivado ? new Date(b.data_telemonitoramento_efetivado) : new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
     const ultimoConcluido = concluidos.length > 0 ? concluidos[0] : null;
 
     const updatedHist = {
@@ -286,7 +288,6 @@ export default function Telemonitoramento() {
     return { texto: `Atrasado há ${Math.abs(diffDays)} dias`, status: 'atrasado' };
   };
 
-  // Função para controlar a troca de ordenação nos cabeçalhos
   const handleSort = (key) => {
     setSortConfig((prevConfig) => {
       if (prevConfig.key === key) {
@@ -479,7 +480,9 @@ export default function Telemonitoramento() {
                                       .sort((a, b) => {
                                         if (a.status === 'PENDENTE' && b.status !== 'PENDENTE') return -1;
                                         if (a.status !== 'PENDENTE' && b.status === 'PENDENTE') return 1;
-                                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                                        const dateA = a.data_telemonitoramento_efetivado ? new Date(a.data_telemonitoramento_efetivado) : new Date(a.createdAt);
+                                        const dateB = b.data_telemonitoramento_efetivado ? new Date(b.data_telemonitoramento_efetivado) : new Date(b.createdAt);
+                                        return dateB.getTime() - dateA.getTime();
                                       })
                                       .map(hist => {
                                       const infoTempo = calcularStatusTempo(hist.data_proximo_contato);

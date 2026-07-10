@@ -26,27 +26,28 @@ const AderenciaOpcoesChart = ({ chartData, reportData }) => {
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} stroke="#888" />
-          <XAxis 
-            dataKey="name" 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#888', fontSize: 12 }} 
-            dy={10} 
+          <XAxis
+            dataKey="name"
+            axisLine={false}
+            tickLine={false}
+            interval={0} // <-- ADICIONE ESTA LINHA PARA FORÇAR A EXIBIÇÃO
+            tick={{ fill: '#888', fontSize: 11 }} // <-- Reduzi a fonte de 12 para 11 para caber melhor
+            dy={10}
           />
-          <YAxis 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#888', fontSize: 12 }} 
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#888', fontSize: 12 }}
           />
-          <Tooltip 
-            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} 
+          <Tooltip
+            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
           />
-          <Bar 
-            dataKey="value" 
-            fill="#6366F1" 
-            radius={[6, 6, 0, 0]} 
-            maxBarSize={60} 
+          <Bar
+            dataKey="value"
+            fill="#6366F1"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={60}
           >
             <LabelList dataKey="value" position="top" fill="#374151" fontSize={16} fontWeight="900" />
           </Bar>
