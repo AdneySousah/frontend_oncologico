@@ -16,7 +16,7 @@ import NpsModal from './NpsModal';
 import ResumoAnterior from './ResumoAnterior';
 import PreMonitoramento from './PreMonitoramento';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
-import HistoricoComprasPaciente from './HistoricoComprasPaciente'; // NOVO IMPORT AQUI
+import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 
 const SkeletonLoader = styled.div`
   background: linear-gradient(90deg, rgba(0,0,0,0.03) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.03) 75%);
@@ -86,10 +86,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   };
 
-  const checkFuturePurchase = async (monit) => {
+  // Função ajustada para receber o isMountedCheck, evitando que uma promise resolvida de um paciente altere o outro
+  const checkFuturePurchase = async (monit, isMountedCheck = () => true) => {
     try {
       setLoadingCompra(true);
       const response = await api.get(`/monitoramento-medicamentos/${monit.id}/verificar-compra`);
+      
+      // Se o modal fechou ou mudou de paciente durante o delay da requisição, abortamos a atualização do state
+      if (!isMountedCheck()) return;
+
       if (response.data && response.data.novaCompraDetectada) {
         setDadosNovaCompra(response.data.detalhes);
         setAplicarNovaCompra(true);
@@ -101,11 +106,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         }
       }
     } catch (error) {
+      if (!isMountedCheck()) return;
       if (error.response?.data?.error) {
         toast.error(error.response.data.error);
       }
     } finally {
-      setLoadingCompra(false);
+      if (isMountedCheck()) {
+        setLoadingCompra(false);
+      }
     }
   };
 
@@ -142,7 +150,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             setSyncPrompt(resSync.data.details);
             setLoadingCompra(false);
           } else {
-            checkFuturePurchase(localMonitoramento);
+            // Repassamos a função anônima que confere o isMounted para o próximo fluxo
+            checkFuturePurchase(localMonitoramento, () => isMounted);
           }
         })
         .catch(err => {
@@ -152,7 +161,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
 
     return () => { isMounted = false; };
-  }, [isOpen]);
+  }, [isOpen, localMonitoramento?.id]); // AQUI ESTÁ A CORREÇÃO DA DEPENDÊNCIA
 
   const handleConfirmSync = async () => {
     try {
@@ -421,10 +430,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   return (
     <ModalOverlay>
-      {/* Container principal estruturado flex-start */}
       <div style={{ display: 'flex', gap: '20px', maxWidth: '1200px', width: '95%', margin: '0 auto', justifyContent: 'center', alignItems: 'flex-start' }}>
         
-        {/* COLUNA ESQUERDA: Agrupa o Resumo Anterior + O novo Histórico de Compras */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {monitoramentoAnterior && (
             <ResumoAnterior monitoramento={monitoramentoAnterior} />
@@ -432,7 +439,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           <HistoricoComprasPaciente monitoramento={localMonitoramento} />
         </div>
 
-        {/* COLUNA DIREITA: Modal Central do Formulário */}
         <ModalContent style={{ flex: 1, maxWidth: '800px', margin: 0 }}>
           <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} | {localMonitoramento.evento_externo_id} </h3>
 
