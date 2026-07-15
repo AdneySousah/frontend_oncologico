@@ -16,6 +16,7 @@ import NpsModal from './NpsModal';
 import ResumoAnterior from './ResumoAnterior';
 import PreMonitoramento from './PreMonitoramento';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
+import HistoricoComprasPaciente from './HistoricoComprasPaciente'; // NOVO IMPORT AQUI
 
 const SkeletonLoader = styled.div`
   background: linear-gradient(90deg, rgba(0,0,0,0.03) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.03) 75%);
@@ -132,18 +133,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
 
-      // Inicia verificação do evento atual
       setLoadingCompra(true);
       api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
         .then(resSync => {
           if (!isMounted) return;
           
           if (resSync.data?.requiresConfirmation) {
-            // Se tem mudança, trava no alerta de prompt
             setSyncPrompt(resSync.data.details);
             setLoadingCompra(false);
           } else {
-            // Se não mudou o atual, segue para checar compra futura
             checkFuturePurchase(localMonitoramento);
           }
         })
@@ -154,10 +152,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
 
     return () => { isMounted = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]); // Retirado dependency profunda para não rodar duplo ao setar estado local
+  }, [isOpen]);
 
-  // Handlers para o Prompt de Sincronização
   const handleConfirmSync = async () => {
     try {
       setLoadingCompra(true);
@@ -173,7 +169,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       toast.success('Fornecimento atualizado com sucesso!');
       setSyncPrompt(null);
       
-      // Após atualizar o atual, checamos por compras futuras
       await checkFuturePurchase(res.data.monitoramento);
     } catch (error) {
       toast.error('Erro ao confirmar atualização');
@@ -186,7 +181,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     await checkFuturePurchase(localMonitoramento);
   };
 
-  // Cálculos visuais e de margem
   let idealRemaining = 0;
   let margemMin = 0;
   let margemMax = 0;
@@ -287,7 +281,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   if (!isOpen || !localMonitoramento) return null;
 
-  // Intercepta o NPS primeiro
   if (showNpsPrompt) {
     return (
       <NpsModal
@@ -297,7 +290,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     );
   }
 
-  // === TELA DE AVISO DE SINCRONIZAÇÃO ===
   if (syncPrompt) {
     return (
       <ModalOverlay>
@@ -325,8 +317,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             </div>
           </InfoBox>
 
-          
-
           <ButtonGroup style={{ marginTop: '30px' }}>
             <Button type="button" variant="secondary" onClick={handleIgnoreSync} disabled={loadingCompra}>
               Ignorar
@@ -340,8 +330,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     );
   }
 
-  // Intercepta e checa se precisa do PreMonitoramento 
-  // (Caso seja novo ou se a data foi zerada no Backend ao confirmar a Sincronização de remédio)
   const isPreMonitoramento = !monitoramentoAnterior && !localMonitoramento.data_administracao;
 
   const handlePreMonitoramentoSuccess = (novaDataAdmin, novaDataFimCaixa) => {
@@ -433,12 +421,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   return (
     <ModalOverlay>
+      {/* Container principal estruturado flex-start */}
       <div style={{ display: 'flex', gap: '20px', maxWidth: '1200px', width: '95%', margin: '0 auto', justifyContent: 'center', alignItems: 'flex-start' }}>
         
-        {monitoramentoAnterior && (
-          <ResumoAnterior monitoramento={monitoramentoAnterior} />
-        )}
+        {/* COLUNA ESQUERDA: Agrupa o Resumo Anterior + O novo Histórico de Compras */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {monitoramentoAnterior && (
+            <ResumoAnterior monitoramento={monitoramentoAnterior} />
+          )}
+          <HistoricoComprasPaciente monitoramento={localMonitoramento} />
+        </div>
 
+        {/* COLUNA DIREITA: Modal Central do Formulário */}
         <ModalContent style={{ flex: 1, maxWidth: '800px', margin: 0 }}>
           <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} | {localMonitoramento.evento_externo_id} </h3>
 

@@ -42,7 +42,7 @@ const PacientesMonitoradosChart = ({ chartData, reportData, total }) => {
   return (
     <>
       <ChartHeader>
-        <h3>Monitorados (Ativos): {total}</h3>
+        <h3>Monitorados : {total}</h3>
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       

@@ -19,7 +19,7 @@ const FichaRamChart = ({ chartData, reportData }) => {
   return (
     <>
       <ChartHeader>
-        <h3>Pacientes por Ficha RAM (Top 10)</h3>
+        <h3> RAM - Reação adversa a medicamento</h3>
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
 

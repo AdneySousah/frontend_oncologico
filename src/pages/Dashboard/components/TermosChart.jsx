@@ -43,7 +43,7 @@ const TermosChart = ({ chartData, reportData }) => {
   return (
     <>
       <ChartHeader>
-        <h3>Pacientes Elegíveis (Termo aceito)</h3>
+        <h3>Pacientes Elegíveis </h3>
         <ButtonExcelExport onExport={handleExport} />
       </ChartHeader>
       

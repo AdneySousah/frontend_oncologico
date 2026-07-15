@@ -9,7 +9,7 @@ export default function ListaFaturamento() {
   const [faturamentoData, setFaturamentoData] = useState([]);
   const [resumo, setResumo] = useState({ total_faturado: 0, total_comissao: 0, qtd_atendimentos: 0 });
   const [loading, setLoading] = useState(false);
-  
+
   // Novo estado para armazenar as operadoras para o filtro
   const [operadoras, setOperadoras] = useState([]);
 
@@ -60,9 +60,16 @@ export default function ListaFaturamento() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   };
 
+  // Substitua sua função formatDate por esta:
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    return format(new Date(dateString), 'dd/MM/yyyy');
+
+    // Corta qualquer informação de hora (T00:00:00.000Z) e pega só a data
+    const datePart = dateString.split('T')[0];
+    const [year, month, day] = datePart.split('-');
+
+    // Retorna exatamente o que veio do banco
+    return `${day}/${month}/${year}`;
   };
 
   const handleExportExcel = () => {
@@ -89,7 +96,7 @@ export default function ListaFaturamento() {
     }));
 
     const reportTitle = `Faturamento - ${formatDate(filters.data_inicio)} a ${formatDate(filters.data_fim)} (Comissão: ${filters.comissao_percentual}%)`;
-    
+
     exportToXLSX(exportData, columns, 'Relatorio_Faturamento', reportTitle);
   };
 
@@ -100,7 +107,7 @@ export default function ListaFaturamento() {
           <h1>Faturamento & Comissões</h1>
           <p>Consolidação financeira mensal de medicamentos por paciente.</p>
         </div>
-        <S.ActionButton 
+        <S.ActionButton
           style={{ backgroundColor: '#52c41a', display: 'flex', alignItems: 'center', gap: '8px' }}
           onClick={handleExportExcel}
           disabled={faturamentoData.length === 0}
@@ -113,21 +120,21 @@ export default function ListaFaturamento() {
       <S.FilterContainer>
         <S.InputGroup>
           <label>Busca de Paciente</label>
-          <input 
-            type="text" 
-            name="search" 
-            placeholder="Nome ou CPF" 
-            value={filters.search} 
-            onChange={handleChange} 
+          <input
+            type="text"
+            name="search"
+            placeholder="Nome ou CPF"
+            value={filters.search}
+            onChange={handleChange}
           />
         </S.InputGroup>
 
         {/* Novo campo de filtro por Operadora */}
         <S.InputGroup>
           <label>Operadora</label>
-          <select 
-            name="operadora_id" 
-            value={filters.operadora_id} 
+          <select
+            name="operadora_id"
+            value={filters.operadora_id}
             onChange={handleChange}
             style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
           >
@@ -142,37 +149,37 @@ export default function ListaFaturamento() {
 
         <S.InputGroup>
           <label>Data Início</label>
-          <input 
-            type="date" 
-            name="data_inicio" 
-            value={filters.data_inicio} 
-            onChange={handleChange} 
+          <input
+            type="date"
+            name="data_inicio"
+            value={filters.data_inicio}
+            onChange={handleChange}
           />
         </S.InputGroup>
 
         <S.InputGroup>
           <label>Data Fim</label>
-          <input 
-            type="date" 
-            name="data_fim" 
-            value={filters.data_fim} 
-            onChange={handleChange} 
+          <input
+            type="date"
+            name="data_fim"
+            value={filters.data_fim}
+            onChange={handleChange}
           />
         </S.InputGroup>
 
         <S.InputGroup style={{ maxWidth: '120px' }}>
           <label>% Comissão</label>
-          <input 
-            type="number" 
-            name="comissao_percentual" 
-            value={filters.comissao_percentual} 
-            onChange={handleChange} 
+          <input
+            type="number"
+            name="comissao_percentual"
+            value={filters.comissao_percentual}
+            onChange={handleChange}
             min="0"
             max="100"
           />
         </S.InputGroup>
 
-        <S.ActionButton 
+        <S.ActionButton
           style={{ alignSelf: 'flex-end', height: '40px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1890ff' }}
           onClick={loadFaturamento}
         >
