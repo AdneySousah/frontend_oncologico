@@ -53,13 +53,13 @@ const DetalhamentoBox = styled.div`
 
 const AlertMessage = styled.div`
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   background: #fff;
   border-left: 4px solid #f1c40f;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 4px;
-  margin-top: 10px;
+  margin-top: 12px;
   color: #7f8c8d;
   font-size: 0.85rem;
   font-weight: 500;
@@ -116,7 +116,6 @@ export default function ComparativoNovaCompra({
   const estoqueValido = Number(estoqueHoje) || 0;
   const posAtualValida = Number(posologiaAtual) || 1;
 
-  // Realiza o cálculo exato do gap considerando quando o medicamento atual REALMENTE inicia/iniciou
   if (dataInicioManual && dataInicioAtual) {
     const dataInicioNovoObj = new Date(dataInicioManual + 'T00:00:00');
     const dataInicioAtualObj = new Date(dataInicioAtual.split('T')[0] + 'T00:00:00');
@@ -126,12 +125,10 @@ export default function ComparativoNovaCompra({
     let dataFimEstimadaObj = new Date();
 
     if (isAntesDoInicio) {
-      // O paciente ainda não começou a tomar, autonomia conta a partir da data de início futura
       const diasAutonomia = estoqueValido / posAtualValida;
       dataFimEstimadaObj = new Date(dataInicioAtualObj.getTime());
       dataFimEstimadaObj.setDate(dataFimEstimadaObj.getDate() + Math.floor(diasAutonomia));
     } else {
-      // Já está tomando, a autonomia conta a partir de hoje
       const diasAutonomia = estoqueValido / posAtualValida;
       dataFimEstimadaObj = new Date(dataHojeObj.getTime());
       dataFimEstimadaObj.setDate(dataFimEstimadaObj.getDate() + Math.floor(diasAutonomia));
@@ -234,14 +231,54 @@ export default function ComparativoNovaCompra({
               <strong>{totalEstoqueLive} comp.</strong>
             </div>
 
-            {diasSemMedicacao > 0 && (
-              <AlertMessage>
-                <LuTriangleAlert size={18} color="#e67e22" style={{ flexShrink: 0 }} />
-                <span>
-                  No início do novo ciclo o paciente vai ficar até <strong>{diasSemMedicacao} {diasSemMedicacao === 1 ? 'dia' : 'dias'}</strong> sem a medicação, confirme se a data de uso informada está correta.
-                </span>
-              </AlertMessage>
-            )}
+            {/* LÓGICA DO ALERTA EDUCATIVO (RETROATIVO E PAUSA NO TRATAMENTO) */}
+            {(() => {
+              if (!dataInicioManual || !dataInicioAtual) return null;
+
+              const dataNovoInicio = new Date(dataInicioManual + 'T00:00:00');
+              
+              const estoqueOriginal = Number(estoqueHoje) || 0;
+              const posologiaOriginal = Number(posologiaAtual) || 1;
+              const dataHojeObj = new Date();
+              dataHojeObj.setHours(0, 0, 0, 0);
+              
+              let dataFimAntigoObj = new Date(dataHojeObj.getTime());
+              dataFimAntigoObj.setDate(dataFimAntigoObj.getDate() + Math.floor(estoqueOriginal / posologiaOriginal));
+
+              const isRetroativo = dataNovoInicio < dataFimAntigoObj;
+              const isFuturoMuitoDistante = diasSemMedicacao > 0;
+
+              if (isRetroativo && !mudou_medicamento) {
+                return (
+                  <AlertMessage style={{ borderLeftColor: '#3498db', backgroundColor: '#ebf5fb', color: '#2980b9' }}>
+                    <LuPackageCheck size={22} color="#2980b9" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <strong style={{ color: '#2c3e50', fontSize: '0.95em' }}>Estoque Unificado (Recálculo Automático)</strong>
+                      <span style={{ lineHeight: '1.4' }}>
+                        Como a nova caixa foi iniciada <strong>antes</strong> do fim do ciclo anterior, os comprimidos foram somados. 
+                        O total projetado é mantido porque o consumo diário ({posologiaAtual} comp/dia) não foi alterado.
+                      </span>
+                    </div>
+                  </AlertMessage>
+                );
+              }
+
+              if (isFuturoMuitoDistante) {
+                 return (
+                  <AlertMessage>
+                    <LuTriangleAlert size={22} color="#e67e22" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <strong style={{ color: '#e67e22', fontSize: '0.95em' }}>Risco de Pausa no Tratamento</strong>
+                      <span style={{ lineHeight: '1.4' }}>
+                        No início do novo ciclo o paciente vai ficar até <strong>{diasSemMedicacao} {diasSemMedicacao === 1 ? 'dia' : 'dias'}</strong> sem a medicação. Confirme se a data programada está correta.
+                      </span>
+                    </div>
+                  </AlertMessage>
+                 );
+              }
+
+              return null;
+            })()}
 
           </DetalhamentoBox>
         </ItemBlock>
