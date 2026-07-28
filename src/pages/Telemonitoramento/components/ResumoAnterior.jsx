@@ -12,7 +12,7 @@ export default function ResumoAnterior({ monitoramento }) {
 
   return (
     <div style={{
-      width: '350px',
+      width: '100%', // <-- Ajustado para 100%
       backgroundColor: 'var(--surface-color, #ffffff)',
       border: '1px solid var(--border-color, #e0e0e0)',
       borderRadius: '8px',
@@ -20,7 +20,7 @@ export default function ResumoAnterior({ monitoramento }) {
       display: 'flex',
       flexDirection: 'column',
       gap: '15px',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' // Sombra para destacar igual ao modal
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
     }}>
       <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #ddd', paddingBottom: '10px', marginTop: 0, fontSize: '1.2rem', color: 'var(--text-color)' }}>
         <LuHistory /> Resumo do Último Contato

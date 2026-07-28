@@ -36,7 +36,7 @@ export default function HistoricoComprasPaciente({ monitoramento }) {
 
   return (
     <div style={{
-      width: '350px',
+      width: '100%', // <-- Ajustado para 100%
       backgroundColor: 'var(--surface-color, #ffffff)',
       border: '1px solid var(--border-color, #e0e0e0)',
       borderRadius: '8px',
@@ -45,7 +45,7 @@ export default function HistoricoComprasPaciente({ monitoramento }) {
       flexDirection: 'column',
       gap: '15px',
       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-      maxHeight: '500px',
+      maxHeight: '400px', // <-- Diminuído um pouco para telas menores
       overflowY: 'auto'
     }}>
       <h3 style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px', marginTop: 0, fontSize: '1.2rem' }}>
@@ -55,7 +55,6 @@ export default function HistoricoComprasPaciente({ monitoramento }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '20px' }}>Carregando...</div>
       ) : historico.map(evento => {
-        // Verifica se este é o evento sendo monitorado agora
         const isCurrent = String(evento.external_id) === String(monitoramento.evento_externo_id);
         
         return (

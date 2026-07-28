@@ -17,6 +17,7 @@ import ResumoAnterior from './ResumoAnterior';
 import PreMonitoramento from './PreMonitoramento';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
 import HistoricoComprasPaciente from './HistoricoComprasPaciente';
+import HistoricoAberturas from './HistoricoAberturas';
 
 const SkeletonLoader = styled.div`
   background: linear-gradient(90deg, rgba(0,0,0,0.03) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.03) 75%);
@@ -40,6 +41,41 @@ const SkeletonLoader = styled.div`
     width: 100%;
   }
   .text-line.short { width: 60%; }
+`;
+
+// Wrapper responsivo para as 3 colunas
+const ModalLayoutWrapper = styled.div`
+  display: flex;
+  gap: 20px;
+  max-width: 1450px;
+  width: 95%;
+  margin: 20px auto;
+  align-items: flex-start;
+  justify-content: center;
+
+  @media (max-width: 1150px) {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .left-column, .right-column {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex-shrink: 0;
+
+    @media (max-width: 1150px) {
+      width: 100%;
+      max-width: 750px;
+    }
+  }
+
+  .center-column {
+    flex: 1;
+    width: 100%;
+    max-width: 750px;
+  }
 `;
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
@@ -237,6 +273,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   }
 
+  // --- NOVA LÓGICA DE RECALCULO AQUI ---
   if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa) {
     const posologiaNova = Number(posologiaNovaCaixa || posologia);
     const [anoNovo, mesNovo, diaNovo] = dataRealInicioNovaCaixa.split('-');
@@ -247,31 +284,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
     dataReferenciaFormatada = `${diaNovo}/${mesNovo}/${anoNovo} (Início Novo Ciclo)`;
 
-    const consideraEstoqueAntigo = !dadosNovaCompra.mudou_medicamento;
-
+    // Se a data de inicio for no futuro, ele tem 100% da caixa nova
     if (hoje < dataInicioNovaObj) {
-      idealRemaining = idealRemainingAntigo;
-      if (consideraEstoqueAntigo) {
-        idealRemaining += dadosNovaCompra.total_capsulas_novas;
-      }
+      idealRemaining = dadosNovaCompra.total_capsulas_novas;
     } else {
-      let sobraAntigaNoInicioNovo = 0;
-
-      if (consideraEstoqueAntigo && localMonitoramento?.data_calculada_fim_caixa) {
-        const [anoFim, mesFim, diaFim] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
-        const dataFimAntigo = new Date(anoFim, mesFim - 1, diaFim);
-
-        if (dataFimAntigo > dataInicioNovaObj) {
-          const diffDiasAteFim = Math.floor((dataFimAntigo - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
-          sobraAntigaNoInicioNovo = diffDiasAteFim * posologia;
-          if (sobraAntigaNoInicioNovo > qtdTotalCaixa) sobraAntigaNoInicioNovo = qtdTotalCaixa;
-        }
-      }
-
+      // Se a data de inicio for hoje ou no passado, subtrai o consumo diário ignorando sobras antigas
       const diasUsoNovaCaixa = Math.floor((hoje - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
       const consumoDesdeOInicio = diasUsoNovaCaixa * posologiaNova;
-
-      idealRemaining = (sobraAntigaNoInicioNovo + dadosNovaCompra.total_capsulas_novas) - consumoDesdeOInicio;
+      
+      idealRemaining = dadosNovaCompra.total_capsulas_novas - consumoDesdeOInicio;
     }
 
     if (idealRemaining < 0) idealRemaining = 0;
@@ -477,185 +498,195 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   }));
 
   return (
-    <ModalOverlay>
-      <div style={{ display: 'flex', gap: '20px', maxWidth: '1200px', width: '95%', margin: '0 auto', justifyContent: 'center', alignItems: 'flex-start' }}>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}> 
+      <ModalLayoutWrapper>
+        
+        {/* COLUNA ESQUERDA */}
+        <div className="left-column">
           {monitoramentoAnterior && (
             <ResumoAnterior monitoramento={monitoramentoAnterior} />
           )}
           <HistoricoComprasPaciente monitoramento={localMonitoramento} />
         </div>
 
-        <ModalContent style={{ flex: 1, maxWidth: '800px', margin: 0 }}>
-          <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} | {localMonitoramento.evento_externo_id} </h3>
+        {/* COLUNA CENTRAL */}
+        <div className="center-column">
+          <ModalContent style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
+            <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} | {localMonitoramento.evento_externo_id} </h3>
 
-          {loadingCompra ? (
-            <SkeletonLoader>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)' }} />
-                <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'bold' }}>Consultando atualizações externas...</span>
-              </div>
-              <div className="text-line"></div>
-              <div className="text-line short"></div>
-            </SkeletonLoader>
-          ) : (
-            <ComparativoNovaCompra
-              data={dadosNovaCompra}
-              checked={aplicarNovaCompra}
-              onChangeChecked={setAplicarNovaCompra}
-              dataInicioManual={dataRealInicioNovaCaixa}
-              onChangeDataInicio={setDataRealInicioNovaCaixa}
-              posologiaAtual={posologia}
-              posologiaNovaCaixa={posologiaNovaCaixa}
-              onChangePosologiaNova={setPosologiaNovaCaixa}
-              estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
-              dataInicioAtual={dataUsoReferencia}
-              isAntesDoInicio={isAntesDoInicio}
-            />
-          )}
-
-          <InfoBox>
-            <p><strong>Medicamento Atual:</strong> {localMonitoramento.medicamento?.nome}</p>
-            <p className="sub-text">
-              Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
-            </p>
-
-            <ProjectedStockBox>
-              {aplicarNovaCompra && (
-                <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed rgba(0,0,0,0.1)', opacity: 0.7 }}>
-                  <p style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold' }}>Ciclo Anterior</p>
-                  <p style={{ marginBottom: '4px', fontSize: '0.85em', textDecoration: 'line-through' }}>
-                    Início original: {dataReferenciaFormatada.replace(' (Início Novo Ciclo)', '')}
-                  </p>
-                  <p style={{ marginBottom: '0', fontSize: '0.85em', textDecoration: 'line-through' }}>
-                    Fim previsto original: {localMonitoramento?.data_calculada_fim_caixa ? localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-').reverse().join('/') : '-'}
-                  </p>
+            {loadingCompra ? (
+              <SkeletonLoader>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,0,0,0.1)' }} />
+                  <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'bold' }}>Consultando atualizações externas...</span>
                 </div>
-              )}
-
-              <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
-                <strong>{aplicarNovaCompra ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
-              </p>
-              <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
-                <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
-              </p>
-
-              <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
-                Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
-              </p>
-              <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
-                (Margem aceitável calculada: {margemMin} a {margemMax})
-              </p>
-            </ProjectedStockBox>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <strong>Score Atual:</strong> {scoreAtual != null ? `${scoreAtual} pts` : '-'}
-              {scoreAtual != null && (
-                <AdherenceBadge level={adInfo.level} style={{ margin: 0 }}>
-                  {adInfo.label}
-                </AdherenceBadge>
-              )}
-            </div>
-          </InfoBox>
-
-          <form onSubmit={handleSubmit}>
-            <FormGroup>
-              <label>O contato foi efetivado com sucesso?</label>
-              <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                  <input type="radio" checked={contatoEfetivo === true} onChange={() => setContatoEfetivo(true)} /> Sim
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                  <input type="radio" checked={contatoEfetivo === false} onChange={() => setContatoEfetivo(false)} /> Não (Paciente não atendeu/ausente)
-                </label>
-              </div>
-            </FormGroup>
-
-            {contatoEfetivo && (
-              <>
-                <FormGroup>
-                  <label>Quantos comprimidos restam com o paciente no total?</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={qtdInformada}
-                    onChange={(e) => setQtdInformada(e.target.value)}
-                    placeholder="Ex: 45"
-                    required
-                  />
-                </FormGroup>
-
-                <FormGroup>
-                  <label>Observação (Opcional)</label>
-                  <Input
-                    as="textarea"
-                    rows="3"
-                    value={observacao}
-                    onChange={(e) => setObservacao(e.target.value)}
-                    placeholder="Descreva aqui informações em relação aos comprimidos do paciente"
-                    style={{ resize: 'vertical', padding: '10px' }}
-                  />
-                </FormGroup>
-
-                <FormGroup>
-                  <label>O quanto ele adere? (Calculado automaticamente)</label>
-                  <Input as="select" value={nivelAdesao} disabled required>
-                    <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
-                    <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
-                    <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
-                  </Input>
-                </FormGroup>
-
-                <FormGroup>
-                  <label>O paciente relatou alguma reação adversa?</label>
-                  <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                      <input type="radio" checked={isReacao === true} onChange={() => setIsReacao(true)} /> Sim
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                      <input type="radio" checked={isReacao === false} onChange={() => { setIsReacao(false); setReacoesSelecionadas([]); }} /> Não
-                    </label>
-                  </div>
-                </FormGroup>
-
-                {isReacao && (
-                  <FormGroup>
-                    <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
-                    <Select
-                      isMulti
-                      options={opcoesReacoes}
-                      value={reacoesSelecionadas}
-                      onChange={setReacoesSelecionadas}
-                      styles={getCustomSelectStyles(theme)}
-                      placeholder="Selecione as reações..."
-                      noOptionsMessage={() => "Nenhuma reação encontrada"}
-                    />
-                  </FormGroup>
-                )}
-
-                <FormGroup>
-                  <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
-                  <Input
-                    type="date"
-                    min={dataHoje}
-                    value={dataAbertura}
-                    onChange={(e) => setDataAbertura(e.target.value)}
-                    required
-                  />
-                </FormGroup>
-              </>
+                <div className="text-line"></div>
+                <div className="text-line short"></div>
+              </SkeletonLoader>
+            ) : (
+              <ComparativoNovaCompra
+                data={dadosNovaCompra}
+                checked={aplicarNovaCompra}
+                onChangeChecked={setAplicarNovaCompra}
+                dataInicioManual={dataRealInicioNovaCaixa}
+                onChangeDataInicio={setDataRealInicioNovaCaixa}
+                posologiaAtual={posologia}
+                posologiaNovaCaixa={posologiaNovaCaixa}
+                onChangePosologiaNova={setPosologiaNovaCaixa}
+                estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
+                dataInicioAtual={dataUsoReferencia}
+                isAntesDoInicio={isAntesDoInicio}
+              />
             )}
 
-            <ButtonGroup>
-              <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Salvando...' : 'Salvar Registro'}
-              </Button>
-            </ButtonGroup>
-          </form>
-        </ModalContent>
-      </div>
+            <InfoBox>
+              <p><strong>Medicamento Atual:</strong> {localMonitoramento.medicamento?.nome}</p>
+              <p className="sub-text">
+                Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
+              </p>
+
+              <ProjectedStockBox>
+                {aplicarNovaCompra && (
+                  <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed rgba(0,0,0,0.1)', opacity: 0.7 }}>
+                    <p style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold' }}>Ciclo Anterior</p>
+                    <p style={{ marginBottom: '4px', fontSize: '0.85em', textDecoration: 'line-through' }}>
+                      Início original: {dataReferenciaFormatada.replace(' (Início Novo Ciclo)', '')}
+                    </p>
+                    <p style={{ marginBottom: '0', fontSize: '0.85em', textDecoration: 'line-through' }}>
+                      Fim previsto original: {localMonitoramento?.data_calculada_fim_caixa ? localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-').reverse().join('/') : '-'}
+                    </p>
+                  </div>
+                )}
+
+                <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
+                  <strong>{aplicarNovaCompra ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
+                </p>
+                <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
+                  <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
+                </p>
+
+                <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
+                  Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
+                </p>
+                <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
+                  (Margem aceitável calculada: {margemMin} a {margemMax})
+                </p>
+              </ProjectedStockBox>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <strong>Score Atual:</strong> {scoreAtual != null ? `${scoreAtual} pts` : '-'}
+                {scoreAtual != null && (
+                  <AdherenceBadge level={adInfo.level} style={{ margin: 0 }}>
+                    {adInfo.label}
+                  </AdherenceBadge>
+                )}
+              </div>
+            </InfoBox>
+
+            <form onSubmit={handleSubmit}>
+              <FormGroup>
+                <label>O contato foi efetivado com sucesso?</label>
+                <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
+                    <input type="radio" checked={contatoEfetivo === true} onChange={() => setContatoEfetivo(true)} /> Sim
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
+                    <input type="radio" checked={contatoEfetivo === false} onChange={() => setContatoEfetivo(false)} /> Não (Paciente não atendeu/ausente)
+                  </label>
+                </div>
+              </FormGroup>
+
+              {contatoEfetivo && (
+                <>
+                  <FormGroup>
+                    <label>Quantos comprimidos restam com o paciente no total?</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={qtdInformada}
+                      onChange={(e) => setQtdInformada(e.target.value)}
+                      placeholder="Ex: 45"
+                      required
+                    />
+                  </FormGroup>
+
+                  <FormGroup>
+                    <label>Observação (Opcional)</label>
+                    <Input
+                      as="textarea"
+                      rows="3"
+                      value={observacao}
+                      onChange={(e) => setObservacao(e.target.value)}
+                      placeholder="Descreva aqui informações em relação aos comprimidos do paciente"
+                      style={{ resize: 'vertical', padding: '10px' }}
+                    />
+                  </FormGroup>
+
+                  <FormGroup>
+                    <label>O quanto ele adere? (Calculado automaticamente)</label>
+                    <Input as="select" value={nivelAdesao} disabled required>
+                      <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
+                      <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
+                      <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
+                    </Input>
+                  </FormGroup>
+
+                  <FormGroup>
+                    <label>O paciente relatou alguma reação adversa?</label>
+                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
+                        <input type="radio" checked={isReacao === true} onChange={() => setIsReacao(true)} /> Sim
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
+                        <input type="radio" checked={isReacao === false} onChange={() => { setIsReacao(false); setReacoesSelecionadas([]); }} /> Não
+                      </label>
+                    </div>
+                  </FormGroup>
+
+                  {isReacao && (
+                    <FormGroup>
+                      <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
+                      <Select
+                        isMulti
+                        options={opcoesReacoes}
+                        value={reacoesSelecionadas}
+                        onChange={setReacoesSelecionadas}
+                        styles={getCustomSelectStyles(theme)}
+                        placeholder="Selecione as reações..."
+                        noOptionsMessage={() => "Nenhuma reação encontrada"}
+                      />
+                    </FormGroup>
+                  )}
+
+                  <FormGroup>
+                    <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
+                    <Input
+                      type="date"
+                      min={dataHoje}
+                      value={dataAbertura}
+                      onChange={(e) => setDataAbertura(e.target.value)}
+                      required
+                    />
+                  </FormGroup>
+                </>
+              )}
+
+              <ButtonGroup>
+                <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Salvando...' : 'Salvar Registro'}
+                </Button>
+              </ButtonGroup>
+            </form>
+          </ModalContent>
+        </div>
+
+        {/* COLUNA DIREITA */}
+        <div className="right-column">
+          <HistoricoAberturas monitoramento={localMonitoramento} />
+        </div>
+
+      </ModalLayoutWrapper>
     </ModalOverlay>
   );
 }

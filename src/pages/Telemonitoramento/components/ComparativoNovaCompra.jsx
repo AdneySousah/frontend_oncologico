@@ -109,9 +109,8 @@ export default function ComparativoNovaCompra({
     data_novo_inicio
   } = data;
 
-  let sobraLive = 0;
-  let totalEstoqueLive = data.total_capsulas_novas;
   let diasSemMedicacao = 0;
+  const totalEstoqueLive = data.total_capsulas_novas;
 
   const estoqueValido = Number(estoqueHoje) || 0;
   const posAtualValida = Number(posologiaAtual) || 1;
@@ -138,16 +137,7 @@ export default function ComparativoNovaCompra({
 
     if (diffDays > 0) {
       diasSemMedicacao = Math.floor(diffDays);
-      sobraLive = 0;
-    } else {
-      diasSemMedicacao = 0;
-      sobraLive = Math.floor(Math.abs(diffDays) * posAtualValida);
-      if (sobraLive > estoqueValido) sobraLive = estoqueValido;
     }
-  }
-
-  if (!mudou_medicamento) {
-    totalEstoqueLive = data.total_capsulas_novas + sobraLive;
   }
 
   const formatarDataLocal = (dateStr) => {
@@ -167,7 +157,7 @@ export default function ComparativoNovaCompra({
       </Header>
 
       <p style={{ margin: '0 0 15px 0', fontSize: '0.88rem', opacity: 0.9 }}>
-        O sistema externo processou um novo evento de fornecimento. A projeção será ajustada com base nas datas e sobras informadas abaixo.
+        Ao aplicar esta nova compra, o sistema iniciará um novo ciclo e a contagem de comprimidos será reiniciada a partir da data de início programada.
       </p>
 
       <GridInfo>
@@ -212,26 +202,16 @@ export default function ComparativoNovaCompra({
               <strong>{data.total_capsulas_novas} comp.</strong>
             </div>
             
-            {!mudou_medicamento && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem', color: diasSemMedicacao > 0 ? '#e67e22' : 'var(--primary-color)' }}>
-                <span>Sobras Estimadas (Até o início dia {formatarDataLocal(dataInicioManual)})</span>
-                <strong>+ {sobraLive} comp.</strong>
-              </div>
-            )}
-
-            {mudou_medicamento && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem', color: '#7f8c8d', fontStyle: 'italic' }}>
-                <span>Sobras do ciclo anterior desconsideradas por troca de tratamento</span>
-                <strong>0 comp.</strong>
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem', color: '#7f8c8d', fontStyle: 'italic' }}>
+              <span>Sobras do ciclo anterior</span>
+              <strong>Desconsideradas</strong>
+            </div>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', color: '#27ae60', fontSize: '1.05rem' }}>
               <span><strong>Total do Novo Ciclo</strong></span>
               <strong>{totalEstoqueLive} comp.</strong>
             </div>
 
-            {/* LÓGICA DO ALERTA EDUCATIVO (RETROATIVO E PAUSA NO TRATAMENTO) */}
             {(() => {
               if (!dataInicioManual || !dataInicioAtual) return null;
 
@@ -248,15 +228,14 @@ export default function ComparativoNovaCompra({
               const isRetroativo = dataNovoInicio < dataFimAntigoObj;
               const isFuturoMuitoDistante = diasSemMedicacao > 0;
 
-              if (isRetroativo && !mudou_medicamento) {
+              if (isRetroativo) {
                 return (
                   <AlertMessage style={{ borderLeftColor: '#3498db', backgroundColor: '#ebf5fb', color: '#2980b9' }}>
                     <LuPackageCheck size={22} color="#2980b9" style={{ flexShrink: 0, marginTop: '2px' }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <strong style={{ color: '#2c3e50', fontSize: '0.95em' }}>Estoque Unificado (Recálculo Automático)</strong>
+                      <strong style={{ color: '#2c3e50', fontSize: '0.95em' }}>Novo Ciclo Iniciado</strong>
                       <span style={{ lineHeight: '1.4' }}>
-                        Como a nova caixa foi iniciada <strong>antes</strong> do fim do ciclo anterior, os comprimidos foram somados. 
-                        O total projetado é mantido porque o consumo diário ({posologiaAtual} comp/dia) não foi alterado.
+                        A nova caixa foi iniciada antes do fim do ciclo anterior. A contagem de comprimidos será reiniciada a partir de <strong>{formatarDataLocal(dataInicioManual)}</strong> ignorando estoques antigos.
                       </span>
                     </div>
                   </AlertMessage>
