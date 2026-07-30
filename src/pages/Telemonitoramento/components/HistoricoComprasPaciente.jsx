@@ -1,86 +1,138 @@
 import React, { useState, useEffect } from 'react';
-import { LuShoppingCart } from "react-icons/lu";
+import styled from 'styled-components';
 import api from '../../../services/api';
-import { toast } from 'react-toastify';
 
-export default function HistoricoComprasPaciente({ monitoramento }) {
+const HistoricoContainer = styled.div`
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color, #e0e0e0);
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+
+  h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.1em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+  }
+`;
+
+const EventItem = styled.div`
+  padding: 12px;
+  border-left: 4px solid var(--primary-color, #007bff);
+  background: #f8f9fa;
+  margin-bottom: 12px;
+  border-radius: 0 6px 6px 0;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: translateX(2px);
+    background: #f1f3f5;
+  }
+
+  .med-name {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #2c3e50;
+    margin-bottom: 8px;
+  }
+
+  .event-info {
+    font-size: 0.85em;
+    color: #555;
+    margin: 4px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .badge {
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #495057;
+  }
+`;
+
+export default function HistoricoAberturas({ monitoramento }) {
   const [historico, setHistorico] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!monitoramento?.id) return;
-    
-    let isMounted = true;
-    setLoading(true);
 
-    api.get(`/monitoramento-medicamentos/${monitoramento.id}/historico-compras`)
-      .then(res => {
-        if (isMounted) setHistorico(res.data);
+    let isMounted = true; // <-- Controle para evitar Race Condition
+    setLoading(true);     // <-- Garante que a tela de loading apareça ao trocar de paciente
+
+    api.get(`/monitoramento-medicamentos/${monitoramento.id}/historico-aberturas`)
+      .then(response => {
+        if (!isMounted) return; // <-- Evita sobrescrever estado se o paciente já mudou de novo
+        
+        // Lógica para filtrar apenas 1 item por evento_externo_id
+        const historicoUnico = response.data.filter((item, index, self) =>
+          item.evento_externo_id && index === self.findIndex((t) => (
+            t.evento_externo_id === item.evento_externo_id
+          ))
+        );
+        
+        setHistorico(historicoUnico);
       })
       .catch(err => {
-        if (isMounted) toast.error("Erro ao carregar histórico de compras.");
+        if (!isMounted) return;
+        console.error("Erro ao carregar histórico de aberturas", err);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
       });
 
-    return () => { isMounted = false; };
+    // Cleanup function desmonta a requisição anterior ao trocar de tela/paciente
+    return () => {
+      isMounted = false; 
+    };
   }, [monitoramento]);
 
   const formatarData = (dataStr) => {
-    if (!dataStr) return '-';
-    return dataStr.split('-').reverse().join('/');
+    if (!dataStr) return 'Não informada';
+    const [ano, mes, dia] = dataStr.split('T')[0].split('-');
+    return `${dia}/${mes}/${ano}`;
   };
 
-  if (!monitoramento) return null;
+  if (loading) {
+    return (
+      <HistoricoContainer>
+        <h4>Aberturas de Caixas</h4>
+        <p style={{ color: '#888', fontSize: '0.9em' }}>Carregando histórico...</p>
+      </HistoricoContainer>
+    );
+  }
 
   return (
-    <div style={{
-      width: '100%', // <-- Ajustado para 100%
-      backgroundColor: 'var(--surface-color, #ffffff)',
-      border: '1px solid var(--border-color, #e0e0e0)',
-      borderRadius: '8px',
-      padding: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '15px',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-      maxHeight: '400px', // <-- Diminuído um pouco para telas menores
-      overflowY: 'auto'
-    }}>
-      <h3 style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px', marginTop: 0, fontSize: '1.2rem' }}>
-        <LuShoppingCart style={{ marginRight: '8px' }} /> Histórico de Compras
-      </h3>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '20px' }}>Carregando...</div>
-      ) : historico.map(evento => {
-        const isCurrent = String(evento.external_id) === String(monitoramento.evento_externo_id);
-        
-        return (
-          <div key={evento.id} style={{
-            backgroundColor: isCurrent ? 'rgba(52, 152, 219, 0.1)' : 'rgba(0,0,0,0.02)',
-            padding: '12px',
-            borderRadius: '6px',
-            border: isCurrent ? '1px solid #3498db' : '1px solid #eee',
-            fontSize: '0.85rem'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <strong>ID Evento: {evento.external_id || '-'}</strong>
-              {isCurrent && <span style={{ color: '#3498db', fontWeight: 'bold' }}>ATUAL</span>}
+    <HistoricoContainer>
+      <h4>Aberturas de Caixas</h4>
+      {historico.length === 0 ? (
+        <p style={{ fontSize: '0.9em', color: '#666' }}>Nenhum registro encontrado.</p>
+      ) : (
+        historico.map(item => (
+          <EventItem key={item.id}>
+            <div className="med-name">{item.medicamento?.nome || 'Medicamento não informado'}</div>
+            <div className="event-info">
+              <span><strong>Data de Abertura:</strong></span>
+              <span>{formatarData(item.data_administracao)}</span>
             </div>
-            
-            <div style={{ color: '#555' }}>
-              <strong>{evento.medicamento?.nome}</strong><br/>
-              {evento.qtd_caixas} caixa(s) | {evento.qtd_caixas * (evento.medicamento?.qtd_capsula || 0)} comps.
+            <div className="event-info">
+              <span><strong>ID do Evento:</strong></span>
+              <span className="badge">{item.evento_externo_id || 'N/A'}</span>
             </div>
-            
-            <div style={{ marginTop: '5px', fontSize: '0.8rem', color: '#888' }}>
-              Recebimento: {formatarData(evento.data_entrega_real || evento.data_entrega_prevista)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          </EventItem>
+        ))
+      )}
+    </HistoricoContainer>
   );
 }

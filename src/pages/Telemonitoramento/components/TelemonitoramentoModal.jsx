@@ -3,10 +3,11 @@ import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
-import styled from 'styled-components';
 
 import {
-  ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox, ProjectedStockBox
+  ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox, 
+  ProjectedStockBox, SkeletonLoader, ModalLayoutWrapper, PosologiaChangeAlert,
+  HighlightedSection // <-- Importado aqui
 } from './styles';
 
 import { AdherenceBadge } from '../styles';
@@ -18,65 +19,6 @@ import PreMonitoramento from './PreMonitoramento';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
 import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 import HistoricoAberturas from './HistoricoAberturas';
-
-const SkeletonLoader = styled.div`
-  background: linear-gradient(90deg, rgba(0,0,0,0.03) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.03) 75%);
-  background-size: 200% 100%;
-  animation: pulse 1.5s infinite linear;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border-color);
-
-  @keyframes pulse {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .text-line {
-    height: 12px;
-    background: rgba(0,0,0,0.06);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    width: 100%;
-  }
-  .text-line.short { width: 60%; }
-`;
-
-// Wrapper responsivo para as 3 colunas
-const ModalLayoutWrapper = styled.div`
-  display: flex;
-  gap: 20px;
-  max-width: 1450px;
-  width: 95%;
-  margin: 20px auto;
-  align-items: flex-start;
-  justify-content: center;
-
-  @media (max-width: 1150px) {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .left-column, .right-column {
-    width: 320px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    flex-shrink: 0;
-
-    @media (max-width: 1150px) {
-      width: 100%;
-      max-width: 750px;
-    }
-  }
-
-  .center-column {
-    flex: 1;
-    width: 100%;
-    max-width: 750px;
-  }
-`;
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
   const theme = useTheme();
@@ -94,6 +36,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
 
+  // Estados Formulario Base
   const [qtdInformada, setQtdInformada] = useState('');
   const [dataAbertura, setDataAbertura] = useState('');
   const [isReacao, setIsReacao] = useState(false);
@@ -102,6 +45,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
   const [observacao, setObservacao] = useState('');
+
+  // NOVOS ESTADOS: Mudança de Posologia no meio do ciclo
+  const [mudouPosologia, setMudouPosologia] = useState(false);
+  const [novaPosologia, setNovaPosologia] = useState('');
+  const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
 
   useEffect(() => {
     if (monitoramento) {
@@ -163,6 +111,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setNivelAdesao('COMPLETAMENTE');
       setShowNpsPrompt(false);
       setObservacao('');
+      
+      // Resetar estados de mudança de posologia
+      setMudouPosologia(false);
+      setNovaPosologia('');
+      setDataMudancaPosologia('');
 
       setDadosNovaCompra(null);
       setAplicarNovaCompra(false);
@@ -223,6 +176,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     await checkFuturePurchase(localMonitoramento);
   };
 
+  // ==========================================
+  // LÓGICA DE RECALCULO E ESTOQUE IDEAL
+  // ==========================================
   let idealRemaining = 0;
   let margemMin = 0;
   let margemMax = 0;
@@ -238,17 +194,19 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   let idealRemainingAntigo = 0;
   const dataUsoReferencia = localMonitoramento?.data_administracao || localMonitoramento?.data_entrega;
+  
+  let dataInicioObj = null;
 
   if (dataUsoReferencia) {
     const dataApenasData = dataUsoReferencia.split('T')[0];
     const [ano, mes, dia] = dataApenasData.split('-');
     dataReferenciaFormatada = `${dia}/${mes}/${ano}`;
 
-    const dataInicio = new Date(ano, mes - 1, dia);
+    dataInicioObj = new Date(ano, mes - 1, dia);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    if (hoje < dataInicio) {
+    if (hoje < dataInicioObj) {
       isAntesDoInicio = true;
     }
   }
@@ -264,16 +222,29 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     if (isAntesDoInicio) {
       idealRemainingAntigo = qtdTotalCaixa;
     } else {
-      const diffDays = Math.max(0, Math.floor((dataFim - hoje) / (1000 * 60 * 60 * 24)));
-      idealRemainingAntigo = diffDays * posologia;
-
-      if (idealRemainingAntigo > qtdTotalCaixa) {
-        idealRemainingAntigo = qtdTotalCaixa;
+      if (mudouPosologia && dataMudancaPosologia && novaPosologia) {
+        const [aM, mM, dM] = dataMudancaPosologia.split('-');
+        const dataMudancaObj = new Date(aM, mM - 1, dM);
+        
+        const safeDataMudanca = dataMudancaObj < dataInicioObj ? dataInicioObj : dataMudancaObj;
+        
+        const diasAntigos = Math.floor((safeDataMudanca - dataInicioObj) / (1000 * 60 * 60 * 24));
+        const diasNovos = Math.max(0, Math.floor((hoje - safeDataMudanca) / (1000 * 60 * 60 * 24)));
+        
+        const consumoAntigo = diasAntigos * posologia;
+        const consumoNovo = diasNovos * Number(novaPosologia);
+        
+        idealRemainingAntigo = qtdTotalCaixa - (consumoAntigo + consumoNovo);
+      } else {
+        const diffDays = Math.max(0, Math.floor((hoje - dataInicioObj) / (1000 * 60 * 60 * 24)));
+        idealRemainingAntigo = qtdTotalCaixa - (diffDays * posologia);
       }
+
+      if (idealRemainingAntigo < 0) idealRemainingAntigo = 0;
+      if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;
     }
   }
 
-  // --- NOVA LÓGICA DE RECALCULO AQUI ---
   if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa) {
     const posologiaNova = Number(posologiaNovaCaixa || posologia);
     const [anoNovo, mesNovo, diaNovo] = dataRealInicioNovaCaixa.split('-');
@@ -284,11 +255,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
     dataReferenciaFormatada = `${diaNovo}/${mesNovo}/${anoNovo} (Início Novo Ciclo)`;
 
-    // Se a data de inicio for no futuro, ele tem 100% da caixa nova
     if (hoje < dataInicioNovaObj) {
       idealRemaining = dadosNovaCompra.total_capsulas_novas;
     } else {
-      // Se a data de inicio for hoje ou no passado, subtrai o consumo diário ignorando sobras antigas
       const diasUsoNovaCaixa = Math.floor((hoje - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
       const consumoDesdeOInicio = diasUsoNovaCaixa * posologiaNova;
       
@@ -307,16 +276,26 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   } else {
     idealRemaining = idealRemainingAntigo;
-    margemMin = Math.max(0, idealRemaining - posologia);
-    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologia);
+    
+    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
+    margemMin = Math.max(0, idealRemaining - posologiaVigente);
+    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaVigente);
+    
+    if (mudouPosologia && novaPosologia > 0 && idealRemaining > 0) {
+        const diasRestantesProjetados = Math.floor(idealRemaining / Number(novaPosologia));
+        const projetadoObj = new Date();
+        projetadoObj.setDate(projetadoObj.getDate() + diasRestantesProjetados);
+        dataFimCicloAtualFormatada = `${String(projetadoObj.getDate()).padStart(2, '0')}/${String(projetadoObj.getMonth() + 1).padStart(2, '0')}/${projetadoObj.getFullYear()} (Reajustada)`;
+    }
   }
 
   useEffect(() => {
     if (qtdInformada === '' || !localMonitoramento) return;
 
+    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
     const qtdInformadaNum = Number(qtdInformada);
     const diferencaComprimidos = Math.abs(idealRemaining - qtdInformadaNum);
-    const diferencaEmDias = diferencaComprimidos / posologia;
+    const diferencaEmDias = diferencaComprimidos / posologiaVigente;
 
     if (diferencaEmDias <= 2) {
       setNivelAdesao('COMPLETAMENTE');
@@ -325,7 +304,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     } else {
       setNivelAdesao('NAO_ADERE');
     }
-  }, [qtdInformada, localMonitoramento, idealRemaining, posologia]);
+  }, [qtdInformada, localMonitoramento, idealRemaining, posologia, mudouPosologia, novaPosologia]);
 
   useEffect(() => {
     if (qtdInformada !== '') {
@@ -444,13 +423,19 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         return;
       }
       if (aplicarNovaCompra) {
-        if (!dataRealInicioNovaCaixa) {
-          toast.error('A data de início da nova caixa é obrigatória.');
+        if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
+          toast.error('Data de início e posologia da nova caixa são obrigatórias.');
           return;
         }
-        if (!posologiaNovaCaixa) {
-          toast.error('A posologia da nova caixa é obrigatória.');
+      }
+      if (mudouPosologia && !aplicarNovaCompra) {
+        if (!novaPosologia || !dataMudancaPosologia) {
+          toast.error('Preencha a nova dosagem e a data em que ela começou.');
           return;
+        }
+        if (dataMudancaPosologia > dataHojeFormat) {
+           toast.error('A data da mudança de dosagem não pode ser no futuro.');
+           return;
         }
       }
     }
@@ -471,7 +456,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         aplicar_nova_compra: aplicarNovaCompra,
         dados_nova_compra: aplicarNovaCompra ? dadosNovaCompra : null,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
-        posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null
+        posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
+        
+        // Payload Mudança de Posologia
+        mudou_posologia: mudouPosologia,
+        nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
+        data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null
       });
 
       toast.success('Contato registrado com sucesso!');
@@ -496,6 +486,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     value: reacao.id,
     label: reacao.name
   }));
+
+  let dataMaxMudanca = dataHoje;
+  let dataMinMudanca = localMonitoramento?.data_administracao?.split('T')[0] || '';
 
   return (
     <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}> 
@@ -541,6 +534,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
             <InfoBox>
               <p><strong>Medicamento Atual:</strong> {localMonitoramento.medicamento?.nome}</p>
+              
+              {localMonitoramento.mudou_posologia && (
+                 <span style={{ display:'inline-block', backgroundColor: '#e2e3e5', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 'bold', marginBottom: '5px' }}>
+                    ⚠️ Veio de Mudança de Posologia ({localMonitoramento.posologia_diaria} cp/dia)
+                 </span>
+              )}
+
               <p className="sub-text">
                 Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
               </p>
@@ -571,6 +571,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
                   (Margem aceitável calculada: {margemMin} a {margemMax})
                 </p>
+                
+                {mudouPosologia && !aplicarNovaCompra && (
+                   <PosologiaChangeAlert>
+                     <strong>Matemática Reajustada:</strong>
+                     <span>Cálculo quebrado considerando a data de transição para a nova dosagem prescrita.</span>
+                   </PosologiaChangeAlert>
+                )}
               </ProjectedStockBox>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -598,6 +605,53 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
               {contatoEfetivo && (
                 <>
+                  {/* ====== COMPONENTE COM DESTAQUE, SOMBRA E ALINHAMENTO ====== */}
+                  {!aplicarNovaCompra && (
+                    <HighlightedSection>
+                      <label className="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          checked={mudouPosologia} 
+                          onChange={(e) => {
+                            setMudouPosologia(e.target.checked);
+                            if(!e.target.checked) {
+                              setNovaPosologia('');
+                              setDataMudancaPosologia('');
+                            }
+                          }} 
+                        />
+                        <strong>Houve alteração da posologia (dosagem) no meio deste ciclo?</strong>
+                      </label>
+                      
+                      {mudouPosologia && (
+                        <div className="inputs-row">
+                           <div className="input-group">
+                             <label>Nova Posologia (comprimidos/dia):</label>
+                             <Input 
+                                type="number" 
+                                min="1" 
+                                value={novaPosologia}
+                                onChange={(e) => setNovaPosologia(e.target.value)}
+                                required={mudouPosologia}
+                                placeholder="Ex: 2"
+                             />
+                           </div>
+                           <div className="input-group">
+                             <label>A partir de que dia começou a tomar a nova dose?</label>
+                             <Input 
+                                type="date" 
+                                max={dataMaxMudanca}
+                                min={dataMinMudanca}
+                                value={dataMudancaPosologia}
+                                onChange={(e) => setDataMudancaPosologia(e.target.value)}
+                                required={mudouPosologia}
+                             />
+                           </div>
+                        </div>
+                      )}
+                    </HighlightedSection>
+                  )}
+
                   <FormGroup>
                     <label>Quantos comprimidos restam com o paciente no total?</label>
                     <Input
