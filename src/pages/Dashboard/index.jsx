@@ -5,11 +5,12 @@ import api from '../../services/api';
 import AdesaoScoreChart from './components/AdesaoScoreChart';
 import AderenciaOpcoesChart from './components/AderenciaOpcoesChart';
 import FichaRamChart from './components/FichaRamChart';
-import PacientesAtivosChart from './components/PacientesAtivosChart'; // MANTIDO O NOME ORIGINAL
+import PacientesAtivosChart from './components/PacientesAtivosChart';
 import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
 import NpsChart from './components/NpsChart';
 import HistoricoTrocaTable from './components/HistoricoTrocaTable';
 import TermosChart from './components/TermosChart';
+import ProblemasContatoChart from './components/ProblemasContatoChart'; // <-- NOVO IMPORT
 
 import { Container, Title, Grid, Card, ControlsPanel, FilterGroup, SelectGroup } from './styles';
 
@@ -69,6 +70,7 @@ export default function Dashboard() {
             <option value="adesao_score">Adesão (Score Questionário)</option>
             <option value="aderencia_opcoes">Aderência (Opções Monitoramento)</option>
             <option value="ficha_ram">Fichas RAM (Eventos Adversos)</option>
+            <option value="problemas_contato">Problemas de Contato (Falhas)</option> {/* <-- NOVA OPÇÃO */}
             <option value="troca_medicamentos">Histórico de Troca de Medicamentos</option>
           </select>
         </SelectGroup>
@@ -84,7 +86,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* NOME DO COMPONENTE MANTIDO, APENAS OS DADOS SÃO PASSADOS COM A NOVA CHAVE DO BACKEND */}
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'pacientes_sincronizados') && data.pacientesSincronizados && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <PacientesAtivosChart
@@ -94,7 +95,6 @@ export default function Dashboard() {
             />
           </Card>
         )}
-
 
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'termos') && data.termos && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
@@ -121,18 +121,22 @@ export default function Dashboard() {
           </Card>
         )}
 
-        
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'aderencia_opcoes') && data.aderenciaOpcoes && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>
             <AderenciaOpcoesChart chartData={data.aderenciaOpcoes.chart} reportData={data.aderenciaOpcoes.report} />
           </Card>
         )}
 
-
-
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'ficha_ram') && data.fichaRam && (
           <Card style={{ gridColumn: graficoSelecionado === 'todos' ? '1 / -1' : 'auto' }}>
             <FichaRamChart chartData={data.fichaRam.chart} reportData={data.fichaRam.report} />
+          </Card>
+        )}
+
+        {/* <-- NOVO BLOCO DO GRÁFICO DE PROBLEMAS DE CONTATO --> */}
+        {(graficoSelecionado === 'todos' || graficoSelecionado === 'problemas_contato') && data.problemasContato && (
+          <Card style={{ gridColumn: graficoSelecionado === 'todos' ? '1 / -1' : 'auto' }}>
+            <ProblemasContatoChart chartData={data.problemasContato.chart} reportData={data.problemasContato.report} />
           </Card>
         )}
 

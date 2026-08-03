@@ -27,6 +27,7 @@ const modulosSistema = [
     { key: 'linhadotempo', label: 'Linha do Tempo' },
     { key: 'faturamento', label: 'Faturamento' },
     { key: 'termo', label: 'Termos Assinados' },
+    { key: 'falhascontatos', label: 'Falhas de Contato' },
     
   
 

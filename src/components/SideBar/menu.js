@@ -17,7 +17,8 @@ import {
   // Ícones com nomes de exportação MAIS ESTÁVEIS (Padrão Lucide)
   LuClipboardList, 
   LuFileWarning, 
-  LuDollarSign
+  LuDollarSign,
+  LuPhone
 } from "react-icons/lu";
 
 export const navOptions = [
@@ -31,7 +32,7 @@ export const registerOptions = [
   { id: "especialidades", label: "Especialidades", icon: LuAward, path: "/especialidades", modulo: "especialidades" },
   { id: "operadoras", label: "Operadoras", icon: LuShield, path: "/operadoras", modulo: "operadoras" },
   { id: "usuarios", label: "Usuários", icon: LuUsers, path: "/users", modulo: "usuarios" },
-  { id: "permissoes", label: "Permissões", icon: LuLock, path: "/permissoes", modulo: "usuarios" },
+  { id: "permissoes", label: "Permissões", icon: LuLock, path: "/permissoes", modulo: "permissoes" },
   /* { id: "pacientes", label: "Pacientes", icon: LuUser, path: "/pacientes", modulo: "pacientes" }, */
   /* { id: "diagnosticos", label: "Diagnósticos", icon: LuFileSearch, path: "/diagnosticos", modulo: "diagnosticos" }, */
 /*   { id: "prestadores", label: "Prestadores", icon: LuBuilding2, path: "/prestadores", modulo: "prestadores_medicos" }, */
@@ -54,6 +55,7 @@ export const registerOptions = [
     path: "/ficha-ram", 
     modulo: "reacao_adversa" 
   },
+  { id: "falhascontatos", label: "Falhas de Contato", icon: LuPhone, path: "/motivos-falha-contato", modulo: "falhascontatos" },
 ];
 
 export const adminOptions = [

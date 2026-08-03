@@ -28,6 +28,7 @@ import ChatModule from '../pages/Chat';
 import TelaNpsPaciente from '../pages/TelaNpsPaciente';
 import ListaFaturamento from '../pages/Faturamento';
 import TermosListagemAdmin from '../pages/ListaTermos';
+import MotivosFalhaContato from '../pages/MotivosFalhaContato';
 
 // ==========================================
 // NOVO: COMPONENTE DE PROTEÇÃO DE ROTA
@@ -84,6 +85,7 @@ export default function Routes() {
                     <Route path='/manual' element={<ManualPage />} />
                     <Route path='/faturamento' element={<ListaFaturamento />} />
                     <Route path='/termo' element={<TermosListagemAdmin />} />
+                    <Route path='/motivos-falha-contato' element={<MotivosFalhaContato />} />
                 </Route>
 
             </Route>

@@ -7,7 +7,7 @@ import { useTheme } from 'styled-components';
 import {
   ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox, 
   ProjectedStockBox, SkeletonLoader, ModalLayoutWrapper, PosologiaChangeAlert,
-  HighlightedSection // <-- Importado aqui
+  HighlightedSection
 } from './styles';
 
 import { AdherenceBadge } from '../styles';
@@ -50,6 +50,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [mudouPosologia, setMudouPosologia] = useState(false);
   const [novaPosologia, setNovaPosologia] = useState('');
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
+
+  // NOVO ESTADO: Motivos de Falha de Contato 👇
+  const [listaMotivosFalha, setListaMotivosFalha] = useState([]);
+  const [motivoFalhaSelecionado, setMotivoFalhaSelecionado] = useState(null);
 
   useEffect(() => {
     if (monitoramento) {
@@ -112,7 +116,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setShowNpsPrompt(false);
       setObservacao('');
       
-      // Resetar estados de mudança de posologia
       setMudouPosologia(false);
       setNovaPosologia('');
       setDataMudancaPosologia('');
@@ -121,12 +124,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setAplicarNovaCompra(false);
       setPosologiaNovaCaixa('');
       setSyncPrompt(null);
+      
+      setMotivoFalhaSelecionado(null); // Reseta motivo
 
       setupDates(localMonitoramento);
 
+      // Carrega reações adversas
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
+
+      // NOVA REQUISIÇÃO: Carrega motivos de falha de contato 👇
+      api.get('/motivos-falha-contato')
+        .then(response => { if (isMounted) setListaMotivosFalha(response.data); })
+        .catch(() => { if (isMounted) toast.error('Erro ao carregar motivos de falha de contato.'); });
 
       setLoadingCompra(true);
       api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
@@ -438,6 +449,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
            return;
         }
       }
+    } else {
+      // NOVA VALIDAÇÃO: Bloqueia envio se não escolher motivo da falha 👇
+      if (!motivoFalhaSelecionado) {
+        toast.error('Selecione o motivo pelo qual o contato não foi efetivado.');
+        return;
+      }
     }
 
     try {
@@ -458,10 +475,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
         
-        // Payload Mudança de Posologia
         mudou_posologia: mudouPosologia,
         nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
-        data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null
+        data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null,
+
+        // ENVIANDO O NOVO CAMPO PARA A API 👇
+        motivo_falha_contato_id: !contatoEfetivo ? motivoFalhaSelecionado.value : null
       });
 
       toast.success('Contato registrado com sucesso!');
@@ -485,6 +504,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const opcoesReacoes = listaReacoes.map(reacao => ({
     value: reacao.id,
     label: reacao.name
+  }));
+
+  // Formatando opções de motivos para o React-Select 👇
+  const opcoesMotivosFalha = listaMotivosFalha.map(motivo => ({
+    value: motivo.id,
+    label: motivo.descricao
   }));
 
   let dataMaxMudanca = dataHoje;
@@ -537,7 +562,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               
               {localMonitoramento.mudou_posologia && (
                  <span style={{ display:'inline-block', backgroundColor: '#e2e3e5', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 'bold', marginBottom: '5px' }}>
-                    ⚠️ Veio de Mudança de Posologia ({localMonitoramento.posologia_diaria} cp/dia)
+                   ⚠️ Veio de Mudança de Posologia ({localMonitoramento.posologia_diaria} cp/dia)
                  </span>
               )}
 
@@ -595,7 +620,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 <label>O contato foi efetivado com sucesso?</label>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                    <input type="radio" checked={contatoEfetivo === true} onChange={() => setContatoEfetivo(true)} /> Sim
+                    <input type="radio" checked={contatoEfetivo === true} onChange={() => { setContatoEfetivo(true); setMotivoFalhaSelecionado(null); }} /> Sim
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
                     <input type="radio" checked={contatoEfetivo === false} onChange={() => setContatoEfetivo(false)} /> Não (Paciente não atendeu/ausente)
@@ -603,9 +628,25 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 </div>
               </FormGroup>
 
+              {/* CONDIÇÃO NOVA: SE O CONTATO NÃO FOI EFETIVO 👇 */}
+              {!contatoEfetivo && (
+                <FormGroup style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #ffeeba' }}>
+                  <label style={{ color: '#856404' }}>Qual o motivo da falha no contato?</label>
+                  <Select
+                    options={opcoesMotivosFalha}
+                    value={motivoFalhaSelecionado}
+                    onChange={setMotivoFalhaSelecionado}
+                    styles={getCustomSelectStyles(theme)}
+                    placeholder="Selecione o motivo..."
+                    noOptionsMessage={() => "Nenhum motivo encontrado"}
+                    menuPosition="fixed"
+                  />
+                </FormGroup>
+              )}
+
+              {/* O RESTANTE DO FORM SÓ APARECE SE O CONTATO FOI EFETIVO */}
               {contatoEfetivo && (
                 <>
-                  {/* ====== COMPONENTE COM DESTAQUE, SOMBRA E ALINHAMENTO ====== */}
                   {!aplicarNovaCompra && (
                     <HighlightedSection>
                       <label className="checkbox-label">
@@ -665,18 +706,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   </FormGroup>
 
                   <FormGroup>
-                    <label>Observação (Opcional)</label>
-                    <Input
-                      as="textarea"
-                      rows="3"
-                      value={observacao}
-                      onChange={(e) => setObservacao(e.target.value)}
-                      placeholder="Descreva aqui informações em relação aos comprimidos do paciente"
-                      style={{ resize: 'vertical', padding: '10px' }}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
                     <label>O quanto ele adere? (Calculado automaticamente)</label>
                     <Input as="select" value={nivelAdesao} disabled required>
                       <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
@@ -724,6 +753,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   </FormGroup>
                 </>
               )}
+
+              <FormGroup>
+                <label>Observação (Opcional)</label>
+                <Input
+                  as="textarea"
+                  rows="3"
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value)}
+                  placeholder={contatoEfetivo ? "Descreva aqui informações em relação aos comprimidos do paciente" : "Detalhe aqui o que aconteceu na tentativa de contato"}
+                  style={{ resize: 'vertical', padding: '10px' }}
+                />
+              </FormGroup>
 
               <ButtonGroup>
                 <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
