@@ -17,6 +17,12 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
   const [waitCountdown, setWaitCountdown] = useState(10);
   const [showManualFallback, setShowManualFallback] = useState(false);
   const [loadingManual, setLoadingManual] = useState(false);
+  
+  // Medicamentos realmente ativos do paciente (1 ou 2), vindos do
+  // backend (derivados dos EventosPaciente), em vez de depender só de
+  // paciente.medicamento (que reflete apenas um).
+  const [medicamentosAtivos, setMedicamentosAtivos] = useState(null);
+  const [loadingMedicamentosSetup, setLoadingMedicamentosSetup] = useState(false);
 
   useEffect(() => {
     if (isOpen && paciente) {
@@ -27,6 +33,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
       setTelefoneManual('');
       setEmailManual(paciente.email || '');
       setDestinoEnvio(paciente.possui_cuidador ? 'cuidador' : 'paciente');
+      setMedicamentosAtivos(null);
     }
   }, [isOpen, paciente, startWaiting]);
 
@@ -37,7 +44,6 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
         try {
           const res = await api.get(`/termos/paciente/${paciente.id}/status`);
           const statusAtual = res.data.status_termo;
-
           if (statusAtual === 'Aceito') {
             setStep('accepted');
             clearInterval(intervalId);
@@ -100,6 +106,39 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
       const confirmar = window.confirm("Atenção: Este paciente possui cuidador. Tem certeza que deseja enviar direto ao paciente?");
       if (!confirmar) return;
     }
+    
+    // 👇 NOVO: Fluxo para gerar e copiar link
+    if (destinoEnvio === 'copiar_link') {
+      setStep('sending');
+      try {
+        const res = await api.post('/termos/send', {
+          paciente_id: paciente.id,
+          destino_tipo: 'copiar_link'
+        });
+        
+        // Verifica se a API retornou o link
+        if (res.data && res.data.link) {
+          try {
+            await navigator.clipboard.writeText(res.data.link);
+            toast.success("Link copiado para a área de transferência!");
+          } catch (clipErr) {
+            toast.warning(`Link gerado, mas não foi possível copiar automaticamente. Link: ${res.data.link}`);
+          }
+        } else {
+          toast.success("Operação iniciada, mas o link não foi retornado pelo servidor.");
+        }
+
+        setTimeout(() => {
+          setWaitCountdown(10);
+          setShowManualFallback(false);
+          setStep('waiting');
+        }, 1000);
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Erro ao gerar o link');
+        setStep('initial');
+      }
+      return; // Interrompe a execução para não cair nos outros fluxos
+    }
 
     let telefoneFinal = '';
     
@@ -126,7 +165,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
         return;
       }
     }
-
+    
     setStep('sending');
     try {
       await api.post('/termos/send', {
@@ -135,13 +174,11 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
         destino_tipo: destinoEnvio,
         email_destino: destinoEnvio === 'email' ? emailManual : undefined
       });
-
       setTimeout(() => {
         setWaitCountdown(10);
         setShowManualFallback(false);
         setStep('waiting');
       }, 1000);
-
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao enviar link');
       setStep('initial');
@@ -166,11 +203,21 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
 
   const handleClose = () => { onClose(); };
 
-  const handleAbrirSetupMonitoramento = () => {
-    if (paciente?.medicamento) {
-      setStep('setup_monitoramento');
-    } else {
+  const handleAbrirSetupMonitoramento = async () => {
+    if (!paciente?.medicamento) {
       toast.error('Este paciente não possui um medicamento vinculado para monitorar.');
+      return;
+    }
+    setLoadingMedicamentosSetup(true);
+    try {
+      const response = await api.get(`/pacientes/${paciente.id}/medicamentos-ativos`);
+      setMedicamentosAtivos(response.data.medicamentos || []);
+    } catch (error) {
+      toast.error('Erro ao buscar medicamentos ativos do paciente.');
+      setMedicamentosAtivos([paciente.medicamento]);
+    } finally {
+      setLoadingMedicamentosSetup(false);
+      setStep('setup_monitoramento');
     }
   };
 
@@ -184,7 +231,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
             <h2>Termos de Acompanhamento</h2>
             <p>O paciente <strong>{paciente?.nome} {paciente?.sobrenome}</strong> ainda não aceitou os termos de acompanhamento.</p>
             <p>Status Atual: <StatusBadge status={paciente?.status_termo || 'Pendente'}>{paciente?.status_termo || 'Pendente'}</StatusBadge></p>
-
+            
             {paciente.possui_cuidador && (
               <div style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeeba', padding: '15px', borderRadius: '6px', marginTop: '15px', textAlign: 'left', fontSize: '0.9rem' }}>
                 <strong>⚠️ ATENÇÃO:</strong> Esse paciente possui um cuidador/responsável. Por questões de cuidado, o disparo automático está selecionado para o cuidador.
@@ -193,72 +240,79 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
                 <strong>Contato:</strong> {paciente.contato_cuidador}
               </div>
             )}
-
+            
             <div style={{ marginTop: '20px', textAlign: 'left', padding: '15px', border: '1px solid #eee', borderRadius: '6px' }}>
               <strong style={{ display: 'block', marginBottom: '10px' }}>Selecione o destinatário do link:</strong>
-
+              
               {paciente.possui_cuidador && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
                   <input type="radio" name="destino" value="cuidador" checked={destinoEnvio === 'cuidador'} onChange={() => setDestinoEnvio('cuidador')} />
                   Disparar via WhatsApp para o Cuidador ({paciente.contato_cuidador})
                 </label>
               )}
-
+              
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
                 <input type="radio" name="destino" value="paciente" checked={destinoEnvio === 'paciente'} onChange={() => setDestinoEnvio('paciente')} />
                 Disparar via WhatsApp para o Paciente ({paciente.celular || paciente.telefone})
               </label>
-
+              
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
                 <input type="radio" name="destino" value="manual" checked={destinoEnvio === 'manual'} onChange={() => setDestinoEnvio('manual')} />
                 Digitar um número de WhatsApp manualmente
               </label>
-
+              
               {destinoEnvio === 'manual' && (
                 <div style={{ marginTop: '10px', marginBottom: '15px', marginLeft: '25px' }}>
                   <Input type="text" placeholder="(00) 90000-0000" value={telefoneManual} onChange={handleTelefoneManualChange} maxLength="15" style={{ width: '200px', padding: '8px' }} />
                 </div>
               )}
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
                 <input type="radio" name="destino" value="email" checked={destinoEnvio === 'email'} onChange={() => setDestinoEnvio('email')} />
                 Enviar link por E-mail
               </label>
-
+              
               {destinoEnvio === 'email' && (
-                <div style={{ marginTop: '10px', marginLeft: '25px' }}>
+                <div style={{ marginTop: '10px', marginBottom: '15px', marginLeft: '25px' }}>
                   <Input type="email" placeholder="paciente@email.com" value={emailManual} onChange={(e) => setEmailManual(e.target.value)} style={{ width: '100%', maxWidth: '300px', padding: '8px' }} />
                   <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
                     O e-mail será salvo no cadastro do paciente automaticamente.
                   </small>
                 </div>
               )}
-            </div>
 
+              {/* 👇 NOVO: Opção para Copiar Link */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="radio" name="destino" value="copiar_link" checked={destinoEnvio === 'copiar_link'} onChange={() => setDestinoEnvio('copiar_link')} />
+                Gerar e copiar link (envio manual)
+              </label>
+            </div>
+            
             <ActionArea style={{ marginTop: '25px' }}>
               <Button variant="cancel" onClick={handleClose}>Cancelar</Button>
               <Button onClick={handleSendLink}>
-                {destinoEnvio === 'email' ? 'Enviar Link via E-mail' : 'Enviar Link via WhatsApp'}
+                {destinoEnvio === 'email' ? 'Enviar Link via E-mail' : 
+                 destinoEnvio === 'copiar_link' ? 'Gerar e Copiar Link' : 
+                 'Enviar Link via WhatsApp'}
               </Button>
             </ActionArea>
           </>
         )}
-
+        
         {step === 'sending' && (
           <WaitingBox>
-            <h3>Enviando mensagem...</h3>
-            <p>Aguarde enquanto processamos o envio.</p>
+            <h3>Processando solicitação...</h3>
+            <p>Aguarde um momento.</p>
           </WaitingBox>
         )}
-
+        
         {step === 'waiting' && (
           <WaitingBox>
-            <h3>{startWaiting ? 'Paciente em Espera' : 'Link Enviado!'}</h3>
+            <h3>{startWaiting ? 'Paciente em Espera' : 'Pronto!'}</h3>
             <p>Aguardando resposta do paciente...</p>
             <small style={{ color: '#888', display: 'block', marginTop: '10px' }}>Esta tela atualizará automaticamente caso o paciente responda online.</small>
-
+            
             <ActionArea style={{ marginTop: '25px', flexDirection: 'column', gap: '12px' }}>
-              
               <Button 
                 variant="cancel" 
                 onClick={() => {
@@ -269,7 +323,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
               >
                 {startWaiting ? 'Voltar para 2º Plano' : 'Colocar em 2º Plano (Aguardar em Fundo)'}
               </Button>
-
+              
               {!showManualFallback ? (
                 <Button onClick={() => setShowManualFallback(true)} style={{ width: '100%', backgroundColor: '#6c757d', color: '#fff' }}>
                   Registrar Aceite Manual (Telefone / Conversa)
@@ -290,7 +344,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
             </ActionArea>
           </WaitingBox>
         )}
-
+        
         {step === 'rejected' && (
           <ErrorBox>
             <div className="icon">✖</div>
@@ -301,16 +355,16 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
                 <Button variant="cancel" onClick={handleClose} style={{ flex: 1 }}>Cancelar</Button>
                 <Button variant="resend" onClick={() => setStep('initial')} style={{ flex: 1 }}>Tentar Outro Envio</Button>
               </div>
-              <Button onClick={handleAbrirSetupMonitoramento} style={{ width: '100%', backgroundColor: '#2c3e50', color: '#fff' }}>
-                Incluir paciente direto no Telemonitoramento
+              <Button onClick={handleAbrirSetupMonitoramento} disabled={loadingMedicamentosSetup} style={{ width: '100%', backgroundColor: '#2c3e50', color: '#fff' }}>
+                {loadingMedicamentosSetup ? 'Carregando medicamentos...' : 'Incluir paciente direto no Telemonitoramento'}
               </Button>
             </ActionArea>
           </ErrorBox>
         )}
-
+        
         {step === 'setup_monitoramento' && paciente?.medicamento && (
           <ConfiguracaoUsoContinuo
-            paciente={paciente}
+            paciente={{ ...paciente, medicamentos: medicamentosAtivos || [] }}
             showUsoToggle={true}
             showCancelButton={true}
             onSuccess={() => handleClose()}
@@ -319,7 +373,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
             subtitle="Paciente recusou os termos, mas será incluído no acompanhamento de medicamentos. Confirme a posologia e a data para agendar os contatos."
           />
         )}
-
+        
         {step === 'accepted' && (
           <SuccessBox>
             <div className="icon">✔</div>
