@@ -159,3 +159,48 @@ export const ButtonSubmit = styled(Button)`
     background-color: #218838;
   }
 `;
+
+// ==========================================================
+// 👇 NOVO: barra de progresso do fluxo em etapas (uso em conjunto)
+// ==========================================================
+export const ProgressoConjunto = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+  padding: 12px 15px;
+  background-color: #eef2f7;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #2c3e50;
+
+  strong {
+    color: #1a5276;
+  }
+
+  .etapa-label {
+    margin-left: auto;
+    font-weight: bold;
+    font-size: 0.85rem;
+    background-color: #fff;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid #d7e0ea;
+    white-space: nowrap;
+  }
+`;
+
+export const ProgressoDots = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+export const Dot = styled.span`
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: ${props => (props.active ? '#3498db' : props.completed ? '#27ae60' : '#c9d3dc')};
+  transition: background-color 0.2s;
+`;

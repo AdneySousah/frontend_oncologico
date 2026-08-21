@@ -3,13 +3,11 @@ import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
-
 import {
-  ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox, 
+  ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox,
   ProjectedStockBox, SkeletonLoader, ModalLayoutWrapper, PosologiaChangeAlert,
   HighlightedSection
 } from './styles';
-
 import { AdherenceBadge } from '../styles';
 import { getAdherenceClassification } from '../index';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
@@ -19,22 +17,30 @@ import PreMonitoramento from './PreMonitoramento';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
 import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 import HistoricoAberturas from './HistoricoAberturas';
+import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
+import TentativaContatoModal from './TentativaContatoModal';
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
   const theme = useTheme();
-
   const [localMonitoramento, setLocalMonitoramento] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showNpsPrompt, setShowNpsPrompt] = useState(false);
+
+  // Etapas: CONTATO_EFETIVO (sempre primeiro) -> PRE_TELE (só se necessário)
+  // -> FORMULARIO (só alcançável depois de confirmar "Sim" e, se precisou,
+  // já ter passado pelo pré-tele).
+  const [etapa, setEtapa] = useState('CONTATO_EFETIVO');
 
   // Estados de Sincronização
   const [loadingCompra, setLoadingCompra] = useState(false);
   const [syncPrompt, setSyncPrompt] = useState(null);
   const [dadosNovaCompra, setDadosNovaCompra] = useState(null);
   const [aplicarNovaCompra, setAplicarNovaCompra] = useState(false);
-
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
+  const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
+  const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
+  const [motivoEncerramento, setMotivoEncerramento] = useState('');
 
   // Estados Formulario Base
   const [qtdInformada, setQtdInformada] = useState('');
@@ -42,18 +48,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [isReacao, setIsReacao] = useState(false);
   const [reacoesSelecionadas, setReacoesSelecionadas] = useState([]);
   const [listaReacoes, setListaReacoes] = useState([]);
-  const [contatoEfetivo, setContatoEfetivo] = useState(true);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
   const [observacao, setObservacao] = useState('');
 
-  // NOVOS ESTADOS: Mudança de Posologia no meio do ciclo
+  // Mudança de Posologia no meio do ciclo
   const [mudouPosologia, setMudouPosologia] = useState(false);
   const [novaPosologia, setNovaPosologia] = useState('');
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
-
-  // NOVO ESTADO: Motivos de Falha de Contato 👇
-  const [listaMotivosFalha, setListaMotivosFalha] = useState([]);
-  const [motivoFalhaSelecionado, setMotivoFalhaSelecionado] = useState(null);
 
   useEffect(() => {
     if (monitoramento) {
@@ -66,7 +67,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       const [ano, mes, dia] = monit.data_calculada_fim_caixa.split('T')[0].split('-');
       const dateObj = new Date(ano, mes - 1, dia);
       dateObj.setDate(dateObj.getDate() + 1);
-
       const y = dateObj.getFullYear();
       const m = String(dateObj.getMonth() + 1).padStart(2, '0');
       const d = String(dateObj.getDate()).padStart(2, '0');
@@ -78,18 +78,22 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     try {
       setLoadingCompra(true);
       const response = await api.get(`/monitoramento-medicamentos/${monit.id}/verificar-compra`);
-
       if (!isMountedCheck()) return;
-
       if (response.data && response.data.novaCompraDetectada) {
         setDadosNovaCompra(response.data.detalhes);
         setAplicarNovaCompra(true);
         setPosologiaNovaCaixa(monit.posologia_diaria || '');
-
         if (response.data.detalhes.data_novo_inicio) {
           const dataDoBackend = response.data.detalhes.data_novo_inicio.split('T')[0];
           setDataRealInicioNovaCaixa(dataDoBackend);
         }
+        setModoNovoMedicamento(
+          response.data.detalhes.mudou_medicamento
+            ? (response.data.detalhes.pode_ser_conjunto ? null : 'SUBSTITUICAO')
+            : null
+        );
+        setDescontinuarMedicamento(false);
+        setMotivoEncerramento('');
       }
     } catch (error) {
       if (!isMountedCheck()) return;
@@ -105,45 +109,35 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   useEffect(() => {
     let isMounted = true;
-
     if (isOpen && localMonitoramento?.id) {
+      setEtapa('CONTATO_EFETIVO');
       setQtdInformada('');
       setDataAbertura('');
       setIsReacao(false);
       setReacoesSelecionadas([]);
-      setContatoEfetivo(true);
       setNivelAdesao('COMPLETAMENTE');
       setShowNpsPrompt(false);
       setObservacao('');
-      
       setMudouPosologia(false);
       setNovaPosologia('');
       setDataMudancaPosologia('');
-
       setDadosNovaCompra(null);
       setAplicarNovaCompra(false);
       setPosologiaNovaCaixa('');
+      setModoNovoMedicamento(null);
+      setDescontinuarMedicamento(false);
+      setMotivoEncerramento('');
       setSyncPrompt(null);
-      
-      setMotivoFalhaSelecionado(null); // Reseta motivo
-
       setupDates(localMonitoramento);
 
-      // Carrega reações adversas
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
-
-      // NOVA REQUISIÇÃO: Carrega motivos de falha de contato 👇
-      api.get('/motivos-falha-contato')
-        .then(response => { if (isMounted) setListaMotivosFalha(response.data); })
-        .catch(() => { if (isMounted) toast.error('Erro ao carregar motivos de falha de contato.'); });
 
       setLoadingCompra(true);
       api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
         .then(resSync => {
           if (!isMounted) return;
-
           if (resSync.data?.requiresConfirmation) {
             setSyncPrompt(resSync.data.details);
             setLoadingCompra(false);
@@ -156,7 +150,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           setLoadingCompra(false);
         });
     }
-
     return () => { isMounted = false; };
   }, [isOpen, localMonitoramento?.id]);
 
@@ -169,12 +162,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         nova_qtd_capsula_por_caixa: syncPrompt.novaQtdCapsulaPorCaixa,
         mudou_medicamento: syncPrompt.mudouMedicamento
       });
-
       setLocalMonitoramento(res.data.monitoramento);
       setupDates(res.data.monitoramento);
       toast.success('Fornecimento atualizado com sucesso!');
       setSyncPrompt(null);
-
       await checkFuturePurchase(res.data.monitoramento);
     } catch (error) {
       toast.error('Erro ao confirmar atualização');
@@ -188,7 +179,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   };
 
   // ==========================================
-  // LÓGICA DE RECALCULO E ESTOQUE IDEAL
+  // LÓGICA DE RECALCULO E ESTOQUE IDEAL (inalterada)
   // ==========================================
   let idealRemaining = 0;
   let margemMin = 0;
@@ -196,118 +187,91 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   let dataReferenciaFormatada = '-';
   let dataFimCicloAtualFormatada = '-';
   let isAntesDoInicio = false;
-
   const qtdCaixas = Number(localMonitoramento?.qtd_caixas || 1);
   const qtdTotalCaixa = Number(
     localMonitoramento?.qtd_total_capsulas || (localMonitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
   );
   const posologia = Number(localMonitoramento?.posologia_diaria || 1);
-
   let idealRemainingAntigo = 0;
   const dataUsoReferencia = localMonitoramento?.data_administracao || localMonitoramento?.data_entrega;
-  
   let dataInicioObj = null;
-
   if (dataUsoReferencia) {
     const dataApenasData = dataUsoReferencia.split('T')[0];
     const [ano, mes, dia] = dataApenasData.split('-');
     dataReferenciaFormatada = `${dia}/${mes}/${ano}`;
-
     dataInicioObj = new Date(ano, mes - 1, dia);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-
     if (hoje < dataInicioObj) {
       isAntesDoInicio = true;
     }
   }
-
   if (localMonitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
     dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`;
     const dataFim = new Date(ano, mes - 1, dia);
-
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-
     if (isAntesDoInicio) {
       idealRemainingAntigo = qtdTotalCaixa;
     } else {
       if (mudouPosologia && dataMudancaPosologia && novaPosologia) {
         const [aM, mM, dM] = dataMudancaPosologia.split('-');
         const dataMudancaObj = new Date(aM, mM - 1, dM);
-        
         const safeDataMudanca = dataMudancaObj < dataInicioObj ? dataInicioObj : dataMudancaObj;
-        
         const diasAntigos = Math.floor((safeDataMudanca - dataInicioObj) / (1000 * 60 * 60 * 24));
         const diasNovos = Math.max(0, Math.floor((hoje - safeDataMudanca) / (1000 * 60 * 60 * 24)));
-        
         const consumoAntigo = diasAntigos * posologia;
         const consumoNovo = diasNovos * Number(novaPosologia);
-        
         idealRemainingAntigo = qtdTotalCaixa - (consumoAntigo + consumoNovo);
       } else {
         const diffDays = Math.max(0, Math.floor((hoje - dataInicioObj) / (1000 * 60 * 60 * 24)));
         idealRemainingAntigo = qtdTotalCaixa - (diffDays * posologia);
       }
-
       if (idealRemainingAntigo < 0) idealRemainingAntigo = 0;
       if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;
     }
   }
-
-  if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa) {
+  if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa && modoNovoMedicamento !== 'CONJUNTO') {
     const posologiaNova = Number(posologiaNovaCaixa || posologia);
     const [anoNovo, mesNovo, diaNovo] = dataRealInicioNovaCaixa.split('-');
     const dataInicioNovaObj = new Date(anoNovo, mesNovo - 1, diaNovo);
-
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-
     dataReferenciaFormatada = `${diaNovo}/${mesNovo}/${anoNovo} (Início Novo Ciclo)`;
-
     if (hoje < dataInicioNovaObj) {
       idealRemaining = dadosNovaCompra.total_capsulas_novas;
     } else {
       const diasUsoNovaCaixa = Math.floor((hoje - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
       const consumoDesdeOInicio = diasUsoNovaCaixa * posologiaNova;
-      
       idealRemaining = dadosNovaCompra.total_capsulas_novas - consumoDesdeOInicio;
     }
-
     if (idealRemaining < 0) idealRemaining = 0;
-
     const diasRestantesTotais = posologiaNova > 0 ? Math.floor(idealRemaining / posologiaNova) : 0;
     const fimNovaCaixaObj = new Date(hoje);
     fimNovaCaixaObj.setDate(fimNovaCaixaObj.getDate() + diasRestantesTotais);
     dataFimCicloAtualFormatada = `${String(fimNovaCaixaObj.getDate()).padStart(2, '0')}/${String(fimNovaCaixaObj.getMonth() + 1).padStart(2, '0')}/${fimNovaCaixaObj.getFullYear()}`;
-
     margemMin = Math.max(0, idealRemaining - posologiaNova);
     margemMax = idealRemaining + posologiaNova;
-
   } else {
     idealRemaining = idealRemainingAntigo;
-    
     const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
     margemMin = Math.max(0, idealRemaining - posologiaVigente);
     margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaVigente);
-    
     if (mudouPosologia && novaPosologia > 0 && idealRemaining > 0) {
-        const diasRestantesProjetados = Math.floor(idealRemaining / Number(novaPosologia));
-        const projetadoObj = new Date();
-        projetadoObj.setDate(projetadoObj.getDate() + diasRestantesProjetados);
-        dataFimCicloAtualFormatada = `${String(projetadoObj.getDate()).padStart(2, '0')}/${String(projetadoObj.getMonth() + 1).padStart(2, '0')}/${projetadoObj.getFullYear()} (Reajustada)`;
+      const diasRestantesProjetados = Math.floor(idealRemaining / Number(novaPosologia));
+      const projetadoObj = new Date();
+      projetadoObj.setDate(projetadoObj.getDate() + diasRestantesProjetados);
+      dataFimCicloAtualFormatada = `${String(projetadoObj.getDate()).padStart(2, '0')}/${String(projetadoObj.getMonth() + 1).padStart(2, '0')}/${projetadoObj.getFullYear()} (Reajustada)`;
     }
   }
 
   useEffect(() => {
     if (qtdInformada === '' || !localMonitoramento) return;
-
     const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
     const qtdInformadaNum = Number(qtdInformada);
     const diferencaComprimidos = Math.abs(idealRemaining - qtdInformadaNum);
     const diferencaEmDias = diferencaComprimidos / posologiaVigente;
-
     if (diferencaEmDias <= 2) {
       setNivelAdesao('COMPLETAMENTE');
     } else if (diferencaEmDias <= 6) {
@@ -320,34 +284,49 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   useEffect(() => {
     if (qtdInformada !== '') {
       let daysToAdd = 30;
-
       if (nivelAdesao === 'PARCIALMENTE') {
         daysToAdd = 15;
       } else if (nivelAdesao === 'NAO_ADERE') {
         daysToAdd = 7;
       }
-
       const date = new Date();
       date.setDate(date.getDate() + daysToAdd);
-
       const dayOfWeek = date.getDay();
       if (dayOfWeek === 6) {
         date.setDate(date.getDate() + 2);
       } else if (dayOfWeek === 0) {
         date.setDate(date.getDate() + 1);
       }
-
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
-
       setDataAbertura(`${year}-${month}-${day}`);
     } else {
       setDataAbertura('');
     }
   }, [qtdInformada, nivelAdesao]);
 
+  const pacienteIdAtual = localMonitoramento?.paciente_id || localMonitoramento?.paciente?.id;
+  const { bloqueio: bloqueioEdicao } = useReservaEdicaoPaciente(pacienteIdAtual, isOpen && !!localMonitoramento?.id);
+
   if (!isOpen || !localMonitoramento) return null;
+
+  if (bloqueioEdicao) {
+    return (
+      <ModalOverlay>
+        <ModalContent style={{ maxWidth: '500px', margin: 'auto', textAlign: 'center' }}>
+          <h3>⏳ Paciente em Atendimento</h3>
+          <p style={{ margin: '15px 0' }}>
+            Este paciente já está sendo atendido por <strong>{bloqueioEdicao.usuario}</strong>.
+          </p>
+          <p style={{ opacity: 0.8, fontSize: '0.9rem' }}>Tente novamente em alguns minutos.</p>
+          <ButtonGroup style={{ marginTop: '20px', justifyContent: 'center' }}>
+            <Button type="button" variant="secondary" onClick={onClose}>Fechar</Button>
+          </ButtonGroup>
+        </ModalContent>
+      </ModalOverlay>
+    );
+  }
 
   if (showNpsPrompt) {
     return (
@@ -368,23 +347,19 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           <p style={{ marginBottom: '20px', lineHeight: '1.5' }}>
             O sistema externo relata que houve uma modificação nos dados do fornecimento atual (Evento: <strong>{localMonitoramento?.evento_externo_id}</strong>). Você deseja aplicar essa atualização antes de continuar o registro?
           </p>
-
           <InfoBox style={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #ffeeba', color: '#856404' }}>
             <div style={{ marginBottom: '10px' }}>
               <span style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold', opacity: 0.7 }}>Informação Anterior (Local)</span>
               <p style={{ margin: '5px 0 0 0' }}>💊 {syncPrompt.medicamentoAntigo}</p>
               <p style={{ margin: 0, fontSize: '0.9em' }}>📦 {syncPrompt.qtdCaixasAntiga} caixa(s)</p>
             </div>
-
             <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', margin: '10px 0' }}></div>
-
             <div>
               <span style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold', opacity: 0.7 }}>Informação Atualizada (Externa)</span>
               <p style={{ margin: '5px 0 0 0' }}>💊 <strong>{syncPrompt.medicamentoNovo}</strong></p>
               <p style={{ margin: 0, fontSize: '0.9em' }}>📦 <strong>{syncPrompt.qtdCaixasNova} caixa(s)</strong></p>
             </div>
           </InfoBox>
-
           <ButtonGroup style={{ marginTop: '30px' }}>
             <Button type="button" variant="secondary" onClick={handleIgnoreSync} disabled={loadingCompra}>
               Ignorar
@@ -398,61 +373,109 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     );
   }
 
-  const isPreMonitoramento = !monitoramentoAnterior && !localMonitoramento.data_administracao;
-
-  const handlePreMonitoramentoSuccess = (novaDataAdmin, novaDataFimCaixa) => {
-    setLocalMonitoramento(prev => ({
-      ...prev,
-      data_administracao: novaDataAdmin,
-      data_calculada_fim_caixa: novaDataFimCaixa
-    }));
-  };
-
-  if (isPreMonitoramento) {
+  // 👇 Etapa 1, sempre — modal pequeno e isolado, sem nenhum painel lateral.
+  if (etapa === 'CONTATO_EFETIVO') {
     return (
-      <PreMonitoramento
-        monitoramento={localMonitoramento}
-        onClose={onClose}
-        onSuccess={handlePreMonitoramentoSuccess}
+      <TentativaContatoModal
+        titulo={`Registrar Contato - ${localMonitoramento.paciente?.nome} ${localMonitoramento.paciente?.sobrenome} | ${localMonitoramento.evento_externo_id || ''}`}
+        onCancelar={onClose}
+        enviando={loading}
+        onContinuar={async (contatoEfetivoValue, motivoSelecionado) => {
+          if (contatoEfetivoValue === false) {
+            try {
+              setLoading(true);
+              await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}`, {
+                contato_efetivo: false,
+                nivel_adesao: 'NAO_ADERE',
+                qtd_informada_caixa: null,
+                data_abertura_nova_caixa: null,
+                descontinuar_medicamento: false,
+                motivo_encerramento: null,
+                is_reacao: null,
+                reacoes_adversas: [],
+                observacao: null,
+                aplicar_nova_compra: false,
+                dados_nova_compra: null,
+                data_inicio_nova_caixa: null,
+                posologia_nova_caixa: null,
+                mudou_posologia: false,
+                nova_posologia: null,
+                data_mudanca_posologia: null,
+                motivo_falha_contato_id: motivoSelecionado.value,
+                modo_novo_medicamento: null
+              });
+              toast.success('Contato registrado com sucesso!');
+              onSucesso();
+              window.dispatchEvent(new Event('updateAlerts'));
+              onClose();
+            } catch (error) {
+              toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
+            } finally {
+              setLoading(false);
+            }
+            return;
+          }
+          const precisaPreTele = !monitoramentoAnterior && !localMonitoramento.data_administracao;
+          setEtapa(precisaPreTele ? 'PRE_TELE' : 'FORMULARIO');
+        }}
       />
     );
   }
 
+  // 👇 Etapa opcional — pré-tele, só quando necessário.
+  if (etapa === 'PRE_TELE') {
+    return (
+      <PreMonitoramento
+        monitoramento={localMonitoramento}
+        onClose={onClose}
+        onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
+          setLocalMonitoramento(prev => ({
+            ...prev,
+            data_administracao: novaDataAdmin,
+            data_calculada_fim_caixa: novaDataFimCaixa
+          }));
+          setEtapa('FORMULARIO');
+        }}
+      />
+    );
+  }
+
+  // 👇 A partir daqui, etapa === 'FORMULARIO' garantido: contato já
+  // confirmado como efetivado, e pré-tele já resolvido se era necessário.
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const hojeDate = new Date();
     const dataHojeFormat = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
 
-    if (contatoEfetivo) {
-      if (!qtdInformada || !dataAbertura) {
-        toast.error('Preencha os dados da caixa do medicamento.');
+    if (!qtdInformada || (!descontinuarMedicamento && !dataAbertura)) {
+      toast.error('Preencha os dados da caixa do medicamento.');
+      return;
+    }
+    if (!descontinuarMedicamento && dataAbertura < dataHojeFormat) {
+      toast.error('A data do próximo contato não pode ser no passado.');
+      return;
+    }
+    if (descontinuarMedicamento && aplicarNovaCompra) {
+      toast.error('Não é possível descontinuar o medicamento e aplicar uma nova compra ao mesmo tempo.');
+      return;
+    }
+    if (aplicarNovaCompra) {
+      if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
+        toast.error('Data de início e posologia da nova caixa são obrigatórias.');
         return;
       }
-      if (dataAbertura < dataHojeFormat) {
-        toast.error('A data do próximo contato não pode ser no passado.');
+      if (dadosNovaCompra?.mudou_medicamento && dadosNovaCompra?.pode_ser_conjunto && !modoNovoMedicamento) {
+        toast.error('Selecione se deseja usar os medicamentos em conjunto ou substituir o medicamento atual.');
         return;
       }
-      if (aplicarNovaCompra) {
-        if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
-          toast.error('Data de início e posologia da nova caixa são obrigatórias.');
-          return;
-        }
+    }
+    if (mudouPosologia && !aplicarNovaCompra && !descontinuarMedicamento) {
+      if (!novaPosologia || !dataMudancaPosologia) {
+        toast.error('Preencha a nova dosagem e a data em que ela começou.');
+        return;
       }
-      if (mudouPosologia && !aplicarNovaCompra) {
-        if (!novaPosologia || !dataMudancaPosologia) {
-          toast.error('Preencha a nova dosagem e a data em que ela começou.');
-          return;
-        }
-        if (dataMudancaPosologia > dataHojeFormat) {
-           toast.error('A data da mudança de dosagem não pode ser no futuro.');
-           return;
-        }
-      }
-    } else {
-      // NOVA VALIDAÇÃO: Bloqueia envio se não escolher motivo da falha 👇
-      if (!motivoFalhaSelecionado) {
-        toast.error('Selecione o motivo pelo qual o contato não foi efetivado.');
+      if (dataMudancaPosologia > dataHojeFormat) {
+        toast.error('A data da mudança de dosagem não pode ser no futuro.');
         return;
       }
     }
@@ -460,34 +483,30 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     try {
       setLoading(true);
       const reacoesIds = reacoesSelecionadas ? reacoesSelecionadas.map(r => r.value) : [];
-
       await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}`, {
-        contato_efetivo: contatoEfetivo,
-        nivel_adesao: contatoEfetivo ? nivelAdesao : 'NAO_ADERE',
-        qtd_informada_caixa: contatoEfetivo ? Number(qtdInformada) : null,
-        data_abertura_nova_caixa: contatoEfetivo ? dataAbertura : null,
-        is_reacao: contatoEfetivo ? isReacao : null,
-        reacoes_adversas: contatoEfetivo && isReacao ? reacoesIds : [],
+        contato_efetivo: true,
+        nivel_adesao: nivelAdesao,
+        qtd_informada_caixa: Number(qtdInformada),
+        data_abertura_nova_caixa: !descontinuarMedicamento ? dataAbertura : null,
+        descontinuar_medicamento: descontinuarMedicamento,
+        motivo_encerramento: descontinuarMedicamento ? (motivoEncerramento || null) : null,
+        is_reacao: isReacao,
+        reacoes_adversas: isReacao ? reacoesIds : [],
         observacao: observacao || null,
-
         aplicar_nova_compra: aplicarNovaCompra,
         dados_nova_compra: aplicarNovaCompra ? dadosNovaCompra : null,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
-        
         mudou_posologia: mudouPosologia,
         nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
         data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null,
-
-        // ENVIANDO O NOVO CAMPO PARA A API 👇
-        motivo_falha_contato_id: !contatoEfetivo ? motivoFalhaSelecionado.value : null
+        motivo_falha_contato_id: null,
+        modo_novo_medicamento: (aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) ? modoNovoMedicamento : null
       });
-
       toast.success('Contato registrado com sucesso!');
       onSucesso();
       window.dispatchEvent(new Event('updateAlerts'));
       setShowNpsPrompt(true);
-
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
     } finally {
@@ -497,41 +516,27 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   const scoreAtual = localMonitoramento.avaliacao?.total_score;
   const adInfo = getAdherenceClassification(scoreAtual);
-
   const hojeDate = new Date();
   const dataHoje = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
-
   const opcoesReacoes = listaReacoes.map(reacao => ({
     value: reacao.id,
     label: reacao.name
   }));
-
-  // Formatando opções de motivos para o React-Select 👇
-  const opcoesMotivosFalha = listaMotivosFalha.map(motivo => ({
-    value: motivo.id,
-    label: motivo.descricao
-  }));
-
   let dataMaxMudanca = dataHoje;
   let dataMinMudanca = localMonitoramento?.data_administracao?.split('T')[0] || '';
 
   return (
-    <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}> 
+    <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
       <ModalLayoutWrapper>
-        
-        {/* COLUNA ESQUERDA */}
         <div className="left-column">
           {monitoramentoAnterior && (
             <ResumoAnterior monitoramento={monitoramentoAnterior} />
           )}
           <HistoricoComprasPaciente monitoramento={localMonitoramento} />
         </div>
-
-        {/* COLUNA CENTRAL */}
         <div className="center-column">
           <ModalContent style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
             <h3>Registrar Contato - {localMonitoramento.paciente?.nome} {localMonitoramento.paciente?.sobrenome} | {localMonitoramento.evento_externo_id} </h3>
-
             {loadingCompra ? (
               <SkeletonLoader>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
@@ -554,24 +559,22 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
                 dataInicioAtual={dataUsoReferencia}
                 isAntesDoInicio={isAntesDoInicio}
+                modoNovoMedicamento={modoNovoMedicamento}
+                onChangeModoNovoMedicamento={setModoNovoMedicamento}
               />
             )}
-
             <InfoBox>
               <p><strong>Medicamento Atual:</strong> {localMonitoramento.medicamento?.nome}</p>
-              
               {localMonitoramento.mudou_posologia && (
-                 <span style={{ display:'inline-block', backgroundColor: '#e2e3e5', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 'bold', marginBottom: '5px' }}>
-                   ⚠️ Veio de Mudança de Posologia ({localMonitoramento.posologia_diaria} cp/dia)
-                 </span>
+                <span style={{ display: 'inline-block', backgroundColor: '#e2e3e5', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8em', fontWeight: 'bold', marginBottom: '5px' }}>
+                  ⚠️ Veio de Mudança de Posologia ({localMonitoramento.posologia_diaria} cp/dia)
+                </span>
               )}
-
               <p className="sub-text">
                 Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
               </p>
-
               <ProjectedStockBox>
-                {aplicarNovaCompra && (
+                {aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' && (
                   <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed rgba(0,0,0,0.1)', opacity: 0.7 }}>
                     <p style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold' }}>Ciclo Anterior</p>
                     <p style={{ marginBottom: '4px', fontSize: '0.85em', textDecoration: 'line-through' }}>
@@ -582,29 +585,25 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                     </p>
                   </div>
                 )}
-
                 <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
-                  <strong>{aplicarNovaCompra ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
+                  <strong>{aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
                 </p>
                 <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
                   <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
                 </p>
-
                 <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
                   Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
                 </p>
                 <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
                   (Margem aceitável calculada: {margemMin} a {margemMax})
                 </p>
-                
                 {mudouPosologia && !aplicarNovaCompra && (
-                   <PosologiaChangeAlert>
-                     <strong>Matemática Reajustada:</strong>
-                     <span>Cálculo quebrado considerando a data de transição para a nova dosagem prescrita.</span>
-                   </PosologiaChangeAlert>
+                  <PosologiaChangeAlert>
+                    <strong>Matemática Reajustada:</strong>
+                    <span>Cálculo quebrado considerando a data de transição para a nova dosagem prescrita.</span>
+                  </PosologiaChangeAlert>
                 )}
               </ProjectedStockBox>
-
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <strong>Score Atual:</strong> {scoreAtual != null ? `${scoreAtual} pts` : '-'}
                 {scoreAtual != null && (
@@ -614,146 +613,135 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 )}
               </div>
             </InfoBox>
-
             <form onSubmit={handleSubmit}>
+              {!aplicarNovaCompra && !descontinuarMedicamento && (
+                <HighlightedSection>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={mudouPosologia}
+                      onChange={(e) => {
+                        setMudouPosologia(e.target.checked);
+                        if (!e.target.checked) {
+                          setNovaPosologia('');
+                          setDataMudancaPosologia('');
+                        }
+                      }}
+                    />
+                    <strong>Houve alteração da posologia (dosagem) no meio deste ciclo?</strong>
+                  </label>
+                  {mudouPosologia && (
+                    <div className="inputs-row">
+                      <div className="input-group">
+                        <label>Nova Posologia (comprimidos/dia):</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={novaPosologia}
+                          onChange={(e) => setNovaPosologia(e.target.value)}
+                          required={mudouPosologia}
+                          placeholder="Ex: 2"
+                        />
+                      </div>
+                      <div className="input-group">
+                        <label>A partir de que dia começou a tomar a nova dose?</label>
+                        <Input
+                          type="date"
+                          max={dataMaxMudanca}
+                          min={dataMinMudanca}
+                          value={dataMudancaPosologia}
+                          onChange={(e) => setDataMudancaPosologia(e.target.value)}
+                          required={mudouPosologia}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </HighlightedSection>
+              )}
+              {!aplicarNovaCompra && (
+                <HighlightedSection>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={descontinuarMedicamento}
+                      onChange={(e) => {
+                        setDescontinuarMedicamento(e.target.checked);
+                        if (e.target.checked) {
+                          setDataAbertura('');
+                          setMudouPosologia(false);
+                          setNovaPosologia('');
+                          setDataMudancaPosologia('');
+                        }
+                      }}
+                    />
+                    <strong>Paciente descontinuou este medicamento (encerrar acompanhamento)</strong>
+                  </label>
+                  {descontinuarMedicamento && (
+                    <div className="inputs-row">
+                      <div className="input-group" style={{ flex: 1 }}>
+                        <label>Motivo do encerramento (opcional):</label>
+                        <Input
+                          as="textarea"
+                          rows="2"
+                          value={motivoEncerramento}
+                          onChange={(e) => setMotivoEncerramento(e.target.value)}
+                          placeholder="Ex: efeito colateral, decisão médica, tratamento concluído..."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </HighlightedSection>
+              )}
               <FormGroup>
-                <label>O contato foi efetivado com sucesso?</label>
+                <label>Quantos comprimidos restam com o paciente no total?</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={qtdInformada}
+                  onChange={(e) => setQtdInformada(e.target.value)}
+                  placeholder="Ex: 45"
+                  required
+                />
+              </FormGroup>
+              <FormGroup>
+                <label>O quanto ele adere? (Calculado automaticamente)</label>
+                <Input as="select" value={nivelAdesao} disabled required>
+                  <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
+                  <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
+                  <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
+                </Input>
+              </FormGroup>
+              <FormGroup>
+                <label>O paciente relatou alguma reação adversa?</label>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                    <input type="radio" checked={contatoEfetivo === true} onChange={() => { setContatoEfetivo(true); setMotivoFalhaSelecionado(null); }} /> Sim
+                    <input type="radio" checked={isReacao === true} onChange={() => setIsReacao(true)} /> Sim
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                    <input type="radio" checked={contatoEfetivo === false} onChange={() => setContatoEfetivo(false)} /> Não (Paciente não atendeu/ausente)
+                    <input type="radio" checked={isReacao === false} onChange={() => { setIsReacao(false); setReacoesSelecionadas([]); }} /> Não
                   </label>
                 </div>
               </FormGroup>
-
-              {/* CONDIÇÃO NOVA: SE O CONTATO NÃO FOI EFETIVO 👇 */}
-              {!contatoEfetivo && (
-                <FormGroup style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #ffeeba' }}>
-                  <label style={{ color: '#856404' }}>Qual o motivo da falha no contato?</label>
+              {isReacao && (
+                <FormGroup>
+                  <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
                   <Select
-                    options={opcoesMotivosFalha}
-                    value={motivoFalhaSelecionado}
-                    onChange={setMotivoFalhaSelecionado}
+                    isMulti
+                    options={opcoesReacoes}
+                    value={reacoesSelecionadas}
+                    onChange={setReacoesSelecionadas}
                     styles={getCustomSelectStyles(theme)}
-                    placeholder="Selecione o motivo..."
-                    noOptionsMessage={() => "Nenhum motivo encontrado"}
-                    menuPosition="fixed"
+                    placeholder="Selecione as reações..."
+                    noOptionsMessage={() => "Nenhuma reação encontrada"}
                   />
                 </FormGroup>
               )}
-
-              {/* O RESTANTE DO FORM SÓ APARECE SE O CONTATO FOI EFETIVO */}
-              {contatoEfetivo && (
-                <>
-                  {!aplicarNovaCompra && (
-                    <HighlightedSection>
-                      <label className="checkbox-label">
-                        <input 
-                          type="checkbox" 
-                          checked={mudouPosologia} 
-                          onChange={(e) => {
-                            setMudouPosologia(e.target.checked);
-                            if(!e.target.checked) {
-                              setNovaPosologia('');
-                              setDataMudancaPosologia('');
-                            }
-                          }} 
-                        />
-                        <strong>Houve alteração da posologia (dosagem) no meio deste ciclo?</strong>
-                      </label>
-                      
-                      {mudouPosologia && (
-                        <div className="inputs-row">
-                           <div className="input-group">
-                             <label>Nova Posologia (comprimidos/dia):</label>
-                             <Input 
-                                type="number" 
-                                min="1" 
-                                value={novaPosologia}
-                                onChange={(e) => setNovaPosologia(e.target.value)}
-                                required={mudouPosologia}
-                                placeholder="Ex: 2"
-                             />
-                           </div>
-                           <div className="input-group">
-                             <label>A partir de que dia começou a tomar a nova dose?</label>
-                             <Input 
-                                type="date" 
-                                max={dataMaxMudanca}
-                                min={dataMinMudanca}
-                                value={dataMudancaPosologia}
-                                onChange={(e) => setDataMudancaPosologia(e.target.value)}
-                                required={mudouPosologia}
-                             />
-                           </div>
-                        </div>
-                      )}
-                    </HighlightedSection>
-                  )}
-
-                  <FormGroup>
-                    <label>Quantos comprimidos restam com o paciente no total?</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={qtdInformada}
-                      onChange={(e) => setQtdInformada(e.target.value)}
-                      placeholder="Ex: 45"
-                      required
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <label>O quanto ele adere? (Calculado automaticamente)</label>
-                    <Input as="select" value={nivelAdesao} disabled required>
-                      <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
-                      <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
-                      <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
-                    </Input>
-                  </FormGroup>
-
-                  <FormGroup>
-                    <label>O paciente relatou alguma reação adversa?</label>
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                        <input type="radio" checked={isReacao === true} onChange={() => setIsReacao(true)} /> Sim
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'normal' }}>
-                        <input type="radio" checked={isReacao === false} onChange={() => { setIsReacao(false); setReacoesSelecionadas([]); }} /> Não
-                      </label>
-                    </div>
-                  </FormGroup>
-
-                  {isReacao && (
-                    <FormGroup>
-                      <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
-                      <Select
-                        isMulti
-                        options={opcoesReacoes}
-                        value={reacoesSelecionadas}
-                        onChange={setReacoesSelecionadas}
-                        styles={getCustomSelectStyles(theme)}
-                        placeholder="Selecione as reações..."
-                        noOptionsMessage={() => "Nenhuma reação encontrada"}
-                      />
-                    </FormGroup>
-                  )}
-
-                  <FormGroup>
-                    <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
-                    <Input
-                      type="date"
-                      min={dataHoje}
-                      value={dataAbertura}
-                      onChange={(e) => setDataAbertura(e.target.value)}
-                      required
-                    />
-                  </FormGroup>
-                </>
+              {!descontinuarMedicamento && (
+                <FormGroup>
+                  <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
+                  <Input type="date" min={dataHoje} value={dataAbertura} onChange={(e) => setDataAbertura(e.target.value)} required />
+                </FormGroup>
               )}
-
               <FormGroup>
                 <label>Observação (Opcional)</label>
                 <Input
@@ -761,11 +749,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   rows="3"
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
-                  placeholder={contatoEfetivo ? "Descreva aqui informações em relação aos comprimidos do paciente" : "Detalhe aqui o que aconteceu na tentativa de contato"}
+                  placeholder="Descreva aqui informações em relação aos comprimidos do paciente"
                   style={{ resize: 'vertical', padding: '10px' }}
                 />
               </FormGroup>
-
               <ButtonGroup>
                 <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
                 <Button type="submit" disabled={loading}>
@@ -775,12 +762,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             </form>
           </ModalContent>
         </div>
-
-        {/* COLUNA DIREITA */}
         <div className="right-column">
           <HistoricoAberturas monitoramento={localMonitoramento} />
         </div>
-
       </ModalLayoutWrapper>
     </ModalOverlay>
   );

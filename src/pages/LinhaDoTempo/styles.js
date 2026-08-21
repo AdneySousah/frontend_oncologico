@@ -160,6 +160,13 @@ export const TimelineItem = styled.div`
   }
 `;
 
+
+const corPorTipoTimeline = ({ theme, $type }) => {
+  if ($type === 'entrevista') return theme.colors.primary;
+  if ($type === 'descontinuado') return '#e53935';
+  return '#28a745';
+};
+
 export const TimelineDot = styled.div`
   position: absolute;
   left: 0;
@@ -167,26 +174,25 @@ export const TimelineDot = styled.div`
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background-color: ${({ theme, $type }) => $type === 'entrevista' ? theme.colors.primary : '#28a745'};
+  background-color: ${corPorTipoTimeline};
   border: 3px solid ${({ theme }) => theme.colors.surface};
-  box-shadow: 0 0 0 2px ${({ theme, $type }) => $type === 'entrevista' ? theme.colors.primary : '#28a745'}40;
+  box-shadow: 0 0 0 2px ${corPorTipoTimeline}40;
   z-index: 1;
 `;
+
 
 export const TimelineContent = styled.div`
   display: flex;
   flex-direction: column;
-  background: ${({ theme }) => theme.colors.background};
+  background: ${({ theme, $isDescontinuado }) => $isDescontinuado ? 'rgba(229, 57, 53, 0.1)' : theme.colors.background};
   padding: 12px 16px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-
+  border: 1px solid ${({ theme, $isDescontinuado }) => $isDescontinuado ? 'rgba(229, 57, 53, 0.4)' : theme.colors.border};
   strong {
-    color: ${({ theme }) => theme.colors.text};
+    color: ${({ theme, $isDescontinuado }) => $isDescontinuado ? '#c0392b' : theme.colors.text};
     font-size: 1rem;
     margin-bottom: 4px;
   }
-
   span {
     color: ${({ theme }) => theme.colors.textLight};
     font-size: 0.85rem;

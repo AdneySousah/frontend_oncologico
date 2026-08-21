@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 // IMPORTANTE: Ajuste o caminho abaixo conforme a estrutura de pastas do seu projeto
-import { exportToXLSX } from '../../utils/exportExcel'; 
+import { exportToXLSX } from '../../utils/exportExcel';
 import {
     Container,
     Section,
@@ -27,10 +27,10 @@ export default function TimelinePacientes() {
     const [loading, setLoading] = useState(true);
 
     // --- ESTADOS PARA BUSCA E PAGINAÇÃO ---
-    const [searchInput, setSearchInput] = useState(''); 
-    const [termoBusca, setTermoBusca] = useState('');   
+    const [searchInput, setSearchInput] = useState('');
+    const [termoBusca, setTermoBusca] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10; 
+    const itemsPerPage = 10;
 
     useEffect(() => {
         async function fetchData() {
@@ -72,9 +72,10 @@ export default function TimelinePacientes() {
                 });
 
                 // 2. Processar Monitoramentos (Contatos Realizados e Futuros)
+                // DEPOIS
                 monitoramentos.forEach(mon => {
                     const pacId = mon.paciente ? mon.paciente.id : mon.paciente_id;
-                    
+
                     if (!grupos[pacId]) {
                         grupos[pacId] = {
                             id: pacId,
@@ -85,19 +86,25 @@ export default function TimelinePacientes() {
                             timeline: []
                         };
                     }
-
                     const isFuturo = mon.status === 'PENDENTE';
-                    
+
+                    const isDescontinuado = mon.status === 'DESCONTINUADO';
+
                     grupos[pacId].timeline.push({
                         id: `mon-${mon.id}`,
-                        tipo: 'monitoramento',
-                        titulo: isFuturo ? `Próximo Contato Agendado` : `Monitoramento Realizado`,
-                        data: isFuturo ? mon.data_proximo_contato : mon.updatedAt,
-                        detalhe: `Medicamento: ${mon.medicamento?.nome || 'N/I'} | Posologia: ${mon.posologia_diaria || '-'}`,
+                        tipo: isDescontinuado ? 'descontinuado' : 'monitoramento',
+                        titulo: isDescontinuado
+                            ? `Medicamento Descontinuado: ${mon.medicamento?.nome || 'N/I'}`
+                            : (isFuturo ? `Próximo Contato Agendado` : `Monitoramento Realizado`),
+                        data: isFuturo
+                            ? mon.data_proximo_contato
+                            : (isDescontinuado ? (mon.data_telemonitoramento_efetivado || mon.updatedAt) : mon.updatedAt),
+                        detalhe: isDescontinuado
+                            ? `Medicamento: ${mon.medicamento?.nome || 'N/I'} | Motivo: ${mon.motivo_encerramento || 'Não informado'}`
+                            : `Medicamento: ${mon.medicamento?.nome || 'N/I'} | Posologia: ${mon.posologia_diaria || '-'}`,
                         status: mon.status
                     });
                 });
-
                 const listaFinal = Object.values(grupos).map(pac => {
                     pac.timeline.sort((a, b) => new Date(a.data) - new Date(b.data));
                     return pac;
@@ -124,7 +131,7 @@ export default function TimelinePacientes() {
         if (!dataString) return '-';
         const isApenasData = dataString.length === 10;
         const data = isApenasData ? new Date(`${dataString}T12:00:00`) : new Date(dataString);
-        
+
         return new Intl.DateTimeFormat('pt-BR', {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: isApenasData ? undefined : '2-digit',
@@ -141,7 +148,7 @@ export default function TimelinePacientes() {
         const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
         const dataEvento = new Date(data.getFullYear(), data.getMonth(), data.getDate());
         const diffTime = dataEvento - hoje;
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
         const horaFormatada = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(data);
         const dataCurta = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(data);
@@ -216,7 +223,7 @@ export default function TimelinePacientes() {
     // --- PAGINAÇÃO ---
     const totalPages = Math.ceil(pacientesFiltrados.length / itemsPerPage);
     const pacientesAtuais = pacientesFiltrados.slice(
-        (currentPage - 1) * itemsPerPage, 
+        (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
 
@@ -284,7 +291,7 @@ export default function TimelinePacientes() {
                                                         {/* --- CÉLULA DE EVENTOS ATUALIZADA COM BOTÃO --- */}
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                             <span>{paciente.timeline.length} registro(s)</span>
-                                                            <ExportButton 
+                                                            <ExportButton
                                                                 onClick={(e) => handleExportarExcel(e, paciente)}
                                                                 title="Baixar linha do tempo em Excel"
                                                             >
@@ -305,20 +312,23 @@ export default function TimelinePacientes() {
                                                                 {paciente.timeline.length === 0 ? (
                                                                     <p style={{ padding: '20px', color: '#888' }}>Sem eventos registrados.</p>
                                                                 ) : (
+                                                                    // DEPOIS
                                                                     paciente.timeline.map((evento, index) => {
                                                                         const isUltimo = index === paciente.timeline.length - 1;
-                                                                        const isFuturo = new Date(evento.data) > new Date();
-
+                                                                        const isDescontinuado = evento.status === 'DESCONTINUADO';
+                                                                        const isFuturo = !isDescontinuado && new Date(evento.data) > new Date();
                                                                         return (
                                                                             <TimelineItem key={evento.id}>
-                                                                                <TimelineDot 
-                                                                                    $type={evento.tipo} 
+                                                                                <TimelineDot
+                                                                                    $type={evento.tipo}
                                                                                     $isCurrent={isUltimo}
                                                                                     style={isFuturo ? { backgroundColor: '#ffa000' } : {}}
                                                                                 />
-                                                                                <TimelineContent $isCurrent={isUltimo}>
+                                                                                <TimelineContent $isCurrent={isUltimo} $isDescontinuado={isDescontinuado}>
                                                                                     <strong>
-                                                                                        {evento.titulo} {isFuturo && <small style={{color: '#ef6c00'}}> (AGENDADO)</small>}
+                                                                                        {evento.titulo}
+                                                                                        {isFuturo && <small style={{ color: '#ef6c00' }}> (AGENDADO)</small>}
+                                                                                        {isDescontinuado && <small style={{ color: '#c0392b' }}> (ENCERRADO)</small>}
                                                                                     </strong>
                                                                                     <span>{formatarDataAmigavel(evento.data)} • {evento.detalhe}</span>
                                                                                 </TimelineContent>
@@ -338,20 +348,20 @@ export default function TimelinePacientes() {
 
                             {totalPages > 1 && (
                                 <PaginationContainer>
-                                    <PageButton 
+                                    <PageButton
                                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                         disabled={currentPage === 1}
                                     >Anterior</PageButton>
-                                    
+
                                     {Array.from({ length: totalPages }, (_, i) => (
-                                        <PageButton 
-                                            key={i} 
+                                        <PageButton
+                                            key={i}
                                             $active={currentPage === i + 1}
                                             onClick={() => setCurrentPage(i + 1)}
                                         >{i + 1}</PageButton>
                                     ))}
 
-                                    <PageButton 
+                                    <PageButton
                                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                         disabled={currentPage === totalPages}
                                     >Próxima</PageButton>

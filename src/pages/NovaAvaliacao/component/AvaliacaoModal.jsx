@@ -17,10 +17,17 @@ export default function AvaliacaoModal({
 }) {
   const [modalStep, setModalStep] = useState('success');
   const [loadingMonitoramento, setLoadingMonitoramento] = useState(false);
+  // 👇 NOVO: medicamentos realmente ativos do paciente (1 ou 2), vindos do
+  // backend (derivados dos EventosPaciente). pacienteData.medicamento sozinho
+  // não é suficiente — ele só reflete UM medicamento, mesmo quando o paciente
+  // tem dois em uso simultâneo.
+  const [medicamentosAtivos, setMedicamentosAtivos] = useState(null);
+  const [loadingMedicamentos, setLoadingMedicamentos] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setModalStep('success');
+      setMedicamentosAtivos(null);
     }
   }, [isOpen, pacienteData]);
 
@@ -50,12 +57,31 @@ export default function AvaliacaoModal({
     }
   };
 
+  // 👇 NOVO: busca os medicamentos ativos antes de abrir a etapa de
+  // configuração. Sem isso, ConfiguracaoUsoContinuo nunca recebe o array
+  // paciente.medicamentos e cai sempre no fallback de medicamento único.
+  const buscarMedicamentosAtivosEAvancar = async () => {
+    setLoadingMedicamentos(true);
+    try {
+      const response = await api.get(`/pacientes/${pacienteId}/medicamentos-ativos`);
+      setMedicamentosAtivos(response.data.medicamentos || []);
+    } catch (error) {
+      toast.error('Erro ao buscar medicamentos ativos do paciente.');
+      // Fallback defensivo: segue com o medicamento único já disponível,
+      // pra não travar o fluxo caso o endpoint novo falhe.
+      setMedicamentosAtivos(pacienteData?.medicamento ? [pacienteData.medicamento] : []);
+    } finally {
+      setLoadingMedicamentos(false);
+      setModalStep('medicamentos');
+    }
+  };
+
   const handleAvancarParaMedicamentos = () => {
     if (pacienteData?.medicamento) {
       if (!requireMedicationSetup) {
         handleUpdateSilencioso();
       } else {
-        setModalStep('medicamentos');
+        buscarMedicamentosAtivosEAvancar();
       }
     } else {
       setModalStep('nextTemplate');
@@ -80,15 +106,15 @@ export default function AvaliacaoModal({
                 O paciente <strong>{pacienteData?.nome}</strong> possui tendência de <strong style={{ color: adInfo.textColor }}>{adInfo.label}</strong>.
               </p>
             </div>
-            <Button style={{ marginTop: '25px', width: '100%' }} onClick={handleAvancarParaMedicamentos} disabled={loadingMonitoramento}>
-              {loadingMonitoramento ? 'Processando...' : 'Continuar'}
+            <Button style={{ marginTop: '25px', width: '100%' }} onClick={handleAvancarParaMedicamentos} disabled={loadingMonitoramento || loadingMedicamentos}>
+              {(loadingMonitoramento || loadingMedicamentos) ? 'Processando...' : 'Continuar'}
             </Button>
           </>
         )}
 
         {modalStep === 'medicamentos' && pacienteData?.medicamento && (
           <ConfiguracaoUsoContinuo
-            paciente={pacienteData}
+            paciente={{ ...pacienteData, medicamentos: medicamentosAtivos || [] }}
             evaluationId={evaluationId}
             showUsoToggle={false} // Nesta tela não precisa perguntar se usa/não usa
             showCancelButton={false} // Confirma direto

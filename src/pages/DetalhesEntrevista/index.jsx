@@ -3,42 +3,38 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import * as S from './styles';
-
 import EvaluationModal from './components/EvaluationModal';
 import TermoModal from './components/TermoModal';
 import FilterBar from './components/FilterBar';
 import Pagination from './components/Pagination';
-
 import { LuArrowUpDown, LuEye, LuRefreshCw } from "react-icons/lu";
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
   const [sortOrder, setSortOrder] = useState('desc');
-
   const [selectedPaciente, setSelectedPaciente] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-
   const [termoModalOpen, setTermoModalOpen] = useState(false);
   const [pacienteParaTermo, setPacienteParaTermo] = useState(null);
   const [termoStartWaiting, setTermoStartWaiting] = useState(false);
-
   const [pendentesSync, setPendentesSync] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCheckingSync, setIsCheckingSync] = useState(true);
-
   const [operadoras, setOperadoras] = useState([]);
-  
+  // 👇 NOVO: controla qual paciente está sendo sincronizado individualmente
+  // no momento (usado pra desabilitar/trocar o texto do botão daquela linha)
+  const [syncingPacienteId, setSyncingPacienteId] = useState(null);
+
   // Array de IDs em Segundo Plano
   const [emSegundoPlanoIds, setEmSegundoPlanoIds] = useState([]);
-
   const [filters, setFilters] = useState({
     buscaGeral: '',
     cuidador: '',
     telefone: '',
-    operadora: '', 
-    statusTermo: 'Pendente' 
+    operadora: '',
+    statusTermo: 'Pendente'
   });
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -67,14 +63,16 @@ export default function ListaEntrevistas() {
     try {
       const res = await api.get('/evaluations/responses');
       setPacientesNavegacao(res.data);
+      return res.data;
     } catch (error) {
       console.error("Erro ao buscar dados locais", error);
+      return [];
     }
   };
 
   const loadOperadoras = async () => {
     try {
-      const res = await api.get('/operadoras'); 
+      const res = await api.get('/operadoras');
       setOperadoras(res.data || []);
     } catch (error) {
       console.error("Erro ao buscar operadoras", error);
@@ -95,31 +93,28 @@ export default function ListaEntrevistas() {
 
   useEffect(() => {
     loadLocalData();
-    loadOperadoras(); 
+    loadOperadoras();
     checkSyncStatus();
   }, []);
 
   // POLLING DE 2º PLANO
   useEffect(() => {
     if (emSegundoPlanoIds.length === 0) return;
-
     const interval = setInterval(async () => {
       let requiresUpdate = false;
       let currentMailbox = JSON.parse(localStorage.getItem('oncologico:mailbox') || '[]');
       let hasNewMail = false;
-      
+
       for (const id of emSegundoPlanoIds) {
         try {
           const res = await api.get(`/termos/paciente/${id}/status`);
           const statusAtual = res.data.status_termo;
-
           if (statusAtual === 'Aceito' || statusAtual === 'Recusado') {
             const pacienteDetalhe = pacientesNavegacao.find(p => p.id === id);
             const nomeCompleto = pacienteDetalhe ? `${pacienteDetalhe.nome} ${pacienteDetalhe.sobrenome}` : `Paciente #${id}`;
-
             if (statusAtual === 'Aceito') {
               toast.info(`O paciente ${nomeCompleto} aceitou o termo! Verifique a sua caixa de entrada flutuante.`, { autoClose: 7000 });
-              
+
               if (!currentMailbox.some(m => m.id === id)) {
                 currentMailbox.push({ id, nome: nomeCompleto, data: new Date().toISOString() });
                 hasNewMail = true;
@@ -127,7 +122,7 @@ export default function ListaEntrevistas() {
             } else {
               toast.error(`Atenção: O paciente ${nomeCompleto} RECUSOU o termo.`, { autoClose: 7000 });
             }
-            
+
             setEmSegundoPlanoIds(prev => prev.filter(pid => pid !== id));
             requiresUpdate = true;
           }
@@ -135,17 +130,14 @@ export default function ListaEntrevistas() {
           console.error(`Erro no polling de segundo plano para o ID ${id}`, error);
         }
       }
-
       if (hasNewMail) {
         localStorage.setItem('oncologico:mailbox', JSON.stringify(currentMailbox));
         window.dispatchEvent(new Event('updateMailbox'));
       }
-
       if (requiresUpdate) {
         loadLocalData();
       }
     }, 10000);
-
     return () => clearInterval(interval);
   }, [emSegundoPlanoIds, pacientesNavegacao]);
 
@@ -182,8 +174,47 @@ export default function ListaEntrevistas() {
     const updatedMailbox = currentMailbox.filter(m => m.id !== id);
     localStorage.setItem('oncologico:mailbox', JSON.stringify(updatedMailbox));
     window.dispatchEvent(new Event('updateMailbox'));
-    
+
     navigate(`/avaliacao/new?paciente_id=${id}`);
+  };
+
+  // ==========================================================
+  // 👇 NOVO: sincroniza APENAS este paciente com o sistema externo, buscando
+  // eventos criados desde a última sincronização geral (ex: um segundo
+  // medicamento adicionado hoje). Muito mais rápido que o sync completo,
+  // por isso pode rodar toda vez que o atendente abre um paciente, sem
+  // depender de alguém lembrar de clicar em "Sincronizar".
+  // ==========================================================
+  const sincronizarPacienteIndividual = async (pacienteId) => {
+    try {
+      setSyncingPacienteId(pacienteId);
+      await api.post(`/pacientes/${pacienteId}/sync-individual`);
+      const dadosAtualizados = await loadLocalData();
+      return dadosAtualizados.find(p => p.id === pacienteId) || null;
+    } catch (error) {
+      console.error('Erro ao sincronizar paciente individualmente:', error);
+      toast.warning('Não foi possível verificar atualizações recentes deste paciente. Os dados exibidos podem estar desatualizados.', { autoClose: 5000 });
+      return null;
+    } finally {
+      setSyncingPacienteId(null);
+    }
+  };
+
+  const handleAcaoPaciente = async (paciente) => {
+    const statusTermo = paciente.status_termo || 'Pendente';
+    const isEmSegundoPlano = emSegundoPlanoIds.includes(paciente.id);
+
+    const pacienteAtualizado = await sincronizarPacienteIndividual(paciente.id);
+    // Fallback defensivo: se a sincronização falhar, segue com os dados que já tínhamos
+    const pacienteParaUsar = pacienteAtualizado || paciente;
+
+    if (statusTermo !== 'Aceito') {
+      setPacienteParaTermo(pacienteParaUsar);
+      setTermoStartWaiting(isEmSegundoPlano);
+      setTermoModalOpen(true);
+    } else {
+      handleStartAvaliacao(pacienteParaUsar.id);
+    }
   };
 
   const termoCounts = useMemo(() => {
@@ -191,33 +222,28 @@ export default function ListaEntrevistas() {
     if (!isMaster && nomeOperadoraUsuario) {
       baseData = baseData.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
-
     const counts = { Aceito: 0, Recusado: 0, Pendente: 0, Todos: baseData.length, SegundoPlano: 0 };
-    
+
     baseData.forEach(p => {
       const status = p.status_termo || 'Pendente';
       if (counts[status] !== undefined) counts[status]++;
       else counts['Pendente']++;
-      
+
       if (emSegundoPlanoIds.includes(p.id)) counts.SegundoPlano++;
     });
-
     return counts;
   }, [pacientesNavegacao, isMaster, nomeOperadoraUsuario, emSegundoPlanoIds]);
 
   const filteredAndSortedPacientes = useMemo(() => {
     let result = [...pacientesNavegacao];
-
     if (!isMaster && nomeOperadoraUsuario) {
       result = result.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
-
     if (filters.statusTermo === 'SegundoPlano') {
       result = result.filter(p => emSegundoPlanoIds.includes(p.id));
     } else if (filters.statusTermo && filters.statusTermo !== 'Todos') {
       result = result.filter(p => (p.status_termo || 'Pendente') === filters.statusTermo);
     }
-
     // CORREÇÃO APLICADA AQUI: Busca agora junta nome e sobrenome antes de comparar
     if (filters.buscaGeral) {
       const termo = filters.buscaGeral.toLowerCase();
@@ -226,12 +252,10 @@ export default function ListaEntrevistas() {
         return nomeCompleto.includes(termo) || p.cpf?.includes(termo);
       });
     }
-
     if (filters.cuidador) {
       const termo = filters.cuidador.toLowerCase();
       result = result.filter(p => p.nome_cuidador?.toLowerCase().includes(termo));
     }
-
     if (filters.telefone) {
       const termo = filters.telefone.replace(/\D/g, '');
       result = result.filter(p => {
@@ -240,11 +264,9 @@ export default function ListaEntrevistas() {
         return cel.includes(termo) || tel.includes(termo);
       });
     }
-
     if (filters.operadora) {
       result = result.filter(p => p.operadoras?.nome === filters.operadora);
     }
-
     return result.sort((a, b) => {
       const priceA = Number(a.price) || 0;
       const priceB = Number(b.price) || 0;
@@ -273,7 +295,6 @@ export default function ListaEntrevistas() {
           <h1>Navegação de Pacientes</h1>
           <p>Monitore o status das avaliações oncológicas diretas e priorize os atendimentos de alto custo.</p>
         </div>
-
         <S.SyncPanel>
           {isCheckingSync ? (
             <span className="status-text checking">🔄 Verificando novos pacientes...</span>
@@ -282,7 +303,6 @@ export default function ListaEntrevistas() {
           ) : (
             <span className="status-text synced">✅ Banco atualizado.</span>
           )}
-
           <S.ActionButton
             className="sync-btn"
             onClick={handleManualSync} disabled={isSyncing || isCheckingSync}
@@ -292,36 +312,29 @@ export default function ListaEntrevistas() {
           </S.ActionButton>
         </S.SyncPanel>
       </S.Header>
-
       <S.CountersContainer>
         <S.CounterCircle color="#faad14" active={filters.statusTermo === 'Pendente'} onClick={() => changeStatusFilter('Pendente')}>
           <span className="count">{termoCounts.Pendente}</span>
           <span className="label">Pendentes</span>
         </S.CounterCircle>
-
         <S.CounterCircle color="#8a2be2" active={filters.statusTermo === 'SegundoPlano'} onClick={() => changeStatusFilter('SegundoPlano')}>
           <span className="count">{termoCounts.SegundoPlano}</span>
           <span className="label">Em 2º Plano</span>
         </S.CounterCircle>
-
         <S.CounterCircle color="#52c41a" active={filters.statusTermo === 'Aceito'} onClick={() => changeStatusFilter('Aceito')}>
           <span className="count">{termoCounts.Aceito}</span>
           <span className="label">Aceitos</span>
         </S.CounterCircle>
-
         <S.CounterCircle color="#f5222d" active={filters.statusTermo === 'Recusado'} onClick={() => changeStatusFilter('Recusado')}>
           <span className="count">{termoCounts.Recusado}</span>
           <span className="label">Recusados</span>
         </S.CounterCircle>
-
         <S.CounterCircle color="#1890ff" active={filters.statusTermo === 'Todos'} onClick={() => changeStatusFilter('Todos')}>
           <span className="count">{termoCounts.Todos}</span>
           <span className="label">Todos</span>
         </S.CounterCircle>
       </S.CountersContainer>
-
       <FilterBar filters={filters} setFilters={setFilters} pacientes={pacientesNavegacao} isMaster={isMaster} operadoras={operadoras} />
-
       <S.TableWrapper>
         <S.Table>
           <thead>
@@ -345,8 +358,9 @@ export default function ListaEntrevistas() {
               const isHighlighted = highlightId === String(paciente.id);
               const nomeOperadora = paciente.operadoras?.nome || '-';
               const nomeMedicamento = paciente.medicamento?.nome || 'Não informado';
-              
+
               const isEmSegundoPlano = emSegundoPlanoIds.includes(paciente.id);
+              const estaSincronizando = syncingPacienteId === paciente.id;
 
               return (
                 <tr key={paciente.id} id={`row-${paciente.id}`} style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.2)', transition: 'background-color 2s' } : {}}>
@@ -358,7 +372,6 @@ export default function ListaEntrevistas() {
                     </div>
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{paciente.celular || paciente.telefone || '-'}</td>
-
                   {/* CUIDADOR CONSOLIDADO */}
                   <td>
                     {paciente.possui_cuidador ? (
@@ -372,9 +385,8 @@ export default function ListaEntrevistas() {
                       </S.StatusBadge>
                     )}
                   </td>
-                  
-                  <td>{nomeOperadora}</td>
 
+                  <td>{nomeOperadora}</td>
                   <td>
                     <div style={{ lineHeight: '1.4' }}>
                       <span title={nomeMedicamento} style={{ maxWidth: '150px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -385,7 +397,6 @@ export default function ListaEntrevistas() {
                       </span>
                     </div>
                   </td>
-
                   {/* TERMO E AVALIAÇÃO CONSOLIDADOS */}
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
@@ -395,35 +406,28 @@ export default function ListaEntrevistas() {
                       >
                         {statusTermo}
                       </S.StatusBadge>
-                      
-                      <S.StatusBadge 
-                        done={paciente.status_avaliacao === 'Concluída'} 
-                        bg={paciente.status_avaliacao === 'Parcial' ? 'rgba(250, 173, 20, 0.15)' : null} 
+
+                      <S.StatusBadge
+                        done={paciente.status_avaliacao === 'Concluída'}
+                        bg={paciente.status_avaliacao === 'Parcial' ? 'rgba(250, 173, 20, 0.15)' : null}
                         color={paciente.status_avaliacao === 'Parcial' ? '#faad14' : null}
                       >
                         {paciente.status_avaliacao}
                       </S.StatusBadge>
                     </div>
                   </td>
-
                   <td>
                     <div className="action-buttons">
                       <S.ActionButton
                         mode="create"
+                        disabled={estaSincronizando}
                         style={isEmSegundoPlano ? { backgroundColor: '#8a2be2', borderColor: '#8a2be2' } : {}}
-                        onClick={() => {
-                          if (statusTermo !== 'Aceito') {
-                            setPacienteParaTermo(paciente);
-                            setTermoStartWaiting(isEmSegundoPlano);
-                            setTermoModalOpen(true);
-                          } else {
-                            handleStartAvaliacao(paciente.id);
-                          }
-                        }}
+                        onClick={() => handleAcaoPaciente(paciente)}
                       >
-                        {statusTermo === 'Aceito' ? 'Avaliar' : isEmSegundoPlano ? 'Aguardando' : paciente.status_avaliacao === 'Parcial' ? 'Continuar' : 'Termo'}
+                        {estaSincronizando
+                          ? 'Sincronizando...'
+                          : (statusTermo === 'Aceito' ? 'Avaliar' : isEmSegundoPlano ? 'Aguardando' : paciente.status_avaliacao === 'Parcial' ? 'Continuar' : 'Termo')}
                       </S.ActionButton>
-
                       <S.ActionButton className="view-btn" onClick={() => { setSelectedPaciente(paciente); setModalOpen(true); }} title="Ver Histórico">
                         <LuEye size={16} />
                       </S.ActionButton>
@@ -432,18 +436,16 @@ export default function ListaEntrevistas() {
                 </tr>
               );
             })}
-            
+
             {paginatedPacientes.length === 0 && (
               <tr><td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#888' }}>Nenhum paciente encontrado para os filtros atuais.</td></tr>
             )}
           </tbody>
         </S.Table>
       </S.TableWrapper>
-
       {filteredAndSortedPacientes.length > 0 && (
         <Pagination totalItems={filteredAndSortedPacientes.length} itemsPerPage={itemsPerPage} currentPage={currentPage} setItemsPerPage={setItemsPerPage} setCurrentPage={setCurrentPage} />
       )}
-
       <TermoModal
         isOpen={termoModalOpen}
         onClose={() => setTermoModalOpen(false)}
@@ -464,7 +466,6 @@ export default function ListaEntrevistas() {
           handleStartAvaliacao(pacienteAtualizado.id);
         }}
       />
-
       <EvaluationModal isOpen={modalOpen} data={selectedPaciente} onClose={() => { setModalOpen(false); setSelectedPaciente(null); }} />
     </S.Container>
   );
