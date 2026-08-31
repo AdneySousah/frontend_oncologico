@@ -5,11 +5,16 @@ import { ModalOverlay, ModalContent, ButtonGroup, Button } from './styles';
 
 export default function AssistenteCalculoModal({ onClose, onUsarData }) {
   const [mensagens, setMensagens] = useState([
-    { autor: 'ia', texto: 'Me conta a quantidade de comprimidos, a data de início e quantos por dia, que eu calculo pra você. Ex: "60 comprimidos, comecei dia 22/07, tomo 1 por dia, quando termina?"' }
+    { autor: 'ia', texto: 'Me conta quantos comprimidos ainda restam, quantos tem a caixa e quantos ela toma por dia, que eu calculo quando ela começou a tomar. Ex: "tem 61 comprimidos, caixa de 90, toma 1 por dia, quando ela começou?"\n\nSe você já souber a data de início e quiser saber quando termina, também calculo — só me falar a data, a quantidade e a posologia.' }
   ]);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  // MUDE PRA ESSE
   const [historico, setHistorico] = useState([]);
+  const [dataReferencia, setDataReferencia] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+  });
   const fimDaListaRef = useRef(null);
 
   useEffect(() => {
@@ -25,7 +30,8 @@ export default function AssistenteCalculoModal({ onClose, onUsarData }) {
     try {
       const response = await api.post('/assistente-calculo', {
         mensagem: pergunta,
-        historico: historico.slice(-6)
+        historico: historico.slice(-6),
+        data_referencia: dataReferencia // 👈 data em que o tele foi realizado — o cálculo deve contar a partir DAQUI, nunca da data atual do servidor
       });
       const { resposta, data_resultante } = response.data;
       setMensagens(prev => [...prev, { autor: 'ia', texto: resposta, dataResultante: data_resultante }]);
@@ -40,8 +46,21 @@ export default function AssistenteCalculoModal({ onClose, onUsarData }) {
 
   return (
     <ModalOverlay style={{ zIndex: 1100 }}>
-      <ModalContent style={{ maxWidth: '480px', margin: 'auto', display: 'flex', flexDirection: 'column', height: '520px' }}>
+      <ModalContent style={{ maxWidth: '680px', margin: 'auto', display: 'flex', flexDirection: 'column', height: '520px' }}>
+
         <h3 style={{ marginBottom: '10px' }}>🧮 Calculadora de datas</h3>
+        <div style={{ marginBottom: '10px', fontSize: '0.85rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+            Data em que o tele foi realizado:
+            <input
+              type="date"
+              value={dataReferencia}
+              onChange={(e) => setDataReferencia(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(0,0,0,0.2)' }}
+            />
+          </label>
+          <span style={{ opacity: 0.7 }}>Se o contato foi feito em outro dia (ex: sexta passada), ajuste aqui — o cálculo usa esta data, não a data de hoje.</span>
+        </div>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', padding: '4px' }}>
           {mensagens.map((m, i) => (
             <div
@@ -79,7 +98,8 @@ export default function AssistenteCalculoModal({ onClose, onUsarData }) {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); enviar(); } }}
-            placeholder="Ex: 60 comprimidos, comecei 22/07, 1 por dia, quando termina?"
+
+            placeholder="Ex: 61 comprimidos, caixa de 90, toma 1 por dia, quando começou?"
             style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.2)' }}
             disabled={enviando}
           />
