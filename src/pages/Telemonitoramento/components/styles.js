@@ -319,3 +319,33 @@ export const HighlightedSection = styled.div`
     }
   }
 `;
+
+export const CalculadoraAjudaButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 14px;
+  background-color: transparent;
+  color: ${props => props.theme.colors.primary};
+  border: 1px dashed ${props => props.theme.colors.primary};
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background-color: ${props => props.theme.colors.primary};
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;

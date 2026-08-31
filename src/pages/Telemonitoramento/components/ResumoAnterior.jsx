@@ -10,6 +10,21 @@ export default function ResumoAnterior({ monitoramento }) {
     return dataApenasData.split('-').reverse().join('/');
   };
 
+  // 👇 NOVO: quando o contato anterior não foi efetivado, nivel_adesao vem
+  // null do banco de propósito (é o comportamento do controller) — não é
+  // erro de dado, então não pode tratar como se fosse.
+  const corAdesao = monitoramento.nivel_adesao === 'COMPLETAMENTE'
+    ? '#2ecc71'
+    : monitoramento.nivel_adesao === 'PARCIALMENTE'
+      ? '#f39c12'
+      : monitoramento.nivel_adesao === 'NAO_ADERE'
+        ? '#e74c3c'
+        : '#999'; // null: nem verde, nem laranja, nem vermelho — é "não se aplica"
+
+  const textoAdesao = monitoramento.nivel_adesao
+    ? monitoramento.nivel_adesao.replace('_', ' ')
+    : (monitoramento.contato_efetivo === false ? 'Contato anterior não efetivado' : 'Não informado');
+
   return (
     <div style={{
       width: '100%', // <-- Ajustado para 100%
@@ -33,12 +48,12 @@ export default function ResumoAnterior({ monitoramento }) {
 
       <div>
         <span style={{ fontSize: '0.85rem', color: '#666' }}>Adesão ao uso do medicamento:</span>
-        <div style={{ 
-            fontWeight: 'bold', 
+        <div style={{
+            fontWeight: 'bold',
             fontSize: '1.05rem',
-            color: monitoramento.nivel_adesao === 'COMPLETAMENTE' ? '#2ecc71' : monitoramento.nivel_adesao === 'PARCIALMENTE' ? '#f39c12' : '#e74c3c'
+            color: corAdesao
         }}>
-          {monitoramento.nivel_adesao.replace('_', ' ')}
+          {textoAdesao}
         </div>
       </div>
 
@@ -56,10 +71,10 @@ export default function ResumoAnterior({ monitoramento }) {
 
       <div style={{ flex: 1 }}>
         <span style={{ fontSize: '0.85rem', color: '#666' }}>Observação Registrada:</span>
-        <div style={{ 
-          backgroundColor: 'rgba(0,0,0,0.02)', 
-          padding: '10px', 
-          borderRadius: '4px', 
+        <div style={{
+          backgroundColor: 'rgba(0,0,0,0.02)',
+          padding: '10px',
+          borderRadius: '4px',
           border: '1px solid #eee',
           marginTop: '4px',
           fontSize: '0.9rem',

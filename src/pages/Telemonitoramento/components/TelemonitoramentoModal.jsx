@@ -19,18 +19,61 @@ import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
+import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
+import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
+
+// 👇 NOVO: mesma lógica de "data sugerida" / divergência de adesão já usada
+// em TelemonitoramentoModalConjunto.jsx, reaproveitada aqui pro fluxo
+// imediato de uso em conjunto (medicamento atual + adicional na mesma sessão).
+const DIAS_POR_NIVEL_CONJUNTO = { COMPLETAMENTE: 30, PARCIALMENTE: 15, NAO_ADERE: 7 };
+const LABEL_NIVEL_CONJUNTO = {
+  COMPLETAMENTE: 'Alta adesão ao uso do medicamento',
+  PARCIALMENTE: 'Média adesão ao uso do medicamento',
+  NAO_ADERE: 'Baixa adesão ao uso do medicamento'
+};
+function ajustarFimDeSemanaConjunto(date) {
+  const dia = date.getDay();
+  if (dia === 6) date.setDate(date.getDate() + 2);
+  else if (dia === 0) date.setDate(date.getDate() + 1);
+  return date;
+}
+function calcularDataSugeridaConjunto(nivelA, nivelB) {
+  const dias = Math.round((DIAS_POR_NIVEL_CONJUNTO[nivelA] + DIAS_POR_NIVEL_CONJUNTO[nivelB]) / 2);
+  const data = new Date();
+  data.setDate(data.getDate() + dias);
+  return ajustarFimDeSemanaConjunto(data);
+}
+function calcularDataPorModoConjunto(modo, nivelA, nivelB) {
+  if (modo === 'SEMANAL') {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return ajustarFimDeSemanaConjunto(d);
+  }
+  if (modo === 'MENSAL') {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return ajustarFimDeSemanaConjunto(d);
+  }
+  return calcularDataSugeridaConjunto(nivelA, nivelB);
+}
+function formatarDataISOConjunto(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+const formatarDataBRConjunto = (isoStr) => isoStr.split('-').reverse().join('/');
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
   const theme = useTheme();
   const [localMonitoramento, setLocalMonitoramento] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showNpsPrompt, setShowNpsPrompt] = useState(false);
-
+  const [reabrirPreTele, setReabrirPreTele] = useState(false); // 👈 NOVO
   // Etapas: CONTATO_EFETIVO (sempre primeiro) -> PRE_TELE (só se necessário)
   // -> FORMULARIO (só alcançável depois de confirmar "Sim" e, se precisou,
   // já ter passado pelo pré-tele).
   const [etapa, setEtapa] = useState('CONTATO_EFETIVO');
-
   // Estados de Sincronização
   const [loadingCompra, setLoadingCompra] = useState(false);
   const [syncPrompt, setSyncPrompt] = useState(null);
@@ -41,7 +84,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
-
   // Estados Formulario Base
   const [qtdInformada, setQtdInformada] = useState('');
   const [dataAbertura, setDataAbertura] = useState('');
@@ -50,18 +92,30 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [listaReacoes, setListaReacoes] = useState([]);
   const [nivelAdesao, setNivelAdesao] = useState('COMPLETAMENTE');
   const [observacao, setObservacao] = useState('');
-
   // Mudança de Posologia no meio do ciclo
   const [mudouPosologia, setMudouPosologia] = useState(false);
   const [novaPosologia, setNovaPosologia] = useState('');
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
-
+  // 👇 NOVO: uso em conjunto — segunda etapa, coleta completa do medicamento adicional
+  const [monitoramentoAdicionalConjunto, setMonitoramentoAdicionalConjunto] = useState(null);
+  const [carregandoAdicional, setCarregandoAdicional] = useState(false);
+  // 👇 NOVO: guarda o id do próximo ciclo do medicamento ATUAL (já criado no
+  // primeiro submit) e os dados do medicamento adicional quando há
+  // divergência de adesão, pra poder alinhar as duas datas depois.
+  const [proximoCicloAtualId, setProximoCicloAtualId] = useState(null);
+  const [dadosAdicionalPendente, setDadosAdicionalPendente] = useState(null);
+  const [modoDataProximoContatoConjunto, setModoDataProximoContatoConjunto] = useState('MEDIA');
+  // 👇 NOVO: evento de reembolso — permite criar o ciclo de reembolso sem
+  // sair da tela de "Registrar Contato" quando o estoque zerou, e depois
+  // coletar a entrevista completa (comprimidos, adesão, reação) na mesma hora.
+  const [mostrarReembolso, setMostrarReembolso] = useState(false);
+  const [monitoramentoReembolso, setMonitoramentoReembolso] = useState(null);
+  const [carregandoReembolso, setCarregandoReembolso] = useState(false);
   useEffect(() => {
     if (monitoramento) {
       setLocalMonitoramento(monitoramento);
     }
   }, [monitoramento]);
-
   const setupDates = (monit) => {
     if (monit.data_calculada_fim_caixa) {
       const [ano, mes, dia] = monit.data_calculada_fim_caixa.split('T')[0].split('-');
@@ -73,7 +127,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setDataRealInicioNovaCaixa(`${y}-${m}-${d}`);
     }
   };
-
   const checkFuturePurchase = async (monit, isMountedCheck = () => true) => {
     try {
       setLoadingCompra(true);
@@ -106,7 +159,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       }
     }
   };
-
   useEffect(() => {
     let isMounted = true;
     if (isOpen && localMonitoramento?.id) {
@@ -117,6 +169,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setReacoesSelecionadas([]);
       setNivelAdesao('COMPLETAMENTE');
       setShowNpsPrompt(false);
+      setReabrirPreTele(false); // 👈 NOVO
       setObservacao('');
       setMudouPosologia(false);
       setNovaPosologia('');
@@ -128,12 +181,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setDescontinuarMedicamento(false);
       setMotivoEncerramento('');
       setSyncPrompt(null);
+      setMonitoramentoAdicionalConjunto(null); // 👈 NOVO
+      setCarregandoAdicional(false); // 👈 NOVO
+      setProximoCicloAtualId(null); // 👈 NOVO
+      setDadosAdicionalPendente(null); // 👈 NOVO
+      setModoDataProximoContatoConjunto('MEDIA'); // 👈 NOVO
+      setMostrarReembolso(false); // 👈 NOVO
+      setMonitoramentoReembolso(null); // 👈 NOVO
+      setCarregandoReembolso(false); // 👈 NOVO
       setupDates(localMonitoramento);
-
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
-
       setLoadingCompra(true);
       api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
         .then(resSync => {
@@ -152,7 +211,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
     return () => { isMounted = false; };
   }, [isOpen, localMonitoramento?.id]);
-
   const handleConfirmSync = async () => {
     try {
       setLoadingCompra(true);
@@ -172,12 +230,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setLoadingCompra(false);
     }
   };
-
   const handleIgnoreSync = async () => {
     setSyncPrompt(null);
     await checkFuturePurchase(localMonitoramento);
   };
-
   // ==========================================
   // LÓGICA DE RECALCULO E ESTOQUE IDEAL (inalterada)
   // ==========================================
@@ -265,7 +321,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       dataFimCicloAtualFormatada = `${String(projetadoObj.getDate()).padStart(2, '0')}/${String(projetadoObj.getMonth() + 1).padStart(2, '0')}/${projetadoObj.getFullYear()} (Reajustada)`;
     }
   }
-
   useEffect(() => {
     if (qtdInformada === '' || !localMonitoramento) return;
     const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
@@ -280,7 +335,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setNivelAdesao('NAO_ADERE');
     }
   }, [qtdInformada, localMonitoramento, idealRemaining, posologia, mudouPosologia, novaPosologia]);
-
   useEffect(() => {
     if (qtdInformada !== '') {
       let daysToAdd = 30;
@@ -305,12 +359,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setDataAbertura('');
     }
   }, [qtdInformada, nivelAdesao]);
-
   const pacienteIdAtual = localMonitoramento?.paciente_id || localMonitoramento?.paciente?.id;
   const { bloqueio: bloqueioEdicao } = useReservaEdicaoPaciente(pacienteIdAtual, isOpen && !!localMonitoramento?.id);
-
   if (!isOpen || !localMonitoramento) return null;
-
   if (bloqueioEdicao) {
     return (
       <ModalOverlay>
@@ -327,7 +378,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       </ModalOverlay>
     );
   }
-
   if (showNpsPrompt) {
     return (
       <NpsModal
@@ -336,7 +386,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       />
     );
   }
-
   if (syncPrompt) {
     return (
       <ModalOverlay>
@@ -372,7 +421,24 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       </ModalOverlay>
     );
   }
-
+  // 👇 NOVO: reabre o pré-tele pra corrigir a data de administração já salva,
+  // sem perder o que já foi preenchido no formulário (mesma instância do componente).
+  if (reabrirPreTele) {
+    return (
+      <PreMonitoramento
+        monitoramento={localMonitoramento}
+        onClose={() => setReabrirPreTele(false)}
+        onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
+          setLocalMonitoramento(prev => ({
+            ...prev,
+            data_administracao: novaDataAdmin,
+            data_calculada_fim_caixa: novaDataFimCaixa
+          }));
+          setReabrirPreTele(false);
+        }}
+      />
+    );
+  }
   // 👇 Etapa 1, sempre — modal pequeno e isolado, sem nenhum painel lateral.
   if (etapa === 'CONTATO_EFETIVO') {
     return (
@@ -421,7 +487,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       />
     );
   }
-
   // 👇 Etapa opcional — pré-tele, só quando necessário.
   if (etapa === 'PRE_TELE') {
     return (
@@ -439,14 +504,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       />
     );
   }
-
   // 👇 A partir daqui, etapa === 'FORMULARIO' garantido: contato já
   // confirmado como efetivado, e pré-tele já resolvido se era necessário.
   const handleSubmit = async (e) => {
     e.preventDefault();
     const hojeDate = new Date();
     const dataHojeFormat = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
-
     if (!qtdInformada || (!descontinuarMedicamento && !dataAbertura)) {
       toast.error('Preencha os dados da caixa do medicamento.');
       return;
@@ -479,11 +542,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         return;
       }
     }
-
     try {
       setLoading(true);
       const reacoesIds = reacoesSelecionadas ? reacoesSelecionadas.map(r => r.value) : [];
-      await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}`, {
+      const response = await api.put(`/monitoramento-medicamentos/${localMonitoramento.id}`, {
         contato_efetivo: true,
         nivel_adesao: nivelAdesao,
         qtd_informada_caixa: Number(qtdInformada),
@@ -504,15 +566,334 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         modo_novo_medicamento: (aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) ? modoNovoMedicamento : null
       });
       toast.success('Contato registrado com sucesso!');
-      onSucesso();
       window.dispatchEvent(new Event('updateAlerts'));
-      setShowNpsPrompt(true);
+
+      // 👇 NOVO: se este contato acabou de criar o medicamento adicional em
+      // "uso em conjunto", não fecha o modal ainda — carrega esse registro
+      // recém-criado e encaminha pro mesmo formulário completo (comprimidos,
+      // adesão, reação), fazendo o processo inteiro dos dois medicamentos
+      // nesta mesma sessão, em vez de deixar o adicional pendente pra um
+      // contato futuro sem nenhum dado preenchido.
+      const idAdicional = response.data?.monitoramento_adicional_id;
+      if (idAdicional) {
+        setProximoCicloAtualId(response.data?.proximo_ciclo_atual_id || null); // 👈 NOVO
+        setCarregandoAdicional(true);
+        try {
+          const resAdicional = await api.get(`/monitoramento-medicamentos/${idAdicional}`);
+          setMonitoramentoAdicionalConjunto(resAdicional.data);
+          setEtapa('MEDICAMENTO_ADICIONAL_CONJUNTO');
+        } catch (errAdicional) {
+          toast.error('O contato do medicamento atual foi salvo, mas houve um erro ao abrir o medicamento adicional. Registre o contato dele diretamente na lista.');
+          onSucesso();
+          onClose();
+        } finally {
+          setCarregandoAdicional(false);
+        }
+      } else {
+        onSucesso();
+        setShowNpsPrompt(true);
+      }
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
     } finally {
       setLoading(false);
     }
   };
+
+  // 👇 NOVO: mesma regra de "dias até o próximo contato" já usada no
+  // formulário principal, aplicada aqui pro medicamento adicional (o
+  // PassoRegistroMedicamento não decide essa data sozinho).
+  const calcularProximaDataPorAdesao = (nivel) => {
+    let dias = 30;
+    if (nivel === 'PARCIALMENTE') dias = 15;
+    else if (nivel === 'NAO_ADERE') dias = 7;
+    const data = new Date();
+    data.setDate(data.getDate() + dias);
+    const diaSemana = data.getDay();
+    if (diaSemana === 6) data.setDate(data.getDate() + 2);
+    else if (diaSemana === 0) data.setDate(data.getDate() + 1);
+    const y = data.getFullYear();
+    const m = String(data.getMonth() + 1).padStart(2, '0');
+    const d = String(data.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // 👇 NOVO: recebe os dados coletados pelo PassoRegistroMedicamento pro
+  // medicamento adicional. Se a adesão bateu com a do medicamento atual (ou
+  // ele foi descontinuado), envia direto usando a "data média" (que, com
+  // níveis iguais, dá exatamente a mesma data). Se divergiu, para e pede
+  // pro atendente decidir a data compartilhada — igual ao
+  // TelemonitoramentoModalConjunto.jsx faz quando os dois medicamentos já
+  // estão pendentes ao mesmo tempo.
+  const handleAvancarMedicamentoAdicional = (dados) => {
+    if (dados.descontinuarMedicamento || dados.nivelAdesao === nivelAdesao) {
+      enviarContatoAdicionalConjunto(dados, 'MEDIA');
+    } else {
+      setDadosAdicionalPendente(dados);
+      setEtapa('DIVERGENCIA_CONJUNTO');
+    }
+  };
+
+  // 👇 NOVO: fecha o ciclo do medicamento adicional com a data decidida
+  // (média/semanal/mensal) e ALINHA essa mesma data no próximo ciclo do
+  // medicamento atual (já criado no primeiro submit) — sem isso os dois
+  // ficariam com datas de próximo contato diferentes, quebrando o
+  // acompanhamento conjunto.
+  const enviarContatoAdicionalConjunto = async (dados, modo) => {
+    try {
+      setCarregandoAdicional(true);
+      const reacoesIds = dados.isReacao ? dados.reacoesSelecionadas.map(r => r.value) : [];
+      const dataEscolhidaISO = dados.descontinuarMedicamento
+        ? null
+        : formatarDataISOConjunto(calcularDataPorModoConjunto(modo, nivelAdesao, dados.nivelAdesao));
+
+      await api.put(`/monitoramento-medicamentos/${dados.monitoramentoId}`, {
+        contato_efetivo: true,
+        nivel_adesao: dados.nivelAdesao,
+        qtd_informada_caixa: Number(dados.qtdInformada),
+        data_abertura_nova_caixa: dataEscolhidaISO,
+        descontinuar_medicamento: dados.descontinuarMedicamento,
+        motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
+        is_reacao: dados.isReacao,
+        reacoes_adversas: reacoesIds,
+        observacao: dados.observacao || null,
+        aplicar_nova_compra: dados.aplicarNovaCompra,
+        dados_nova_compra: dados.aplicarNovaCompra ? dados.dadosNovaCompra : null,
+        data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
+        posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
+        mudou_posologia: dados.mudouPosologia,
+        nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
+        data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
+        motivo_falha_contato_id: null,
+        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
+      });
+
+      if (dataEscolhidaISO && proximoCicloAtualId) {
+        try {
+          await api.put(`/monitoramento-medicamentos/${proximoCicloAtualId}/data-proximo-contato`, {
+            data_proximo_contato: dataEscolhidaISO
+          });
+        } catch (errData) {
+          console.error('Erro ao alinhar data do próximo contato do medicamento atual:', errData);
+          toast.warning('O medicamento adicional foi registrado, mas a data do próximo contato do medicamento atual pode ter ficado divergente. Confira na lista.');
+        }
+      }
+
+      toast.success('Contato do medicamento adicional registrado com sucesso!');
+      onSucesso();
+      window.dispatchEvent(new Event('updateAlerts'));
+      setShowNpsPrompt(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao registrar contato do medicamento adicional.');
+    } finally {
+      setCarregandoAdicional(false);
+    }
+  };
+
+  // 👇 NOVO: finalização do ciclo de reembolso — é sempre um único
+  // medicamento (sem par), então não existe divergência de adesão pra
+  // checar aqui: usa direto a mesma regra de dias-por-adesão do formulário.
+  const handleFinalizarReembolso = async (dados) => {
+    try {
+      setCarregandoReembolso(true);
+      const reacoesIds = dados.isReacao ? dados.reacoesSelecionadas.map(r => r.value) : [];
+      await api.put(`/monitoramento-medicamentos/${dados.monitoramentoId}`, {
+        contato_efetivo: true,
+        nivel_adesao: dados.nivelAdesao,
+        qtd_informada_caixa: Number(dados.qtdInformada),
+        data_abertura_nova_caixa: dados.descontinuarMedicamento ? null : calcularProximaDataPorAdesao(dados.nivelAdesao),
+        descontinuar_medicamento: dados.descontinuarMedicamento,
+        motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
+        is_reacao: dados.isReacao,
+        reacoes_adversas: reacoesIds,
+        observacao: dados.observacao || null,
+        aplicar_nova_compra: dados.aplicarNovaCompra,
+        dados_nova_compra: dados.aplicarNovaCompra ? dados.dadosNovaCompra : null,
+        data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
+        posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
+        mudou_posologia: dados.mudouPosologia,
+        nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
+        data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
+        motivo_falha_contato_id: null,
+        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
+      });
+      toast.success('Contato registrado com sucesso!');
+      onSucesso();
+      window.dispatchEvent(new Event('updateAlerts'));
+      setShowNpsPrompt(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
+    } finally {
+      setCarregandoReembolso(false);
+    }
+  };
+
+  // 👇 NOVO: dispara ao concluir a criação do evento de reembolso — busca o
+  // registro completo (com medicamento/qtd_capsula) e encaminha direto pra
+  // entrevista, em vez de deixar o monitoramento esperando um contato futuro.
+  const handleReembolsoCriado = async (novoRegistro) => {
+    setMostrarReembolso(false);
+    if (!novoRegistro?.id) {
+      onSucesso();
+      onClose();
+      return;
+    }
+    setCarregandoReembolso(true);
+    try {
+      const res = await api.get(`/monitoramento-medicamentos/${novoRegistro.id}`);
+      setMonitoramentoReembolso(res.data);
+      setEtapa('MEDICAMENTO_REEMBOLSO');
+    } catch (err) {
+      toast.error('Evento de reembolso criado, mas houve um erro ao abrir o monitoramento. Registre o contato dele diretamente na lista.');
+      onSucesso();
+      onClose();
+    } finally {
+      setCarregandoReembolso(false);
+    }
+  };
+
+  // 👇 NOVO: segunda etapa do "uso em conjunto" — coleta os dados completos
+  // (comprimidos, adesão, reação, nova compra, descontinuação) do
+  // medicamento adicional, reaproveitando o mesmo componente já usado no
+  // wizard TelemonitoramentoModalConjunto.
+  if (etapa === 'MEDICAMENTO_ADICIONAL_CONJUNTO') {
+    if (carregandoAdicional || !monitoramentoAdicionalConjunto) {
+      return (
+        <ModalOverlay>
+          <ModalContent style={{ maxWidth: '500px', margin: 'auto', textAlign: 'center' }}>
+            <p>Carregando medicamento adicional...</p>
+          </ModalContent>
+        </ModalOverlay>
+      );
+    }
+    return (
+      <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
+        <ModalLayoutWrapper>
+          <div className="left-column">
+            <InfoBox style={{ marginBottom: '15px' }}>
+              <p style={{ margin: 0 }}>
+                ✅ Contato de <strong>{localMonitoramento.medicamento?.nome}</strong> já foi registrado.
+              </p>
+              <p style={{ margin: '6px 0 0 0', fontSize: '0.85em', opacity: 0.85 }}>
+                Agora complete o registro do medicamento usado em conjunto.
+              </p>
+            </InfoBox>
+            <HistoricoComprasPaciente monitoramento={monitoramentoAdicionalConjunto} />
+          </div>
+          <div className="center-column">
+            <PassoRegistroMedicamento
+              monitoramento={monitoramentoAdicionalConjunto}
+              monitoramentoAnterior={null}
+              numeroEtapa={2}
+              totalEtapas={2}
+              onCancelar={onClose}
+              onAvancar={handleAvancarMedicamentoAdicional}
+            />
+          </div>
+          <div className="right-column">
+            <HistoricoAberturas monitoramento={monitoramentoAdicionalConjunto} />
+          </div>
+        </ModalLayoutWrapper>
+      </ModalOverlay>
+    );
+  }
+
+  // 👇 NOVO: os dois medicamentos tiveram níveis de adesão diferentes neste
+  // contato — pede pro atendente decidir a data compartilhada do próximo
+  // contato, igual ao TelemonitoramentoModalConjunto.jsx.
+  if (etapa === 'DIVERGENCIA_CONJUNTO' && dadosAdicionalPendente) {
+    const nivelAtual = nivelAdesao;
+    const nivelAdicional = dadosAdicionalPendente.nivelAdesao;
+    const dataSugeridaISO = formatarDataISOConjunto(calcularDataSugeridaConjunto(nivelAtual, nivelAdicional));
+    return (
+      <ModalOverlay>
+        <ModalContent style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e67e22' }}>
+            ⚠️ Divergência de Adesão Identificada
+          </h3>
+          <InfoBox style={{ backgroundColor: 'rgba(243, 156, 18, 0.1)', borderColor: '#f39c12' }}>
+            <p>Os dois medicamentos apresentaram níveis de adesão diferentes neste contato:</p>
+            <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
+              <li><strong>{localMonitoramento.medicamento?.nome}:</strong> {LABEL_NIVEL_CONJUNTO[nivelAtual]}</li>
+              <li><strong>{monitoramentoAdicionalConjunto?.medicamento?.nome}:</strong> {LABEL_NIVEL_CONJUNTO[nivelAdicional]}</li>
+            </ul>
+            <p style={{ margin: 0 }}>
+              Data sugerida com base na média entre os dois: <strong>{formatarDataBRConjunto(dataSugeridaISO)}</strong>
+            </p>
+          </InfoBox>
+          <FormGroup style={{ marginTop: '15px' }}>
+            <label>Como deseja agendar o próximo contato?</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal', cursor: 'pointer' }}>
+                <input type="radio" checked={modoDataProximoContatoConjunto === 'MEDIA'} onChange={() => setModoDataProximoContatoConjunto('MEDIA')} />
+                Usar a data sugerida (média entre os dois medicamentos)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal', cursor: 'pointer' }}>
+                <input type="radio" checked={modoDataProximoContatoConjunto === 'SEMANAL'} onChange={() => setModoDataProximoContatoConjunto('SEMANAL')} />
+                Agendar semanalmente (7 dias) — acompanhamento mais próximo
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal', cursor: 'pointer' }}>
+                <input type="radio" checked={modoDataProximoContatoConjunto === 'MENSAL'} onChange={() => setModoDataProximoContatoConjunto('MENSAL')} />
+                Agendar mensalmente (30 dias)
+              </label>
+            </div>
+          </FormGroup>
+          <ButtonGroup style={{ marginTop: '20px' }}>
+            <Button type="button" variant="secondary" onClick={() => setEtapa('MEDICAMENTO_ADICIONAL_CONJUNTO')} disabled={carregandoAdicional}>Voltar</Button>
+            <Button type="button" onClick={() => enviarContatoAdicionalConjunto(dadosAdicionalPendente, modoDataProximoContatoConjunto)} disabled={carregandoAdicional}>
+              {carregandoAdicional ? 'Salvando...' : 'Confirmar e Salvar'}
+            </Button>
+          </ButtonGroup>
+        </ModalContent>
+      </ModalOverlay>
+    );
+  }
+
+  // 👇 NOVO: etapa da entrevista completa do ciclo de reembolso recém-criado
+  // — mesmo componente PassoRegistroMedicamento usado no "uso em conjunto",
+  // mas com handleFinalizarReembolso próprio: aqui é sempre um único
+  // medicamento (sem par), então não há divergência de adesão a checar.
+  if (etapa === 'MEDICAMENTO_REEMBOLSO') {
+    if (carregandoReembolso || !monitoramentoReembolso) {
+      return (
+        <ModalOverlay>
+          <ModalContent style={{ maxWidth: '500px', margin: 'auto', textAlign: 'center' }}>
+            <p>Carregando evento de reembolso...</p>
+          </ModalContent>
+        </ModalOverlay>
+      );
+    }
+    return (
+      <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
+        <ModalLayoutWrapper>
+          <div className="left-column">
+            <InfoBox style={{ marginBottom: '15px' }}>
+              <p style={{ margin: 0 }}>
+                💊 Evento de reembolso de <strong>{monitoramentoReembolso.medicamento?.nome}</strong> criado.
+              </p>
+              <p style={{ margin: '6px 0 0 0', fontSize: '0.85em', opacity: 0.85 }}>
+                Agora complete o contato deste ciclo (comprimidos, adesão e reações).
+              </p>
+            </InfoBox>
+            <HistoricoComprasPaciente monitoramento={monitoramentoReembolso} />
+          </div>
+          <div className="center-column">
+            <PassoRegistroMedicamento
+              monitoramento={monitoramentoReembolso}
+              monitoramentoAnterior={null}
+              numeroEtapa={1}
+              totalEtapas={1}
+              onCancelar={onClose}
+              onAvancar={handleFinalizarReembolso}
+            />
+          </div>
+          <div className="right-column">
+            <HistoricoAberturas monitoramento={monitoramentoReembolso} />
+          </div>
+        </ModalLayoutWrapper>
+      </ModalOverlay>
+    );
+  }
 
   const scoreAtual = localMonitoramento.avaliacao?.total_score;
   const adInfo = getAdherenceClassification(scoreAtual);
@@ -524,8 +905,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   }));
   let dataMaxMudanca = dataHoje;
   let dataMinMudanca = localMonitoramento?.data_administracao?.split('T')[0] || '';
-
   return (
+    <>
     <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
       <ModalLayoutWrapper>
         <div className="left-column">
@@ -587,6 +968,16 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 )}
                 <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
                   <strong>{aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
+                  {!aplicarNovaCompra && localMonitoramento?.data_administracao && (
+                    <button
+                      type="button"
+                      onClick={() => setReabrirPreTele(true)}
+                      disabled={loading}
+                      style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85em', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Corrigir
+                    </button>
+                  )}
                 </p>
                 <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
                   <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
@@ -613,6 +1004,24 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 )}
               </div>
             </InfoBox>
+            {/* 👇 NOVO: paciente comprou o medicamento por conta própria e foi
+                reembolsado pela operadora — permite criar o ciclo de reembolso
+                sem sair desta tela, quando o estoque projetado já zerou. */}
+            {!aplicarNovaCompra && !descontinuarMedicamento && idealRemaining <= 0 && (
+              <div style={{ margin: '0 0 20px 0', textAlign: 'right' }}>
+                <button
+                  type="button"
+                  onClick={() => setMostrarReembolso(true)}
+                  style={{
+                    background: 'none', border: '1px solid #e67e22', color: '#e67e22',
+                    borderRadius: '6px', padding: '6px 12px', cursor: 'pointer',
+                    fontSize: '0.85rem', fontWeight: 'bold'
+                  }}
+                >
+                  💊 Paciente comprou por conta e foi reembolsado pela operadora? Criar Evento de Reembolso
+                </button>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               {!aplicarNovaCompra && !descontinuarMedicamento && (
                 <HighlightedSection>
@@ -767,5 +1176,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         </div>
       </ModalLayoutWrapper>
     </ModalOverlay>
+    {/* 👇 NOVO: abre por cima desta tela, sem perder o que já foi preenchido aqui */}
+    <EventoReembolsoModal
+      isOpen={mostrarReembolso}
+      onClose={() => setMostrarReembolso(false)}
+      monitoramento={localMonitoramento}
+      onSucesso={handleReembolsoCriado}
+    />
+    </>
   );
 }

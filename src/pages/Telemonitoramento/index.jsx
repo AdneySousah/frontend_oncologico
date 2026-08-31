@@ -6,6 +6,7 @@ import TelemonitoramentoModalConjunto from './components/TelemonitoramentoModalC
 import EditTelemonitoramentoModal from './components/EditTelemonitoramentoModal';
 import NpsModal from './components/NpsModal';
 import FiltrosTelemonitoramento from './components/FiltrosTelemonitoramento';
+import EventoReembolsoModal from './components/EventoReembolsoModal'; // 👈 NOVO
 import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuPencil, LuUsers } from "react-icons/lu";
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -121,6 +122,10 @@ export default function Telemonitoramento() {
   const [pacienteParaIniciarTratamento, setPacienteParaIniciarTratamento] = useState(null);
   const [candidatosParaIniciarTratamento, setCandidatosParaIniciarTratamento] = useState([]);
 
+  // 👇 NOVO: modal de criação de evento de reembolso
+  const [isReembolsoModalOpen, setIsReembolsoModalOpen] = useState(false);
+  const [monitoramentoParaReembolso, setMonitoramentoParaReembolso] = useState(null);
+
 
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
@@ -174,7 +179,7 @@ export default function Telemonitoramento() {
           limit: limit,
           search: debouncedSearch,
           mes: filterMonth,
-          incluir_descontinuados: incluirDescontinuados // 👈 NOVO
+          incluir_descontinuados: incluirDescontinuados
         }
       });
 
@@ -439,6 +444,53 @@ const handleOpenModalConjunto = async (pendentesDoGrupo, historicoDoGrupo, lates
 const handleOpenEditModal = (monitoramentoId) => {
   setSelectedEditId(monitoramentoId);
   setIsEditModalOpen(true);
+};
+
+// 👇 NOVO: abre o modal de criação de evento de reembolso
+const handleOpenReembolsoModal = (hist, paciente) => {
+  setMonitoramentoParaReembolso({ ...hist, paciente });
+  setIsReembolsoModalOpen(true);
+};
+
+// 👇 NOVO: assim que o evento de reembolso é criado, abre direto o
+// "Registrar Contato" nesse novo ciclo — sem isso o monitoramento ficaria
+// pendurado esperando um contato futuro, em vez de ser feito na mesma hora.
+const abrirContatoAposReembolso = async (novoRegistro) => {
+  setIsReembolsoModalOpen(false);
+  if (!novoRegistro?.id) {
+    fetchMonitoramentos();
+    return;
+  }
+  try {
+    const res = await api.get(`/monitoramento-medicamentos/${novoRegistro.id}`);
+    setSelectedMonitoramento(res.data);
+    setMonitoramentoAnterior(null);
+    setIsModalOpen(true);
+  } catch (err) {
+    toast.error('Evento de reembolso criado, mas houve um erro ao abrir o contato. Atualize a lista e tente novamente.');
+  } finally {
+    fetchMonitoramentos();
+  }
+};
+
+// 👇 NOVO: estoque projetado calculado por LINHA (qualquer registro
+// PENDENTE), não só o "contatoAtual" do grupo — usado pra decidir se
+// mostra o botão de "Criar Evento Reembolso" naquela linha específica.
+const calcularEstoqueProjetadoLinha = (hist) => {
+  if (!hist || hist.status !== 'PENDENTE' || !hist.data_calculada_fim_caixa || !hist.posologia_diaria) return null;
+  try {
+    const dataFimStr = hist.data_calculada_fim_caixa.split('T')[0];
+    const [ano, mes, dia] = dataFimStr.split('-');
+    const dataFim = new Date(ano, mes - 1, dia);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
+    const calculado = Math.max(0, diffDays * hist.posologia_diaria);
+    const qtdCaixa = hist.medicamento?.qtd_capsula || calculado;
+    return Math.min(qtdCaixa, calculado);
+  } catch (err) {
+    return null;
+  }
 };
 
 const formatarData = (dataStr) => {
@@ -877,6 +929,7 @@ return (
                                     const observacaoExibir = hist.observacao || '-';
                                     const isNpsWaiting = npsWaitingItems.some(n => n.monitoramentoId === hist.id);
                                     const estaSincronizando = sincronizandoId === hist.id;
+                                    const estoqueProjetadoLinha = calcularEstoqueProjetadoLinha(hist); // 👈 NOVO
 
                                     return (
                                       <tr key={hist.id} style={{ backgroundColor: isDescontinuado ? 'rgba(231, 76, 60, 0.08)' : zebraBg }}>
@@ -924,14 +977,28 @@ return (
                                           ) : '-'}
                                         </td>
                                         <td>
-                                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                                             {hist.status === 'PENDENTE' ? (
-                                              <ActionButton
-                                                disabled={estaSincronizando}
-                                                onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}
-                                              >
-                                                {estaSincronizando ? 'Sincronizando...' : 'Registrar Contato'}
-                                              </ActionButton>
+                                              <>
+                                                <ActionButton
+                                                  disabled={estaSincronizando}
+                                                  onClick={() => handleOpenModal(hist, grupo.avaliacao?.total_score, grupo.historico)}
+                                                >
+                                                  {estaSincronizando ? 'Sincronizando...' : 'Registrar Contato'}
+                                                </ActionButton>
+                                                {/* 👇 NOVO: só aparece quando o estoque projetado desta linha é 0
+                                                    (medicamento acabou e não há compra sincronizada disponível) */}
+                                                {estoqueProjetadoLinha === 0 && (
+                                                  <ActionButton
+                                                    disabled={estaSincronizando}
+                                                    style={{ backgroundColor: '#e67e22', borderColor: '#e67e22' }}
+                                                    onClick={() => handleOpenReembolsoModal(hist, grupo.paciente)}
+                                                    title="Paciente comprou por conta própria e foi reembolsado pela operadora"
+                                                  >
+                                                    Criar Evento Reembolso
+                                                  </ActionButton>
+                                                )}
+                                              </>
                                             ) : isDescontinuado ? (
                                               // 👇 NOVO: sem botão de editar aqui — a edição retroativa (updateRetroativo,
                                               // backend) só aceita status CONCLUIDO, clicar aqui daria erro 400.
@@ -1032,6 +1099,14 @@ return (
         candidatos={candidatosParaIniciarTratamento}
         onSucesso={fetchMonitoramentos}
       />
+
+    {/* 👇 NOVO */}
+    <EventoReembolsoModal
+      isOpen={isReembolsoModalOpen}
+      onClose={() => setIsReembolsoModalOpen(false)}
+      monitoramento={monitoramentoParaReembolso}
+      onSucesso={abrirContatoAposReembolso}
+    />
 
     {isNpsModalOpen && monitoramentoParaNps && (
       <NpsModal

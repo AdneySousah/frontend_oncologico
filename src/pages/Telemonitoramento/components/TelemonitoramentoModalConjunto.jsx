@@ -13,6 +13,7 @@ import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
+import NpsModal from './NpsModal'; // 👈 NOVO
 
 const DIAS_POR_NIVEL = { COMPLETAMENTE: 30, PARCIALMENTE: 15, NAO_ADERE: 7 };
 const LABEL_NIVEL = {
@@ -20,27 +21,23 @@ const LABEL_NIVEL = {
   PARCIALMENTE: 'Média adesão ao uso do medicamento',
   NAO_ADERE: 'Baixa adesão ao uso do medicamento'
 };
-
 const StepTransitionWrapper = styled.div`
   transition: opacity 0.2s ease, transform 0.2s ease;
   opacity: ${props => (props.leaving ? 0 : 1)};
   transform: translateX(${props => (props.leaving ? '-16px' : '0')});
 `;
-
 function ajustarFimDeSemana(date) {
   const dia = date.getDay();
   if (dia === 6) date.setDate(date.getDate() + 2);
   else if (dia === 0) date.setDate(date.getDate() + 1);
   return date;
 }
-
 function calcularDataSugerida(nivelA, nivelB) {
   const dias = Math.round((DIAS_POR_NIVEL[nivelA] + DIAS_POR_NIVEL[nivelB]) / 2);
   const data = new Date();
   data.setDate(data.getDate() + dias);
   return ajustarFimDeSemana(data);
 }
-
 function calcularDataPorModo(modo, nivelA, nivelB) {
   if (modo === 'SEMANAL') {
     const d = new Date();
@@ -54,19 +51,17 @@ function calcularDataPorModo(modo, nivelA, nivelB) {
   }
   return calcularDataSugerida(nivelA, nivelB);
 }
-
 const formatarDataISO = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
-
 const formatarDataBR = (isoStr) => isoStr.split('-').reverse().join('/');
 
 // Wizard de registro de contato para pacientes em USO EM CONJUNTO (2 medicamentos).
 // Etapas: CONTATO_EFETIVO -> (PRE_TELE_A, se necessário) -> MED_0 ->
-// (PRE_TELE_B, se necessário) -> MED_1 -> DIVERGENCIA (se aplicável) -> envio.
+// (PRE_TELE_B, se necessário) -> MED_1 -> DIVERGENCIA (se aplicável) -> NPS -> envio.
 export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monitoramentos, monitoramentosAnteriores, onSucesso }) {
   const [etapa, setEtapa] = useState('CONTATO_EFETIVO'); // CONTATO_EFETIVO | PRE_TELE_A | MED_0 | PRE_TELE_B | MED_1 | DIVERGENCIA
   const [dadosPorMedicamento, setDadosPorMedicamento] = useState([]);
@@ -75,30 +70,29 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
   const [transicao, setTransicao] = useState(false);
   const [eventosReivindicados, setEventosReivindicados] = useState([]);
   const [monitoramentosLocais, setMonitoramentosLocais] = useState(null);
-
+  const [showNpsPrompt, setShowNpsPrompt] = useState(false); // 👈 NOVO
+  const [reabrirPreTele, setReabrirPreTele] = useState(null); // 👈 NOVO: null | 'A' | 'B'
   const pacienteIdAtual = monitoramentos?.[0]?.paciente_id || monitoramentos?.[0]?.paciente?.id;
   const { bloqueio: bloqueioEdicao } = useReservaEdicaoPaciente(
     pacienteIdAtual,
     isOpen && !!monitoramentos && monitoramentos.length >= 2
   );
-
   useEffect(() => {
     if (isOpen) {
       setEtapa('CONTATO_EFETIVO');
       setDadosPorMedicamento([]);
       setModoDataProximoContato('MEDIA');
       setEventosReivindicados([]);
+      setShowNpsPrompt(false); // 👈 NOVO
+      setReabrirPreTele(null); // 👈 NOVO
     }
   }, [isOpen]);
-
   useEffect(() => {
     if (isOpen && monitoramentos && monitoramentos.length >= 2) {
       setMonitoramentosLocais(monitoramentos);
     }
   }, [isOpen, monitoramentos]);
-
   if (!isOpen || !monitoramentos || monitoramentos.length < 2) return null;
-
   if (bloqueioEdicao) {
     return (
       <ModalOverlay>
@@ -115,8 +109,56 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       </ModalOverlay>
     );
   }
-
   const [monitA, monitB] = monitoramentosLocais || monitoramentos;
+
+  // 👇 NOVO: atualiza localmente a data de administração de A ou B, sem
+  // mexer na etapa atual do wizard (usada tanto no fluxo normal quanto na correção manual).
+  const atualizarMonitoramentoLocal = (qual, novaDataAdmin, novaDataFimCaixa) => {
+    setMonitoramentosLocais(prev => {
+      const base = prev || monitoramentos;
+      const [a, b] = base;
+      return qual === 'A'
+        ? [{ ...a, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }, b]
+        : [a, { ...b, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }];
+    });
+  };
+
+  // 👇 NOVO: dispara o NPS assim que o registro conjunto é salvo com sucesso.
+  if (showNpsPrompt) {
+    return (
+      <NpsModal
+        monitoramento={monitA}
+        onClose={() => onClose()}
+      />
+    );
+  }
+
+  // 👇 NOVO: permite reabrir o pré-tele de A ou B pra corrigir uma data errada,
+  // mesmo depois que data_administracao já foi salva no banco.
+  if (reabrirPreTele === 'A') {
+    return (
+      <PreMonitoramento
+        monitoramento={monitA}
+        onClose={() => setReabrirPreTele(null)}
+        onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
+          atualizarMonitoramentoLocal('A', novaDataAdmin, novaDataFimCaixa);
+          setReabrirPreTele(null);
+        }}
+      />
+    );
+  }
+  if (reabrirPreTele === 'B') {
+    return (
+      <PreMonitoramento
+        monitoramento={monitB}
+        onClose={() => setReabrirPreTele(null)}
+        onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
+          atualizarMonitoramentoLocal('B', novaDataAdmin, novaDataFimCaixa);
+          setReabrirPreTele(null);
+        }}
+      />
+    );
+  }
 
   const avancarComEfeito = (proximaEtapa) => {
     setTransicao(true);
@@ -125,9 +167,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       setTransicao(false);
     }, 220);
   };
-
   const precisaPreTele = (monit, anterior) => !anterior && !monit?.data_administracao;
-
   if (etapa === 'CONTATO_EFETIVO') {
     return (
       <TentativaContatoModal
@@ -166,25 +206,14 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       />
     );
   }
-
   const handlePreTeleASuccess = (novaDataAdmin, novaDataFimCaixa) => {
-    setMonitoramentosLocais(prev => {
-      const base = prev || monitoramentos;
-      const [a, b] = base;
-      return [{ ...a, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }, b];
-    });
+    atualizarMonitoramentoLocal('A', novaDataAdmin, novaDataFimCaixa);
     avancarComEfeito('MED_0');
   };
-
   const handlePreTeleBSuccess = (novaDataAdmin, novaDataFimCaixa) => {
-    setMonitoramentosLocais(prev => {
-      const base = prev || monitoramentos;
-      const [a, b] = base;
-      return [a, { ...b, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }];
-    });
+    atualizarMonitoramentoLocal('B', novaDataAdmin, novaDataFimCaixa);
     avancarComEfeito('MED_1');
   };
-
   if (etapa === 'PRE_TELE_A') {
     return (
       <PreMonitoramento
@@ -203,7 +232,6 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       />
     );
   }
-
   const handleAvancarMedicamento = (dados) => {
     const novaLista = [...dadosPorMedicamento, dados];
     setDadosPorMedicamento(novaLista);
@@ -223,7 +251,6 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       }
     }
   };
-
   const enviarRegistroConjunto = async (dadosLista, modo) => {
     const ativos = dadosLista.filter(d => !d.descontinuarMedicamento);
     let dataProximoContato = null;
@@ -259,19 +286,18 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       });
       toast.success('Contato registrado para os dois medicamentos com sucesso!');
       onSucesso();
-      onClose();
+      window.dispatchEvent(new Event('updateAlerts')); // 👈 NOVO: paridade com o modal individual
+      setShowNpsPrompt(true); // 👈 NOVO: antes fechava direto e nunca oferecia o NPS
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
     } finally {
       setEnviando(false);
     }
   };
-
   const monitoramentoDaEtapa = etapa === 'MED_0' ? monitA : (etapa === 'MED_1' ? monitB : null);
   const monitoramentoAnteriorDaEtapa = monitoramentoDaEtapa
     ? monitoramentosAnteriores?.[monitoramentoDaEtapa.id]
     : null;
-
   return (
     <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
       {(etapa === 'MED_0' || etapa === 'MED_1') && (
@@ -283,6 +309,18 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             <HistoricoComprasPaciente monitoramento={monitoramentoDaEtapa} />
           </div>
           <div className="center-column">
+            {monitoramentoDaEtapa?.data_administracao && (
+              <div style={{ textAlign: 'right', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setReabrirPreTele(etapa === 'MED_0' ? 'A' : 'B')}
+                  disabled={enviando}
+                  style={{ background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: 0 }}
+                >
+                  Corrigir data de administração informada
+                </button>
+              </div>
+            )}
             <StepTransitionWrapper leaving={transicao}>
               <PassoRegistroMedicamento
                 key={monitoramentoDaEtapa.id}
