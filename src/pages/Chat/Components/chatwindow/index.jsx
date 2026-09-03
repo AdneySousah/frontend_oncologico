@@ -57,18 +57,19 @@ export default function ChatWindow({ chatId }) {
     }
   };
 
-  // Função para reabrir a janela
-  const handleReopenWindow = async () => {
+  // Função para reabrir a janela — aceita qual template usar (termo ou nps),
+  // pra reproduzir exatamente o mesmo layout já configurado nos disparos reais.
+  const handleReopenWindow = async (tipoTemplate) => {
     try {
       setLoading(true);
-      const response = await api.post('/chat/reopen', { conversation_id: chatId });
+      const response = await api.post('/chat/reopen', { conversation_id: chatId, tipo_template: tipoTemplate });
 
       // Adiciona o template disparado na tela e atualiza a conversa
       setMessages((prev) => [...prev, response.data.message]);
       setConversationData(response.data.conversation);
 
     } catch (error) {
-      alert("Erro ao reabrir a janela.");
+      alert(error.response?.data?.error || "Erro ao reabrir a janela.");
     } finally {
       setLoading(false);
     }
@@ -133,11 +134,17 @@ export default function ChatWindow({ chatId }) {
       {/* ÁREA DE INPUT OU BLOQUEIO */}
       {isExpired ? (
         <S.BlockedArea>
-          <p>A janela de 24 horas da Meta expirou. Para voltar a conversar em texto livre, você precisa enviar um template de engajamento.</p>
-          <button onClick={handleReopenWindow} disabled={loading}>
-            <LuKey size={18} />
-            {loading ? 'Enviando...' : 'Desbloquear Chat (Enviar Termo)'}
-          </button>
+          <p>A janela de 24 horas da Meta expirou. Para voltar a conversar em texto livre, envie um dos templates abaixo pra reabrir a janela — eles usam exatamente o mesmo layout já configurado nos disparos reais.</p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button onClick={() => handleReopenWindow('termo')} disabled={loading}>
+              <LuKey size={18} />
+              {loading ? 'Enviando...' : 'Reabrir com Termo'}
+            </button>
+            <button onClick={() => handleReopenWindow('nps')} disabled={loading}>
+              <LuKey size={18} />
+              {loading ? 'Enviando...' : 'Reabrir com NPS'}
+            </button>
+          </div>
         </S.BlockedArea>
       ) : (
         <S.InputArea as="form" onSubmit={handleSendMessage}>

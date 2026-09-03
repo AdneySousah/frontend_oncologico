@@ -37,14 +37,17 @@ const OperadorasPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Tem certeza que deseja excluir esta operadora?')) {
+  const handleToggleActive = async (operadora) => {
+    const inativo = operadora.is_active === false;
+    const acao = inativo ? 'reativar' : 'desativar';
+
+    if (window.confirm(`Tem certeza que deseja ${acao} a operadora "${operadora.nome}"?`)) {
       try {
-        await api.delete(`/operadoras/${id}`);
-        toast.success('Operadora excluída.');
+        await api.patch(`/operadoras/${operadora.id}/status`);
+        toast.success(`Operadora ${inativo ? 'reativada' : 'desativada'} com sucesso.`);
         loadOperadoras();
       } catch (err) {
-        toast.error('Erro ao excluir operadora.');
+        toast.error(`Erro ao ${acao} operadora.`);
       }
     }
   };
@@ -73,30 +76,51 @@ const OperadorasPage = () => {
               <th>CNPJ</th>
               <th>Telefone</th>
               <th>E-mails</th>
+              <th>Status</th>
               <th style={{ textAlign: 'right' }}>Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" style={{textAlign:'center'}}>Carregando...</td></tr>
+              <tr><td colSpan="7" style={{textAlign:'center'}}>Carregando...</td></tr>
             ) : operadoras.length === 0 ? (
-              <tr><td colSpan="6" style={{textAlign:'center'}}>Nenhuma operadora cadastrada.</td></tr>
+              <tr><td colSpan="7" style={{textAlign:'center'}}>Nenhuma operadora cadastrada.</td></tr>
             ) : (
-              operadoras.map((op) => (
-                <tr key={op.id}>
-                  <td>#{op.id}</td>
-                  <td><strong>{op.nome}</strong></td>
-                  <td>{op.cnpj}</td>
-                  <td>{op.telefone}</td>
-                  <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={renderEmails(op.email)}>
-                    {renderEmails(op.email)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <ActionButton className="edit" onClick={() => handleEdit(op)}>Editar</ActionButton>
-                    <ActionButton className="delete" onClick={() => handleDelete(op.id)}>Excluir</ActionButton>
-                  </td>
-                </tr>
-              ))
+              operadoras.map((op) => {
+                const inativo = op.is_active === false;
+                return (
+                  <tr key={op.id} style={{ backgroundColor: inativo ? 'rgba(255, 60, 60, 0.08)' : 'transparent' }}>
+                    <td>#{op.id}</td>
+                    <td><strong>{op.nome}</strong></td>
+                    <td>{op.cnpj}</td>
+                    <td>{op.telefone}</td>
+                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={renderEmails(op.email)}>
+                      {renderEmails(op.email)}
+                    </td>
+                    <td>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        color: '#fff',
+                        background: inativo ? '#d19399' : '#28a745'
+                      }}>
+                        {inativo ? 'Inativa' : 'Ativa'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <ActionButton className="edit" onClick={() => handleEdit(op)}>Editar</ActionButton>
+                      <ActionButton
+                        className={inativo ? 'activate' : 'delete'}
+                        onClick={() => handleToggleActive(op)}
+                      >
+                        {inativo ? 'Reativar' : 'Desativar'}
+                      </ActionButton>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </Table>

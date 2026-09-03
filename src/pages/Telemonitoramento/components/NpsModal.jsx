@@ -20,6 +20,8 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
 
   // Controle para quem enviar a mensagem do NPS
   const [destinoEnvio, setDestinoEnvio] = useState('paciente');
+  const [telefoneManual, setTelefoneManual] = useState('');
+  const [emailManual, setEmailManual] = useState('');
 
   const pacienteInfo = monitoramento.paciente;
 
@@ -34,8 +36,17 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
     if (pacienteInfo) {
       // Se tiver cuidador, o padrão vira o cuidador
       setDestinoEnvio(pacienteInfo.possui_cuidador ? 'cuidador' : 'paciente');
+      setEmailManual(pacienteInfo.email || '');
     }
   }, [pacienteInfo]);
+
+  const handleTelefoneManualChange = (e) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 11) value = value.slice(0, 11);
+    value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
+    value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+    setTelefoneManual(value);
+  };
 
   // Remove o monitoramento do 2º plano e avisa a aplicação
   const removeFromBackground = (id) => {
@@ -52,9 +63,71 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
       if (!confirmar) return;
     }
 
-    const telefoneFinal = destinoEnvio === 'cuidador' && pacienteInfo.contato_cuidador
-      ? pacienteInfo.contato_cuidador
-      : (pacienteInfo.celular || pacienteInfo.telefone);
+    // 👇 Gerar e copiar link — sem disparar nada automaticamente
+    if (destinoEnvio === 'copiar_link') {
+      try {
+        setStep('sending');
+        const res = await api.post('/nps/send', {
+          paciente_id: pacienteInfo.id,
+          monitoramento_id: monitoramento.id,
+          destino_tipo: 'copiar_link'
+        });
+
+        if (res.data && res.data.link) {
+          try {
+            await navigator.clipboard.writeText(res.data.link);
+            toast.success("Link copiado para a área de transferência!");
+          } catch (clipErr) {
+            toast.warning(`Link gerado, mas não foi possível copiar automaticamente. Link: ${res.data.link}`);
+          }
+        } else {
+          toast.success("Operação concluída, mas o link não foi retornado pelo servidor.");
+        }
+        setStep('waiting');
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Erro ao gerar o link.');
+        setStep('prompt');
+      }
+      return;
+    }
+
+    // 👇 Envio por e-mail
+    if (destinoEnvio === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailManual)) {
+        toast.error("Por favor, informe um e-mail válido.");
+        return;
+      }
+      try {
+        setStep('sending');
+        await api.post('/nps/send', {
+          paciente_id: pacienteInfo.id,
+          monitoramento_id: monitoramento.id,
+          destino_tipo: 'email',
+          email_destino: emailManual
+        });
+        toast.success('Link do NPS enviado por e-mail!');
+        setStep('waiting');
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Erro ao enviar NPS por e-mail.');
+        setStep('prompt');
+      }
+      return;
+    }
+
+    let telefoneFinal;
+    if (destinoEnvio === 'manual') {
+      const numeroLimpo = telefoneManual.replace(/\D/g, '');
+      if (numeroLimpo.length !== 11 || numeroLimpo[2] !== '9') {
+        toast.error("Informe um celular válido (DDD + dígito 9).");
+        return;
+      }
+      telefoneFinal = numeroLimpo;
+    } else {
+      telefoneFinal = destinoEnvio === 'cuidador' && pacienteInfo.contato_cuidador
+        ? pacienteInfo.contato_cuidador
+        : (pacienteInfo.celular || pacienteInfo.telefone);
+    }
 
     try {
       setStep('sending');
@@ -67,7 +140,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
       toast.success('Link do NPS enviado pelo WhatsApp!');
       setStep('waiting');
     } catch (error) {
-      toast.error('Erro ao enviar NPS.');
+      toast.error(error.response?.data?.error || 'Erro ao enviar NPS.');
       setStep('prompt');
     }
   };
@@ -150,11 +223,11 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
           {step === 'prompt' && (
             <>
               <h3>Avaliação de Atendimento (NPS)</h3>
-              <p>Deseja enviar a pesquisa de satisfação (NPS) via WhatsApp sobre o atendimento prestado a <strong>{pacienteInfo?.nome}</strong>?</p>
+              <p>Deseja enviar a pesquisa de satisfação (NPS) sobre o atendimento prestado a <strong>{pacienteInfo?.nome}</strong>?</p>
 
               {pacienteInfo?.possui_cuidador && (
                 <div style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeeba', padding: '15px', borderRadius: '6px', marginTop: '15px', textAlign: 'left', fontSize: '0.9rem' }}>
-                  <strong>⚠️ ATENÇÃO:</strong> Esse paciente possui um cuidador/responsável. Por questões de cuidado, o disparo do NPS está selecionado para o cuidador.
+                  <strong>⚠️ ATENÇÃO:</strong> Esse paciente possui um cuidador/responsável. Por questões de cuidado, o disparo está selecionado para o cuidador.
                   <br /><br />
                   <strong>Nome do Cuidador:</strong> {pacienteInfo.nome_cuidador}<br />
                   <strong>Contato:</strong> {pacienteInfo.contato_cuidador}
@@ -162,7 +235,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
               )}
 
               <div style={{ marginTop: '20px', textAlign: 'left', padding: '15px', border: '1px solid #eee', borderRadius: '6px' }}>
-                <strong style={{ display: 'block', marginBottom: '10px' }}>Selecione quem irá avaliar o atendimento:</strong>
+                <strong style={{ display: 'block', marginBottom: '10px' }}>Selecione o destinatário do link:</strong>
 
                 {pacienteInfo?.possui_cuidador && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
@@ -173,11 +246,11 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
                       checked={destinoEnvio === 'cuidador'}
                       onChange={() => setDestinoEnvio('cuidador')}
                     />
-                    Disparar para o Cuidador  ({pacienteInfo.nome_cuidador} - {pacienteInfo.contato_cuidador})
+                    Disparar via WhatsApp para o Cuidador ({pacienteInfo.contato_cuidador})
                   </label>
                 )}
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
                   <input
                     type="radio"
                     name="destinoNps"
@@ -185,19 +258,57 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
                     checked={destinoEnvio === 'paciente'}
                     onChange={() => setDestinoEnvio('paciente')}
                   />
-                  Disparar para o Paciente ({pacienteInfo.nome} {pacienteInfo.sobrenome} - {pacienteInfo.celular || pacienteInfo.telefone})
+                  Disparar via WhatsApp para o Paciente ({pacienteInfo.celular || pacienteInfo.telefone})
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input type="radio" name="destinoNps" value="manual" checked={destinoEnvio === 'manual'} onChange={() => setDestinoEnvio('manual')} />
+                  Digitar um número de WhatsApp manualmente
+                </label>
+
+                {destinoEnvio === 'manual' && (
+                  <div style={{ marginTop: '10px', marginBottom: '15px', marginLeft: '25px' }}>
+                    <Input type="text" placeholder="(00) 90000-0000" value={telefoneManual} onChange={handleTelefoneManualChange} maxLength="15" style={{ width: '200px', padding: '8px' }} />
+                  </div>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input type="radio" name="destinoNps" value="email" checked={destinoEnvio === 'email'} onChange={() => setDestinoEnvio('email')} />
+                  Enviar link por E-mail
+                </label>
+
+                {destinoEnvio === 'email' && (
+                  <div style={{ marginTop: '10px', marginBottom: '15px', marginLeft: '25px' }}>
+                    <Input type="email" placeholder="paciente@email.com" value={emailManual} onChange={(e) => setEmailManual(e.target.value)} style={{ width: '100%', maxWidth: '300px', padding: '8px' }} />
+                    <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
+                      O e-mail será salvo no cadastro do paciente automaticamente.
+                    </small>
+                  </div>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="radio" name="destinoNps" value="copiar_link" checked={destinoEnvio === 'copiar_link'} onChange={() => setDestinoEnvio('copiar_link')} />
+                  Gerar e copiar link (envio manual)
                 </label>
               </div>
 
               <ButtonGroup style={{ justifyContent: 'center', marginTop: '25px' }}>
                 <Button variant="secondary" onClick={onClose}>Agora Não</Button>
-                <Button onClick={handleSendNps}>Sim, Enviar Link do NPS</Button>
+                <Button onClick={handleSendNps}>
+                  {destinoEnvio === 'email' ? 'Enviar Link via E-mail' :
+                   destinoEnvio === 'copiar_link' ? 'Gerar e Copiar Link' :
+                   'Enviar Link via WhatsApp'}
+                </Button>
               </ButtonGroup>
             </>
           )}
 
           {step === 'sending' && (
-            <PulseText>Enviando link para o WhatsApp...</PulseText>
+            <PulseText>
+              {destinoEnvio === 'email' ? 'Enviando link por e-mail...' :
+               destinoEnvio === 'copiar_link' ? 'Gerando link...' :
+               'Enviando link para o WhatsApp...'}
+            </PulseText>
           )}
 
           {step === 'waiting' && (

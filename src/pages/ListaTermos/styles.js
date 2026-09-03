@@ -119,3 +119,79 @@ export const Td = styled.td`
   color: ${({ theme }) => theme.colors?.text || '#333'};
   vertical-align: middle;
 `;
+
+/* ===== MODAL DE VERSÃO DO TERMO ===== */
+
+export const ModalOverlay = styled.div`
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.75);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+`;
+
+export const ModalContent = styled.div`
+  background: ${({ theme }) => theme.colors?.surface || '#fff'};
+  color: ${({ theme }) => theme.colors?.text || '#333'};
+  padding: 28px;
+  border-radius: 10px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#ddd'};
+
+  h3 { margin: 0 0 6px 0; }
+`;
+
+export const FormGroup = styled.div`
+  margin-bottom: 16px;
+
+  label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  span.hint {
+    display: block;
+    font-size: 0.75rem;
+    opacity: 0.65;
+    margin-top: 4px;
+  }
+`;
+
+export const Input = styled.input`
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#ddd'};
+  background: ${({ theme }) => theme.colors?.inputBg || '#fff'};
+  color: ${({ theme }) => theme.colors?.text || '#333'};
+  font-size: 0.9rem;
+`;
+
+export const TextArea = styled.textarea`
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#ddd'};
+  background: ${({ theme }) => theme.colors?.inputBg || '#fff'};
+  color: ${({ theme }) => theme.colors?.text || '#333'};
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+`;
+
+export const VersaoAtivaBox = styled.div`
+  background: ${({ theme }) => theme.colors?.background || '#f4f6f8'};
+  border: 1px solid ${({ theme }) => theme.colors?.border || '#ddd'};
+  border-left: 4px solid ${({ theme }) => theme.colors?.primary || '#0056b3'};
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+
+  p { margin: 4px 0; font-size: 0.88rem; }
+  strong { color: ${({ theme }) => theme.colors?.primary || '#0056b3'}; }
+`;

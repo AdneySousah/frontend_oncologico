@@ -5,40 +5,34 @@ import {
   LuHistory, 
   LuUsers, 
   LuShield, 
-  LuUser, 
-  LuAward, 
   LuFileSearch,
-  LuBuilding2, 
-  LuStethoscope, 
-  LuHeartPulse, 
-  LuPill, 
   LuLock, 
   LuLogs,
   // Ícones com nomes de exportação MAIS ESTÁVEIS (Padrão Lucide)
   LuClipboardList, 
   LuFileWarning, 
   LuDollarSign,
-  LuPhone
+  LuPhone,
+  LuCirclePause,
+  LuCalculator,
+  LuBookOpen
 } from "react-icons/lu";
 
-export const navOptions = [
+// 👇 Agrupado sob o cabeçalho colapsável "Atendimento" (mesmo padrão de
+// "Tabelas Cadastrais"): dashboard, necessidade de navegação, telemonitoramento,
+// linha do tempo, e a página de recálculo.
+export const atendimentoOptions = [
   { id: "dashboard", label: "Dashboard", icon: LuLayoutDashboard, path: "/", modulo: "dashboard" },
   { id: "necessidade", label: "Necessidade de Navegação", icon: LuCompass, path: "/necessidade-navegacao", modulo: "avaliacoes" },
   { id: "tele", label: "Telemonitoramento", icon: LuActivity, path: "/telemonitoramento", modulo: "telemonitoramento" },
   { id: "linhadotempo", label: "Linha do Tempo", icon: LuHistory, path: "/linha-do-tempo", modulo: "linhadotempo" },
+  { id: "recalculo", label: "Recálculo", icon: LuCalculator, path: "/recalculo", modulo: "recalculo" },
 ];
 
 export const registerOptions = [
-  { id: "especialidades", label: "Especialidades", icon: LuAward, path: "/especialidades", modulo: "especialidades" },
   { id: "operadoras", label: "Operadoras", icon: LuShield, path: "/operadoras", modulo: "operadoras" },
   { id: "usuarios", label: "Usuários", icon: LuUsers, path: "/users", modulo: "usuarios" },
   { id: "permissoes", label: "Permissões", icon: LuLock, path: "/permissoes", modulo: "usuarios" },
-  /* { id: "pacientes", label: "Pacientes", icon: LuUser, path: "/pacientes", modulo: "pacientes" }, */
-  /* { id: "diagnosticos", label: "Diagnósticos", icon: LuFileSearch, path: "/diagnosticos", modulo: "diagnosticos" }, */
-/*   { id: "prestadores", label: "Prestadores", icon: LuBuilding2, path: "/prestadores", modulo: "prestadores_medicos" }, */
-  /* { id: "medicos", label: "Médicos", icon: LuStethoscope, path: "/medicos", modulo: "medicos" }, */
-  /* { id: "comorbidades", label: "Comorbidades", icon: LuHeartPulse, path: "/comorbidades", modulo: "comorbidades" }, */
-  /* { id: "medicamentos", label: "Medicamentos", icon: LuPill, path: "/medicamentos", modulo: "medicamentos" }, */
   
   // ITENS COM NOVOS ÍCONES SEGUROS:
   { 
@@ -56,10 +50,12 @@ export const registerOptions = [
     modulo: "reacao_adversa" 
   },
   { id: "falhascontatos", label: "Falhas de Contato", icon: LuPhone, path: "/motivos-falha-contato", modulo: "falhascontatos" },
+  { id: "pausatratamento", label: "Motivos de Pausa/Descontinuação", icon: LuCirclePause, path: "/motivos-pausa-tratamento", modulo: "pausa_tratamento" },
 ];
 
 export const adminOptions = [
   { id: "auditoria", label: "Auditoria", icon: LuLogs, path: "/auditoria", modulo: "audit-logs" },
    { id: "faturamento", label: "Faturamento", icon: LuDollarSign, path: "/faturamento", modulo: "faturamento" },
    { id: "termo", label: "Termos Assinados", icon: LuFileSearch, path: "/termo", modulo: "termo" },
+   { id: "base_conhecimento", label: "Base de Conhecimento", icon: LuBookOpen, path: "/base-conhecimento", modulo: "base_conhecimento" },
 ];

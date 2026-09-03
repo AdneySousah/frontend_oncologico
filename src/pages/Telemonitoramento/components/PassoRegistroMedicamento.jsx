@@ -47,6 +47,8 @@ export default function PassoRegistroMedicamento({
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
 
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
+  const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
+  const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
 
   useEffect(() => {
@@ -55,6 +57,12 @@ export default function PassoRegistroMedicamento({
     api.get('/reacao-adversa')
       .then(res => { if (isMounted) setListaReacoes(res.data); })
       .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
+
+    // Mesma lista usada em "Pausar Tratamento" (Necessidade de Navegação),
+    // pra manter os motivos contabilizáveis de forma consistente.
+    api.get('/motivos-pausa-tratamento')
+      .then(res => { if (isMounted) setListaMotivosEncerramento(res.data); })
+      .catch(() => { if (isMounted) toast.error('Erro ao carregar motivos de descontinuação.'); });
 
     setLoadingCompra(true);
     api.get(`/monitoramento-medicamentos/${monitoramento.id}/verificar-compra`, {
@@ -193,6 +201,10 @@ export default function PassoRegistroMedicamento({
       toast.error(`Não é possível descontinuar ${monitoramento.medicamento?.nome} e aplicar uma nova compra ao mesmo tempo.`);
       return;
     }
+    if (descontinuarMedicamento && !motivoEncerramentoSelecionado) {
+      toast.error(`Selecione o motivo do encerramento de ${monitoramento.medicamento?.nome}.`);
+      return;
+    }
     if (!descontinuarMedicamento && aplicarNovaCompra) {
       if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
         toast.error(`Data de início e posologia da nova caixa de ${monitoramento.medicamento?.nome} são obrigatórias.`);
@@ -225,7 +237,8 @@ export default function PassoRegistroMedicamento({
       posologiaNovaCaixa,
       modoNovoMedicamento,
       descontinuarMedicamento,
-      motivoEncerramento
+      motivoEncerramento,
+      motivoEncerramentoId: motivoEncerramentoSelecionado?.value || null
     });
   };
 
@@ -342,7 +355,19 @@ export default function PassoRegistroMedicamento({
           {descontinuarMedicamento && (
             <div className="inputs-row">
               <div className="input-group" style={{ flex: 1 }}>
-                <label>Motivo do encerramento (opcional):</label>
+                <label>Motivo do encerramento *</label>
+                <Select
+                  options={listaMotivosEncerramento.map(m => ({ value: m.id, label: m.descricao }))}
+                  value={motivoEncerramentoSelecionado}
+                  onChange={setMotivoEncerramentoSelecionado}
+                  styles={getCustomSelectStyles(theme)}
+                  placeholder="Selecione o motivo..."
+                  noOptionsMessage={() => "Nenhum motivo cadastrado — cadastre em Tabelas Cadastrais"}
+                  menuPosition="fixed"
+                />
+              </div>
+              <div className="input-group" style={{ flex: 1, marginTop: '10px' }}>
+                <label>Observação adicional (opcional):</label>
                 <Input as="textarea" rows="2" value={motivoEncerramento} onChange={(e) => setMotivoEncerramento(e.target.value)} />
               </div>
             </div>

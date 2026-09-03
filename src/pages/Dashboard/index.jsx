@@ -22,6 +22,42 @@ export default function Dashboard() {
   const [dataFim, setDataFim] = useState('');
   const [graficoSelecionado, setGraficoSelecionado] = useState('todos');
 
+  // 👇 NOVO: status do fechamento do mês anterior + ação de fechar agora
+  const [statusMesAnterior, setStatusMesAnterior] = useState(null);
+  const [fechandoMes, setFechandoMes] = useState(false);
+  const [podeFecharMes, setPodeFecharMes] = useState(false);
+
+  const carregarStatusMesAnterior = async () => {
+    try {
+      const response = await api.get('/dashboard/status-fechamento-mes-anterior');
+      setStatusMesAnterior(response.data);
+    } catch (error) {
+      // 403 é esperado pra quem não tem a permissão — não é erro de verdade
+      if (error.response?.status !== 403) {
+        console.error('Erro ao verificar status do mês anterior', error);
+      }
+    }
+  };
+
+  const handleFecharMesAnterior = async () => {
+    if (!statusMesAnterior) return;
+    const confirmar = window.confirm(
+      `Fechar (congelar) o mês ${statusMesAnterior.mes}/${statusMesAnterior.ano} agora? Depois de fechado, os números desse mês não mudam mais, mesmo que dados novos cheguem.`
+    );
+    if (!confirmar) return;
+
+    try {
+      setFechandoMes(true);
+      await api.post('/dashboard/fechar-mes-anterior');
+      toast.success(`Mês ${statusMesAnterior.mes}/${statusMesAnterior.ano} fechado com sucesso!`);
+      await carregarStatusMesAnterior();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao fechar o mês anterior.');
+    } finally {
+      setFechandoMes(false);
+    }
+  };
+
   const loadDashboard = async () => {
     setLoading(true);
     try {
@@ -41,6 +77,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboard();
+
+    // Só busca/exibe o status de fechamento de mês pra quem tem a
+    // permissão dedicada "Fechar Mês (Dashboard)" em Perfis — sem isso o
+    // botão nem chega a aparecer pra quem não deveria ver.
+    api.get('/users/me')
+      .then(response => {
+        const temPermissao = response.data?.perfil?.permissoes?.fechar_mes_dashboard?.acessar === true;
+        setPodeFecharMes(temPermissao);
+        if (temPermissao) carregarStatusMesAnterior();
+      })
+      .catch(err => console.error('Erro ao verificar permissões do usuário', err));
   }, []);
 
   if (loading && !data) return <Container><h2>Carregando Dashboard...</h2></Container>;
@@ -74,6 +121,27 @@ export default function Dashboard() {
             <option value="troca_medicamentos">Histórico de Troca de Medicamentos</option>
           </select>
         </SelectGroup>
+
+        {statusMesAnterior && (
+          statusMesAnterior.fechado ? (
+            <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>
+              ✅ Mês anterior ({statusMesAnterior.mes}/{statusMesAnterior.ano}) já foi fechado.
+            </span>
+          ) : (
+            <button
+              onClick={handleFecharMesAnterior}
+              disabled={fechandoMes}
+              title="Fecha o mês anterior antes do fechamento automático do dia 3"
+              style={{
+                padding: '0.5rem 1rem', border: 'none', borderRadius: '4px', fontWeight: 'bold',
+                cursor: fechandoMes ? 'not-allowed' : 'pointer', background: '#f0ad4e', color: '#fff',
+                opacity: fechandoMes ? 0.6 : 1
+              }}
+            >
+              {fechandoMes ? 'Fechando...' : `Fechar Mês Anterior (${statusMesAnterior.mes}/${statusMesAnterior.ano})`}
+            </button>
+          )
+        )}
       </ControlsPanel>
 
       <Grid>

@@ -281,7 +281,8 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           posologia_nova_caixa: d.aplicarNovaCompra ? Number(d.posologiaNovaCaixa) : null,
           modo_novo_medicamento: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento) ? d.modoNovoMedicamento : null,
           descontinuar_medicamento: d.descontinuarMedicamento,
-          motivo_encerramento: d.descontinuarMedicamento ? (d.motivoEncerramento || null) : null
+          motivo_encerramento: d.descontinuarMedicamento ? (d.motivoEncerramento || null) : null,
+          motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null
         }))
       });
       toast.success('Contato registrado para os dois medicamentos com sucesso!');

@@ -10,8 +10,6 @@ import {
   ActionButton,
   UserEmail,
   AdminBadge,
-  ProfissionalYes,
-  RegistryInfo,
   AdminMatrixBadge,
   OperadorasList,
   OperadoraBadge,
@@ -105,8 +103,6 @@ const UsersPage = () => {
               <th>ID</th>
               <th>Nome</th>
               <th>Acesso (Grupo)</th>
-              <th>Profissional?</th>
-              <th>Registro / Especialidade</th>
               <th>Operadoras</th>
               <th>Status</th>
               <th style={{ textAlign: 'right' }}>Ações</th>
@@ -114,9 +110,9 @@ const UsersPage = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Carregando...</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>Carregando...</td></tr>
             ) : paginatedUsers.length === 0 ? (
-              <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum usuário encontrado.</td></tr>
+              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum usuário encontrado.</td></tr>
             ) : (
               paginatedUsers.map((user) => (
                 <tr key={user.id} isActive={user.active}>
@@ -128,15 +124,6 @@ const UsersPage = () => {
                   <td>
                     {user.perfil?.nome || <span style={{ color: '#aaa' }}>Sem Perfil</span>}
                    
-                  </td>
-                  <td>{user.is_profissional ? <ProfissionalYes>Sim</ProfissionalYes> : 'Não'}</td>
-                  <td>
-                    {user.is_profissional && user.professional ? (
-                      <RegistryInfo>
-                        <small><b>{user.professional.registry_type}</b>: {user.professional.registry_number}</small>
-                        <small className="speciality">{user.professional.speciality?.name || 'Geral'}</small>
-                      </RegistryInfo>
-                    ) : '-'}
                   </td>
 
                   <td>

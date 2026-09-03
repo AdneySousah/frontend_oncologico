@@ -6,8 +6,10 @@ import {
   LuSearch, 
   LuSun, 
   LuMoon, 
-  LuInfo
+  LuInfo,
+  LuTrash2
 } from 'react-icons/lu';
+import { toast } from 'react-toastify';
 import api from '../../../../services/api'; 
 import { AuthContext } from '../../../../hooks/AuthConfig'; 
 import { ThemeContext } from '../../../../hooks/ThemeConfig'; 
@@ -25,6 +27,8 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
   const [npsHealth, setNpsHealth] = useState(null);
   const [unreadMap, setUnreadMap] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  // 👇 NOVO: aba ativa — permite filtrar por não lidas / lidas / todas
+  const [filtroAba, setFiltroAba] = useState('todas');
   
   // Estado para controlar a abertura do modal de regras
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
@@ -36,6 +40,38 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
   const getInitials = (name) => {
     if (!name) return "U";
     return name.substring(0, 2).toUpperCase();
+  };
+
+  // 👇 NOVO: mesmo dia mostra a hora, ontem mostra "Ontem", antes disso
+  // mostra a data.
+  const formatarDataRelativa = (dateStr) => {
+    if (!dateStr) return '';
+    const data = new Date(dateStr);
+    const hoje = new Date();
+    const dataSemHora = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+    const hojeSemHora = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const diffDias = Math.round((hojeSemHora - dataSemHora) / (1000 * 60 * 60 * 24));
+
+    if (diffDias === 0) return data.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDias === 1) return 'Ontem';
+    return data.toLocaleDateString('pt-BR');
+  };
+
+  // 👇 NOVO: apaga a conversa (com confirmação) e remove da lista na hora.
+  const handleDeleteConversation = async (e, conv) => {
+    e.stopPropagation(); // não abre a conversa ao clicar na lixeira
+    const nome = conv.paciente ? `${conv.paciente.nome} ${conv.paciente.sobrenome}` : conv.phone_number;
+    const confirmar = window.confirm(`Apagar a conversa com ${nome}? Todo o histórico de mensagens será perdido permanentemente.`);
+    if (!confirmar) return;
+
+    try {
+      await api.delete(`/chat/conversations/${conv.id}`);
+      setConversations(prev => prev.filter(c => c.id !== conv.id));
+      if (activeChatId === conv.id) setActiveChatId(null);
+      toast.success('Conversa apagada.');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao apagar a conversa.');
+    }
   };
 
   // Relógio em tempo real
@@ -69,14 +105,21 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Lógica da barra de pesquisa
+  // Lógica da barra de pesquisa + aba (não lidas / lidas / todas)
   const filteredConversations = conversations.filter(conv => {
     const nameStr = conv.paciente ? `${conv.paciente.nome} ${conv.paciente.sobrenome}`.toLowerCase() : '';
     const phoneStr = conv.phone_number.toLowerCase();
     const searchStr = searchTerm.toLowerCase();
-    
-    return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+    const bateBusca = nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+    if (!bateBusca) return false;
+
+    const temNaoLida = unreadMap[conv.id] > 0;
+    if (filtroAba === 'nao-lidas') return temNaoLida;
+    if (filtroAba === 'lidas') return !temNaoLida;
+    return true; // 'todas'
   });
+
+  const totalNaoLidas = conversations.filter(c => unreadMap[c.id] > 0).length;
 
   return (
     <S.SidebarContainer>
@@ -105,6 +148,34 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
           />
         </S.SearchInput>
       </S.SearchArea>
+
+      {/* 👇 NOVO: abas de filtro por status de leitura */}
+      <div style={{ display: 'flex', gap: '6px', padding: '0 15px 10px 15px' }}>
+        {[
+          { key: 'todas', label: 'Todas' },
+          { key: 'nao-lidas', label: `Não lidas${totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ''}` },
+          { key: 'lidas', label: 'Lidas' }
+        ].map(aba => (
+          <button
+            key={aba.key}
+            onClick={() => setFiltroAba(aba.key)}
+            style={{
+              flex: 1,
+              padding: '6px 8px',
+              borderRadius: '20px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: filtroAba === aba.key ? 700 : 500,
+              backgroundColor: filtroAba === aba.key ? '#25D366' : (theme === 'dark' ? '#333' : '#f0f0f0'),
+              color: filtroAba === aba.key ? '#fff' : (theme === 'dark' ? '#ccc' : '#666'),
+              transition: 'all 0.2s'
+            }}
+          >
+            {aba.label}
+          </button>
+        ))}
+      </div>
 
       <S.ConversationList>
         {filteredConversations.length === 0 ? (
@@ -150,9 +221,10 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
                       <span style={{ 
                         fontSize: '0.7rem', 
                         color: isUnread ? '#25D366' : (theme === 'dark' ? '#aaa' : '#999'),
-                        fontWeight: isUnread ? 'bold' : 'normal'
+                        fontWeight: isUnread ? 'bold' : 'normal',
+                        whiteSpace: 'nowrap'
                       }}>
-                        {lastMsg ? new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        {lastMsg ? formatarDataRelativa(lastMsg.createdAt) : ''}
                       </span>
                     </div>
                     <p style={{ 
@@ -173,6 +245,26 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
                       <S.UnreadBadge>{unreadMap[conv.id]}</S.UnreadBadge>
                     </div>
                   )}
+
+                  <button
+                    onClick={(e) => handleDeleteConversation(e, conv)}
+                    title="Apagar conversa"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: theme === 'dark' ? '#888' : '#bbb',
+                      marginLeft: '8px',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      alignSelf: 'center'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#ff4d4f'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = theme === 'dark' ? '#888' : '#bbb'}
+                  >
+                    <LuTrash2 size={16} />
+                  </button>
 
                 </div>
               </S.ConversationItem>

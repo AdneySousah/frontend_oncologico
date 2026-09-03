@@ -128,7 +128,9 @@ export default function ComparativoNovaCompra({
     qtd_caixas,
     data_entrega,
     data_previsao_administracao,
-    data_novo_inicio
+    data_novo_inicio,
+    existe_outro_evento_pendente, // 👈 NOVO: havia mais de uma compra pendente pro paciente
+    outro_evento_pendente
   } = data;
 
   // Só é considerado "modo conjunto" de fato quando houve troca de medicamento
@@ -180,6 +182,27 @@ export default function ComparativoNovaCompra({
             : 'Nova Compra Identificada para o Próximo Ciclo!'}
         </span>
       </Header>
+
+      {existe_outro_evento_pendente && (
+        <AlertMessage style={{ borderLeftColor: '#8e44ad', backgroundColor: '#f4ecf7', color: '#6c3483' }}>
+          <LuTriangleAlert size={22} color="#8e44ad" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <strong style={{ color: '#6c3483', fontSize: '0.95em' }}>Há outra compra pendente para este paciente</strong>
+            <span style={{ lineHeight: '1.4' }}>
+              {outro_evento_pendente ? (
+                <>
+                  Além desta, o evento <strong>#{outro_evento_pendente.evento_externo_id}</strong> ({outro_evento_pendente.mesmo_medicamento_atual ? 'reposição do medicamento atual' : outro_evento_pendente.medicamento_nome}
+                  {outro_evento_pendente.data_previsao_administracao ? `, previsto para ${formatarDataLocal(outro_evento_pendente.data_previsao_administracao)}` : ''}) também está aguardando.
+                  {outro_evento_pendente.mesmo_medicamento_atual && ' Isso pode indicar uso em conjunto em vez de substituição — confira antes de decidir.'}
+                </>
+              ) : (
+                'Existem outros eventos de compra além deste aguardando aplicação.'
+              )}
+              {' '}Depois de registrar este contato, rode a verificação novamente para tratar o(s) evento(s) restante(s).
+            </span>
+          </div>
+        </AlertMessage>
+      )}
 
       {mudou_medicamento && pode_ser_conjunto && (
         <ModoSelector>

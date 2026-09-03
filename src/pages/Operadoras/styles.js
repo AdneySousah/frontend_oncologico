@@ -101,4 +101,14 @@ export const ActionButton = styled.button`
       color: #ffffff; 
     }
   }
+
+  &.activate {
+    color: #28a745;
+    border-color: #28a745;
+
+    &:hover {
+      background-color: #28a745;
+      color: #ffffff;
+    }
+  }
 `;

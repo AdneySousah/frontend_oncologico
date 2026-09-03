@@ -83,6 +83,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
+  const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
+  const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
   // Estados Formulario Base
   const [qtdInformada, setQtdInformada] = useState('');
@@ -189,10 +191,16 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setMostrarReembolso(false); // 👈 NOVO
       setMonitoramentoReembolso(null); // 👈 NOVO
       setCarregandoReembolso(false); // 👈 NOVO
+      setMotivoEncerramentoSelecionado(null);
       setupDates(localMonitoramento);
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
         .catch(() => { if (isMounted) toast.error('Erro ao carregar reações adversas.'); });
+      // Mesma lista usada em "Pausar Tratamento" (Necessidade de Navegação),
+      // pra manter os motivos contabilizáveis de forma consistente.
+      api.get('/motivos-pausa-tratamento')
+        .then(response => { if (isMounted) setListaMotivosEncerramento(response.data); })
+        .catch(() => { if (isMounted) toast.error('Erro ao carregar motivos de descontinuação.'); });
       setLoadingCompra(true);
       api.get(`/monitoramento-medicamentos/${localMonitoramento.id}/verificar-sincronizacao-atual`)
         .then(resSync => {
@@ -522,6 +530,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       toast.error('Não é possível descontinuar o medicamento e aplicar uma nova compra ao mesmo tempo.');
       return;
     }
+    if (descontinuarMedicamento && !motivoEncerramentoSelecionado) {
+      toast.error('Selecione o motivo do encerramento.');
+      return;
+    }
     if (aplicarNovaCompra) {
       if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
         toast.error('Data de início e posologia da nova caixa são obrigatórias.');
@@ -552,6 +564,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         data_abertura_nova_caixa: !descontinuarMedicamento ? dataAbertura : null,
         descontinuar_medicamento: descontinuarMedicamento,
         motivo_encerramento: descontinuarMedicamento ? (motivoEncerramento || null) : null,
+        motivo_encerramento_id: descontinuarMedicamento ? (motivoEncerramentoSelecionado?.value || null) : null,
         is_reacao: isReacao,
         reacoes_adversas: isReacao ? reacoesIds : [],
         observacao: observacao || null,
@@ -654,6 +667,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         data_abertura_nova_caixa: dataEscolhidaISO,
         descontinuar_medicamento: dados.descontinuarMedicamento,
         motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
+        motivo_encerramento_id: dados.descontinuarMedicamento ? (dados.motivoEncerramentoId || null) : null,
         is_reacao: dados.isReacao,
         reacoes_adversas: reacoesIds,
         observacao: dados.observacao || null,
@@ -704,6 +718,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         data_abertura_nova_caixa: dados.descontinuarMedicamento ? null : calcularProximaDataPorAdesao(dados.nivelAdesao),
         descontinuar_medicamento: dados.descontinuarMedicamento,
         motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
+        motivo_encerramento_id: dados.descontinuarMedicamento ? (dados.motivoEncerramentoId || null) : null,
         is_reacao: dados.isReacao,
         reacoes_adversas: reacoesIds,
         observacao: dados.observacao || null,
@@ -1088,13 +1103,25 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   {descontinuarMedicamento && (
                     <div className="inputs-row">
                       <div className="input-group" style={{ flex: 1 }}>
-                        <label>Motivo do encerramento (opcional):</label>
+                        <label>Motivo do encerramento *</label>
+                        <Select
+                          options={listaMotivosEncerramento.map(m => ({ value: m.id, label: m.descricao }))}
+                          value={motivoEncerramentoSelecionado}
+                          onChange={setMotivoEncerramentoSelecionado}
+                          styles={getCustomSelectStyles(theme)}
+                          placeholder="Selecione o motivo..."
+                          noOptionsMessage={() => "Nenhum motivo cadastrado — cadastre em Tabelas Cadastrais"}
+                          menuPosition="fixed"
+                        />
+                      </div>
+                      <div className="input-group" style={{ flex: 1, marginTop: '10px' }}>
+                        <label>Observação adicional (opcional):</label>
                         <Input
                           as="textarea"
                           rows="2"
                           value={motivoEncerramento}
                           onChange={(e) => setMotivoEncerramento(e.target.value)}
-                          placeholder="Ex: efeito colateral, decisão médica, tratamento concluído..."
+                          placeholder="Detalhes adicionais, se necessário..."
                         />
                       </div>
                     </div>

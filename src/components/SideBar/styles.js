@@ -233,11 +233,13 @@ export const MenuItem = styled.li`
   }
 `;
 
-export const SubMenuContent = styled.div`
+export const SubMenuContent = styled.ul`
   max-height: ${({ isOpen, isCollapsed }) => (isOpen && !isCollapsed ? "800px" : "0")};
   overflow: hidden;
   transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   padding-left: ${(props) => (props.isCollapsed ? "0" : "20px")};
+  margin: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 2px;

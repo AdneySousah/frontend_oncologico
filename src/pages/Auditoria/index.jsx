@@ -208,11 +208,14 @@ export default function AuditoriaPage() {
                 }}
               >
                 <option value="">Todas</option>
-                <option value="CRIAÇÃO">Criação</option>
-                <option value="EDIÇÃO">Edição</option>
-                <option value="EXCLUSÃO">Exclusão</option>
-                <option value="ENVIO">Envio</option>
-                <option value="LOGIN">Acesso (Login)</option>
+                <option value="Criação">Criação</option>
+                <option value="Edição">Edição</option>
+                <option value="Exclusão">Exclusão</option>
+                <option value="Emissão">Emissão</option>
+                <option value="Envio">Envio</option>
+                <option value="Sincronização">Sincronização</option>
+                <option value="Acesso">Acesso (Login)</option>
+                <option value="Inserção Manual">Inserção Manual</option>
               </select>
             </div>
 

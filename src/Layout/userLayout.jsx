@@ -22,13 +22,28 @@ export function UserLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [totalUnread, setTotalUnread] = useState(0);
   const [userData, setUserData] = useState(null);
+  // 👇 NOVO: perfil buscado fresco do servidor. O localStorage só é gravado
+  // no login e nunca mais atualizado na sessão — se uma permissão for
+  // concedida depois que o usuário já estava logado (ex: chat), o balão
+  // continuava escondido até deslogar/logar de nou. Buscando fresco aqui
+  // (mesmo padrão já usado no SideBar), basta recarregar a página.
+  const [perfilFresco, setPerfilFresco] = useState(null);
   const navigate = useNavigate();
 
   // Estados da Caixa de Correio
   const [mailboxItems, setMailboxItems] = useState([]);
   const [isMailboxOpen, setIsMailboxOpen] = useState(false);
 
-  const hasChatPermission = userData?.user?.perfil?.permissoes?.chat?.acessar === true;
+  const permissoesAtuais = perfilFresco?.perfil?.permissoes || userData?.user?.perfil?.permissoes;
+  const hasChatPermission = permissoesAtuais?.chat?.acessar === true;
+
+  // Busca o perfil fresco do servidor uma vez ao montar (reflete permissões
+  // concedidas após o login, sem precisar deslogar).
+  useEffect(() => {
+    api.get('/users/me')
+      .then(response => setPerfilFresco(response.data))
+      .catch(() => {}); // silencioso — cai pro fallback do localStorage
+  }, []);
 
   // Monitora as mensagens não lidas
   useEffect(() => {
@@ -38,7 +53,7 @@ export function UserLayout() {
         const parsedData = userAuth ? JSON.parse(userAuth) : null;
         setUserData(parsedData);
 
-        const canAccessChat = parsedData?.user?.perfil?.permissoes?.chat?.acessar === true;
+        const canAccessChat = (perfilFresco?.perfil?.permissoes || parsedData?.user?.perfil?.permissoes)?.chat?.acessar === true;
         if (canAccessChat) {
           const response = await api.get('/chat/unread');
           setTotalUnread(response.data.total);
@@ -52,7 +67,7 @@ export function UserLayout() {
     fetchUnread();
     const interval = setInterval(fetchUnread, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [perfilFresco]);
 
   // Monitora a Caixa de Correio globalmente
   useEffect(() => {

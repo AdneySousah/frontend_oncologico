@@ -3,17 +3,10 @@ import { Routes as Switch, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage from '../pages/LoginPage';
 import { UserLayout } from '../Layout/userLayout';
 import UsersPage from '../pages/Users';
-import SpecialtiesPage from '../pages/Especialidades';
 import OperadorasPage from '../pages/Operadoras';
 import QuestionariosPage from '../pages/Questionarios';
-import PacientesPage from '../pages/Pacientes';
-import DiagnosticosPage from '../pages/Diagnosticos';
-import PrestadoresPage from '../pages/Prestadores';
 import DetalhesEntrevista from '../pages/DetalhesEntrevista';
 import NovaAvaliacao from '../pages/NovaAvaliacao';
-import Medicos from '../pages/Medicos';
-import ComorbidadesPage from '../pages/Comorbidades';
-import MedicamentosPage from '../pages/Medicamentos';
 import TimelinePacientes from '../pages/LinhaDoTempo';
 import TelaAceiteTermo from '../pages/AceiteTermo';
 import PerfisPage from '../pages/Permissoes';
@@ -29,6 +22,9 @@ import TelaNpsPaciente from '../pages/TelaNpsPaciente';
 import ListaFaturamento from '../pages/Faturamento';
 import TermosListagemAdmin from '../pages/ListaTermos';
 import MotivosFalhaContato from '../pages/MotivosFalhaContato';
+import MotivosPausaTratamento from '../pages/MotivosPausaTratamento';
+import Recalculo from '../pages/Recalculo';
+import BaseConhecimento from '../pages/BaseConhecimento';
 
 // ==========================================
 // NOVO: COMPONENTE DE PROTEÇÃO DE ROTA
@@ -68,15 +64,8 @@ export default function Routes() {
                     <Route path="/avaliacao/new" element={<NovaAvaliacao />} />
 
                     <Route path='/users' element={<UsersPage />} />
-                    <Route path='/pacientes' element={<PacientesPage />} />
                     <Route path='/questionarios' element={<QuestionariosPage />} />
-                    <Route path='/especialidades' element={<SpecialtiesPage />} />
                     <Route path='/operadoras' element={<OperadorasPage />} />
-                    <Route path='/diagnosticos' element={<DiagnosticosPage />} />
-                    <Route path='/prestadores' element={<PrestadoresPage />} />
-                    <Route path='/medicos' element={<Medicos />} />
-                    <Route path='/comorbidades' element={<ComorbidadesPage />} />
-                    <Route path='/medicamentos' element={<MedicamentosPage />} />
                     <Route path='/linha-do-tempo' element={<TimelinePacientes />} />
                     <Route path='/permissoes' element={<PerfisPage />} />
                     <Route path='/telemonitoramento' element={<Telemonitoramento />} /> 
@@ -86,6 +75,9 @@ export default function Routes() {
                     <Route path='/faturamento' element={<ListaFaturamento />} />
                     <Route path='/termo' element={<TermosListagemAdmin />} />
                     <Route path='/motivos-falha-contato' element={<MotivosFalhaContato />} />
+                    <Route path='/motivos-pausa-tratamento' element={<MotivosPausaTratamento />} />
+                    <Route path='/recalculo' element={<Recalculo />} />
+                    <Route path='/base-conhecimento' element={<BaseConhecimento />} />
                 </Route>
 
             </Route>

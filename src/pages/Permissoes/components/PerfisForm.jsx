@@ -6,18 +6,10 @@ import { Form, FormGroup, ButtonGroup, Button, Table } from '../styles';
 // Lista de todos os módulos que mapeamos nas rotas
 const modulosSistema = [
     { key: 'usuarios', label: 'Usuários e Perfis' },
-    { key: 'profissionais', label: 'Profissionais' },
-    { key: 'especialidades', label: 'Especialidades' },
     { key: 'operadoras', label: 'Operadoras' },
-    { key: 'pacientes', label: 'Pacientes' },
-    { key: 'prestadores_medicos', label: 'Hospitais / Prestadores' },
-    { key: 'diagnosticos', label: 'Diagnósticos (CID)' },
-    { key: 'exames', label: 'Exames' },
-    { key: 'comorbidades', label: 'Comorbidades' },
-    { key: 'entrevistas_medicas', label: 'Entrevistas Médicas' },
+    { key: 'chat', label: 'Chat' },
+    { key: 'pacientes', label: 'Pacientes (sincronização)' },
     { key: 'avaliacoes', label: 'Questionários e Avaliações' },
-    { key: 'medicos', label: 'Médicos' },
-    { key: 'medicamentos', label: 'Medicamentos' },
     { key: 'termos', label: 'Termos de Aceite' },
     { key: 'telemonitoramento', label: 'Telemonitoramento' },
     { key: 'reacao_adversa', label: 'Reação Adversa' },
@@ -28,10 +20,10 @@ const modulosSistema = [
     { key: 'faturamento', label: 'Faturamento' },
     { key: 'termo', label: 'Termos Assinados' },
     { key: 'falhascontatos', label: 'Falhas de Contato' },
-    
-  
-
-
+    { key: 'pausa_tratamento', label: 'Motivos de Pausa/Descontinuação' },
+    { key: 'recalculo', label: 'Recálculo (Atendimento)' },
+    { key: 'base_conhecimento', label: 'Base de Conhecimento' },
+    { key: 'fechar_mes_dashboard', label: 'Fechar Mês (Dashboard)' },
 ];
 
 export default function PerfisForm({ perfilToEdit, onSuccess, onCancel }) {

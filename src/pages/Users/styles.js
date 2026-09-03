@@ -138,17 +138,6 @@ export const ProfissionalYes = styled.b`
   color: #13c2c2;
 `;
 
-export const RegistryInfo = styled.div`
-  small {
-    display: block;
-    line-height: 1.2;
-  }
-  .speciality {
-    font-size: 0.7rem;
-    color: ${({ theme }) => theme.colors.textLight};
-  }
-`;
-
 export const AdminMatrixBadge = styled.span`
   background-color: #e6f7ff;
   border: 1px solid #91d5ff;

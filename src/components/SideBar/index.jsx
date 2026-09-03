@@ -1,12 +1,12 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as S from "./styles";
 import {
   LuLogOut, LuChevronLeft, LuChevronRight, LuSun, LuMoon,
-  LuChevronDown, LuTable2, LuBell, LuSettings, LuSmartphone
+  LuChevronDown, LuTable2, LuBell, LuSettings, LuSmartphone, LuStethoscope
 } from "react-icons/lu";
 
-import { navOptions, registerOptions, adminOptions } from "./menu";
+import { atendimentoOptions, registerOptions, adminOptions } from "./menu";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
 import api from "../../services/api";
@@ -25,6 +25,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const [userStorage, setUserStorage] = useState(null);
   const [userProfileData, setUserProfileData] = useState(null);
 
+  const [isAtendimentoOpen, setIsAtendimentoOpen] = useState(true);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
@@ -77,24 +78,54 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
   };
 
-  const loadAlerts = async () => {
+  // 👇 NOVO: protege contra respostas fora de ordem. Se dois carregamentos
+  // de alerta ficarem "em voo" ao mesmo tempo (ex: o evento "updateAlerts"
+  // disparou de novo antes do anterior terminar), sem essa proteção a
+  // resposta mais LENTA podia chegar DEPOIS e sobrescrever o resultado mais
+  // recente com um dado desatualizado — fazendo o alerta "sumir sozinho"
+  // mesmo sem nenhuma mudança real ter acontecido.
+  const loadAlertsRequestIdRef = useRef(0);
+
+  const loadAlerts = async (userDataOverride = null) => {
+    const requestId = ++loadAlertsRequestIdRef.current;
     try {
       let unifiedAlerts = [];
       let mostCritical = 99;
 
-      // 1. Verifica as permissões antes de fazer as requisições
-      const canAccessTele = temPermissaoDeAcesso('telemonitoramento');
-      const canAccessEval = temPermissaoDeAcesso('avaliacoes');
+      // 1. Verifica as permissões antes de fazer as requisições. Aceita um
+      // "userDataOverride" pra quando é chamado logo na montagem (antes do
+      // estado do React ainda ter sido atualizado com o dado do localStorage).
+      const canAccessTele = temPermissaoDeAcesso('telemonitoramento', userDataOverride || undefined);
+      const canAccessEval = temPermissaoDeAcesso('avaliacoes', userDataOverride || undefined);
 
-      // 2. Dispara a requisição apenas se houver permissão, caso contrário retorna um mock vazio silenciosamente
+      // 👇 CORREÇÃO: antes, se a chamada falhasse por qualquer motivo (rede
+      // instável, backend reiniciando, timeout), o ".catch(() => ({data:
+      // []}))" tratava isso como "zero pendências" — o alerta zerava e ficava
+      // assim até a próxima checagem bem-sucedida (até 5 minutos depois),
+      // dando a impressão de "sumiu sozinho" mesmo com pendências reais.
+      // Agora, se qualquer uma das duas fontes falhar de verdade, a função
+      // sai sem mexer no estado — mantém o último alerta válido conhecido
+      // em vez de substituir por um "zero" que pode estar errado.
+      let teleFalhou = false;
+      let evalFalhou = false;
+
       const [resTele, resEval] = await Promise.all([
         canAccessTele
-          ? api.get('/monitoramento-medicamentos/pendentes').catch(() => ({ data: [] }))
+          ? api.get('/monitoramento-medicamentos/pendentes', { params: { limit: 9999 } }).catch(err => { teleFalhou = true; console.error('Alerta: falha ao buscar pendências de telemonitoramento', err); return { data: [] }; })
           : Promise.resolve({ data: [] }),
         canAccessEval
-          ? api.get('/evaluations/pendentes-alerta').catch(() => ({ data: [] }))
+          ? api.get('/evaluations/pendentes-alerta').catch(err => { evalFalhou = true; console.error('Alerta: falha ao buscar avaliações pendentes', err); return { data: [] }; })
           : Promise.resolve({ data: [] })
       ]);
+
+      // Se, enquanto essa chamada estava em andamento, outra mais recente
+      // já foi disparada, descarta esse resultado — ele já está desatualizado.
+      if (requestId !== loadAlertsRequestIdRef.current) return;
+
+      if (teleFalhou || evalFalhou) {
+        console.error('Alerta: uma ou mais fontes falharam nesta checagem — mantendo o último alerta conhecido em vez de zerar.');
+        return;
+      }
 
       const teleData = Array.isArray(resTele.data) ? resTele.data : (resTele.data?.data || []);
       const evalData = Array.isArray(resEval.data) ? resEval.data : [];
@@ -168,8 +199,9 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
   useEffect(() => {
     const user = localStorage.getItem('oncologico:UserData');
+    let parsedUser = null;
     if (user) {
-      const parsedUser = JSON.parse(user);
+      parsedUser = JSON.parse(user);
       setUserStorage(parsedUser);
 
       if (parsedUser?.token) {
@@ -179,7 +211,13 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       }
     }
 
-    // ❌ REMOVA a linha "loadAlerts();" daqui
+    // 👇 CORREÇÃO: antes o alerta só carregava depois de 5 minutos (intervalo)
+    // ou quando alguma tela disparava o evento "updateAlerts" — se nada disso
+    // acontecesse logo no início, o sino ficava "desligado" até um dos dois
+    // ocorrer. Chama já na montagem, passando o usuário recém-lido do
+    // localStorage diretamente (o estado "userStorage" ainda não teria sido
+    // atualizado a tempo dentro desta mesma execução).
+    loadAlerts(parsedUser?.user);
     loadNpsHealth();
 
     const alertInterval = setInterval(() => loadAlerts(), 300000);
@@ -224,7 +262,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     return "Sem Operadora";
   };
 
-  const menusNavegacaoVisiveis = navOptions.filter(item => temPermissaoDeAcesso(item.modulo));
+  const menusAtendimentoVisiveis = atendimentoOptions.filter(item => temPermissaoDeAcesso(item.modulo));
   const menusCadastroVisiveis = registerOptions.filter(item => temPermissaoDeAcesso(item.modulo));
   const menusAdminVisiveis = adminOptions.filter(item => temPermissaoDeAcesso(item.modulo));
 
@@ -273,14 +311,25 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
           <S.Divider isCollapsed={collapsed} />
 
-          {menusNavegacaoVisiveis.map((item) => (
-            <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
-              <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }}>
-                <item.icon size={24} />
-                <span>{item.label}</span>
-              </a>
+          {menusAtendimentoVisiveis.length > 0 && (
+            <S.MenuItem isCollapsed={collapsed} label="Atendimento" isOpen={isAtendimentoOpen}>
+              <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsAtendimentoOpen(!isAtendimentoOpen); }}>
+                <LuStethoscope size={24} />
+                <span>Atendimento</span>
+                <LuChevronDown className="arrow-icon" size={18} />
+              </button>
+              <S.SubMenuContent isOpen={isAtendimentoOpen} isCollapsed={collapsed}>
+                {menusAtendimentoVisiveis.map((item) => (
+                  <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
+                    <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }} style={{ padding: '10px 15px', fontSize: '0.85rem' }}>
+                      <item.icon size={20} />
+                      <span>{item.label}</span>
+                    </a>
+                  </S.MenuItem>
+                ))}
+              </S.SubMenuContent>
             </S.MenuItem>
-          ))}
+          )}
 
           <S.Divider isCollapsed={collapsed} />
 

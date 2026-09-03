@@ -5,9 +5,10 @@ import api from '../../services/api';
 import * as S from './styles';
 import EvaluationModal from './components/EvaluationModal';
 import TermoModal from './components/TermoModal';
+import PausarTratamentoModal from './components/PausarTratamentoModal';
 import FilterBar from './components/FilterBar';
 import Pagination from './components/Pagination';
-import { LuArrowUpDown, LuEye, LuRefreshCw } from "react-icons/lu";
+import { LuArrowUpDown, LuEye, LuRefreshCw, LuCirclePause, LuCirclePlay } from "react-icons/lu";
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
@@ -16,8 +17,13 @@ export default function ListaEntrevistas() {
   const [modalOpen, setModalOpen] = useState(false);
   const [termoModalOpen, setTermoModalOpen] = useState(false);
   const [pacienteParaTermo, setPacienteParaTermo] = useState(null);
+  const [pacienteParaPausar, setPacienteParaPausar] = useState(null);
   const [termoStartWaiting, setTermoStartWaiting] = useState(false);
   const [pendentesSync, setPendentesSync] = useState(0);
+  const [pacientesPendentesCount, setPacientesPendentesCount] = useState(0);
+  const [eventosPendentesCount, setEventosPendentesCount] = useState(0);
+  const [errosSincronizacao, setErrosSincronizacao] = useState([]);
+  const [mostrarErrosSync, setMostrarErrosSync] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCheckingSync, setIsCheckingSync] = useState(true);
   const [operadoras, setOperadoras] = useState([]);
@@ -84,6 +90,8 @@ export default function ListaEntrevistas() {
       setIsCheckingSync(true);
       const res = await api.get('/sync/pacientes/check');
       setPendentesSync(res.data.pendentes);
+      setPacientesPendentesCount(res.data.pacientes_pendentes || 0);
+      setEventosPendentesCount(res.data.eventos_pendentes || 0);
     } catch (error) {
       console.error("Erro ao verificar status", error);
     } finally {
@@ -159,7 +167,15 @@ export default function ListaEntrevistas() {
   const handleManualSync = async () => {
     try {
       setIsSyncing(true);
-      await api.post('/pacientes/sync');
+      const res = await api.post('/pacientes/sync');
+      const erros = res.data?.errors || [];
+      setErrosSincronizacao(erros);
+      if (erros.length > 0) {
+        setMostrarErrosSync(true);
+        toast.warning(`Sincronização concluída, mas ${erros.length} paciente(s) ficaram pendentes. Veja os detalhes abaixo do botão.`);
+      } else {
+        toast.success('Sincronização concluída sem pendências.');
+      }
       await loadLocalData();
       await checkSyncStatus();
     } catch (error) {
@@ -214,6 +230,40 @@ export default function ListaEntrevistas() {
       setTermoModalOpen(true);
     } else {
       handleStartAvaliacao(pacienteParaUsar.id);
+    }
+  };
+
+  // 👇 NOVO: pausa de tratamento — 3ª opção ao lado de "enviar termo" /
+  // "ir pro questionário". Enquanto pausado, o paciente fica bloqueado de
+  // qualquer contato automatizado (termo, NPS, chat) e some das pendências
+  // do Telemonitoramento, até alguém retomar o tratamento manualmente.
+  // O motivo é selecionado de uma lista compartilhada com o "Descontinuar
+  // Medicamento" do Telemonitoramento, pra ficar contabilizável.
+  const handlePausarTratamento = (paciente) => {
+    setPacienteParaPausar(paciente);
+  };
+
+  const handleConfirmarPausa = async (motivoId, observacao) => {
+    try {
+      await api.patch(`/pacientes/${pacienteParaPausar.id}/pausar-tratamento`, { motivo_id: motivoId, observacao });
+      toast.success('Tratamento pausado com sucesso.');
+      setPacienteParaPausar(null);
+      loadLocalData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao pausar tratamento.');
+    }
+  };
+
+  const handleRetomarTratamento = async (paciente) => {
+    const confirmar = window.confirm(`Retomar o tratamento de ${paciente.nome} ${paciente.sobrenome}? Ele voltará a receber contatos normalmente.`);
+    if (!confirmar) return;
+
+    try {
+      await api.patch(`/pacientes/${paciente.id}/retomar-tratamento`);
+      toast.success('Tratamento retomado com sucesso.');
+      loadLocalData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao retomar tratamento.');
     }
   };
 
@@ -299,7 +349,11 @@ export default function ListaEntrevistas() {
           {isCheckingSync ? (
             <span className="status-text checking">🔄 Verificando novos pacientes...</span>
           ) : pendentesSync > 0 ? (
-            <span className="status-text pending">⚠️ {pendentesSync} aguardando sincronização!</span>
+            <span className="status-text pending">
+              ⚠️ {pacientesPendentesCount > 0 && `${pacientesPendentesCount} paciente(s)`}
+              {pacientesPendentesCount > 0 && eventosPendentesCount > 0 && ' + '}
+              {eventosPendentesCount > 0 && `${eventosPendentesCount} evento(s)`} aguardando sincronização!
+            </span>
           ) : (
             <span className="status-text synced">✅ Banco atualizado.</span>
           )}
@@ -312,6 +366,25 @@ export default function ListaEntrevistas() {
           </S.ActionButton>
         </S.SyncPanel>
       </S.Header>
+
+      {errosSincronizacao.length > 0 && (
+        <div style={{ margin: '0 0 15px 0', padding: '12px 15px', background: '#fff3cd', border: '1px solid #ffe58f', borderRadius: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setMostrarErrosSync(prev => !prev)}>
+            <strong style={{ color: '#856404' }}>
+              ⚠️ {errosSincronizacao.length} paciente(s) não sincronizaram nesta rodada — {mostrarErrosSync ? 'ocultar' : 'ver'} detalhes
+            </strong>
+          </div>
+          {mostrarErrosSync && (
+            <ul style={{ marginTop: '10px', paddingLeft: '20px', color: '#856404' }}>
+              {errosSincronizacao.map((erro, idx) => (
+                <li key={idx} style={{ marginBottom: '4px' }}>
+                  <strong>{erro.nome || 'Paciente sem nome'}</strong>{erro.cpf ? ` (CPF: ${erro.cpf})` : ''} — {erro.erro}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       <S.CountersContainer>
         <S.CounterCircle color="#faad14" active={filters.statusTermo === 'Pendente'} onClick={() => changeStatusFilter('Pendente')}>
           <span className="count">{termoCounts.Pendente}</span>
@@ -400,6 +473,11 @@ export default function ListaEntrevistas() {
                   {/* TERMO E AVALIAÇÃO CONSOLIDADOS */}
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      {paciente.tratamento_pausado && (
+                        <S.StatusBadge bg="rgba(142, 68, 173, 0.15)" color="#8e44ad" title={paciente.motivo_pausa_tratamento || 'Sem motivo informado'}>
+                          ⏸ Tratamento Pausado
+                        </S.StatusBadge>
+                      )}
                       <S.StatusBadge
                         bg={statusTermo === 'Aceito' ? 'rgba(82, 196, 26, 0.15)' : statusTermo === 'Recusado' ? 'rgba(245, 34, 45, 0.15)' : 'rgba(250, 173, 20, 0.15)'}
                         color={statusTermo === 'Aceito' ? '#52c41a' : statusTermo === 'Recusado' ? '#f5222d' : '#faad14'}
@@ -420,14 +498,34 @@ export default function ListaEntrevistas() {
                     <div className="action-buttons">
                       <S.ActionButton
                         mode="create"
-                        disabled={estaSincronizando}
+                        disabled={estaSincronizando || paciente.tratamento_pausado}
                         style={isEmSegundoPlano ? { backgroundColor: '#8a2be2', borderColor: '#8a2be2' } : {}}
                         onClick={() => handleAcaoPaciente(paciente)}
+                        title={paciente.tratamento_pausado ? 'Tratamento pausado — retome antes de continuar' : undefined}
                       >
                         {estaSincronizando
                           ? 'Sincronizando...'
                           : (statusTermo === 'Aceito' ? 'Avaliar' : isEmSegundoPlano ? 'Aguardando' : paciente.status_avaliacao === 'Parcial' ? 'Continuar' : 'Termo')}
                       </S.ActionButton>
+                      {paciente.tratamento_pausado ? (
+                        <S.ActionButton
+                          className="view-btn"
+                          style={{ color: '#27ae60', borderColor: '#27ae60' }}
+                          onClick={() => handleRetomarTratamento(paciente)}
+                          title="Retomar Tratamento"
+                        >
+                          <LuCirclePlay size={16} />
+                        </S.ActionButton>
+                      ) : (
+                        <S.ActionButton
+                          className="view-btn"
+                          style={{ color: '#8e44ad', borderColor: '#8e44ad' }}
+                          onClick={() => handlePausarTratamento(paciente)}
+                          title="Pausar Tratamento"
+                        >
+                          <LuCirclePause size={16} />
+                        </S.ActionButton>
+                      )}
                       <S.ActionButton className="view-btn" onClick={() => { setSelectedPaciente(paciente); setModalOpen(true); }} title="Ver Histórico">
                         <LuEye size={16} />
                       </S.ActionButton>
@@ -467,6 +565,13 @@ export default function ListaEntrevistas() {
         }}
       />
       <EvaluationModal isOpen={modalOpen} data={selectedPaciente} onClose={() => { setModalOpen(false); setSelectedPaciente(null); }} />
+      {pacienteParaPausar && (
+        <PausarTratamentoModal
+          paciente={pacienteParaPausar}
+          onClose={() => setPacienteParaPausar(null)}
+          onConfirmar={handleConfirmarPausa}
+        />
+      )}
     </S.Container>
   );
 }
