@@ -84,8 +84,10 @@ export const ModalContent = styled.div`
   color: ${props => props.theme.colors.text};
   padding: 28px;
   border-radius: 12px;
-  max-width: 480px;
+  max-width: 620px;
   width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
   border: 1px solid ${props => props.theme.colors.border};
 
   h3 {

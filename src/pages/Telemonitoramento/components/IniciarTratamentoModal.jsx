@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../../services/api';
+import SeletorPosologia from '../../../components/SeletorPosologia';
 import {
   ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button
 } from './styles';
@@ -47,6 +48,7 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
         const dataEntrega = c.data_entrega ? c.data_entrega.split('T')[0] : '';
         dados[c.medicamento_id] = {
           posologia: '',
+          padraoPosologia: { tipo_posologia: 'diaria' },
           qtdCapsulaManual: '',
           dataEntrega,
           dataTelemonitoramento: c.data_sugerida_primeiro_contato
@@ -115,15 +117,39 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
         toast.error(`Informe a quantidade total de comprimidos da caixa de ${candidato.medicamento_nome}.`);
         return;
       }
+      const tipoPosologia = dados.padraoPosologia?.tipo_posologia || 'diaria';
+      if (tipoPosologia === 'ciclica' && (!dados.padraoPosologia?.posologia_ciclo_dias_toma || dados.padraoPosologia?.posologia_ciclo_dias_pausa == null)) {
+        toast.error(`Complete o padrão de ciclo (toma/pausa) de ${candidato.medicamento_nome}.`);
+        return;
+      }
+      if (tipoPosologia === 'intervalo' && !dados.padraoPosologia?.posologia_intervalo_dias) {
+        toast.error(`Preencha a cada quantos dias ${candidato.medicamento_nome} é tomado.`);
+        return;
+      }
+      if (tipoPosologia === 'personalizada' && (!dados.padraoPosologia?.posologia_datas_personalizadas || dados.padraoPosologia.posologia_datas_personalizadas.length === 0)) {
+        toast.error(`Marque as datas de ${candidato.medicamento_nome} no calendário.`);
+        return;
+      }
       medicamentosConfirmados.push({
         medicamento_id: Number(medId),
         posologia_diaria: Number(dados.posologia),
+        tipo_posologia: tipoPosologia,
+        posologia_ciclo_dias_toma: dados.padraoPosologia?.posologia_ciclo_dias_toma || null,
+        posologia_ciclo_dias_pausa: dados.padraoPosologia?.posologia_ciclo_dias_pausa ?? null,
+        posologia_intervalo_dias: dados.padraoPosologia?.posologia_intervalo_dias || null,
+        posologia_datas_personalizadas: dados.padraoPosologia?.posologia_datas_personalizadas || null,
         data_entrega: dados.dataEntrega,
         data_telemonitoramento: dados.dataTelemonitoramento,
         qtd_capsula_manual: dados.qtdCapsulaManual ? Number(dados.qtdCapsulaManual) : null,
         qtd_caixas: Number(dados.qtdCaixas) || 1,
         evento_externo_id: candidato.evento_externo_id
       });
+    }
+
+    const temPadraoNaoDiario = medicamentosConfirmados.some(m => m.tipo_posologia !== 'diaria');
+    if (temPadraoNaoDiario) {
+      const confirmar = window.confirm('Confira o calendário de prévia de cada medicamento. As posologias informadas estão corretas?');
+      if (!confirmar) return;
     }
 
     try {
@@ -196,6 +222,15 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
                       />
                     </FormGroup>
                   </div>
+
+                  <div style={{ marginBottom: '10px' }}>
+                    <SeletorPosologia
+                      dataInicio={dados.dataEntrega}
+                      value={dados.padraoPosologia || { tipo_posologia: 'diaria' }}
+                      onChange={(novoValor) => atualizarCampo(candidato.medicamento_id, 'padraoPosologia', novoValor)}
+                    />
+                  </div>
+
                   {!candidato.qtd_capsula_conhecida && (
                     <div style={{ backgroundColor: '#fff3cd', padding: '10px', borderRadius: '6px', marginBottom: '10px', border: '1px solid #ffeeba' }}>
                       <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', color: '#856404' }}>

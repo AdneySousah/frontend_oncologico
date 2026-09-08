@@ -3,6 +3,8 @@ import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
+import SeletorPosologia from '../../../components/SeletorPosologia';
+import { formatarPadraoPosologia } from '../../../utils/posologiaHelpers';
 import {
   ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox,
   ProjectedStockBox, SkeletonLoader, PosologiaChangeAlert, HighlightedSection
@@ -36,6 +38,12 @@ export default function PassoRegistroMedicamento({
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
 
+  // 👇 CORREÇÃO DE BUG (mesma do TelemonitoramentoModal.jsx): em uso
+  // CONJUNTO (medicamento adicional, diferente do atual), o ciclo do
+  // medicamento atual continua em paralelo — "mudou posologia" e
+  // "descontinuar" continuam válidos pra ele e não podem sumir da tela.
+  const escondeCamposMedicamentoAtual = aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO';
+
   const [qtdInformada, setQtdInformada] = useState('');
   const [isReacao, setIsReacao] = useState(false);
   const [reacoesSelecionadas, setReacoesSelecionadas] = useState([]);
@@ -45,6 +53,7 @@ export default function PassoRegistroMedicamento({
   const [mudouPosologia, setMudouPosologia] = useState(false);
   const [novaPosologia, setNovaPosologia] = useState('');
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
+  const [padraoPosologiaNova, setPadraoPosologiaNova] = useState({ tipo_posologia: 'diaria' });
 
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
   const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
@@ -197,7 +206,7 @@ export default function PassoRegistroMedicamento({
       toast.error(`Informe a quantidade de comprimidos restantes de ${monitoramento.medicamento?.nome}.`);
       return;
     }
-    if (descontinuarMedicamento && aplicarNovaCompra) {
+    if (descontinuarMedicamento && escondeCamposMedicamentoAtual) {
       toast.error(`Não é possível descontinuar ${monitoramento.medicamento?.nome} e aplicar uma nova compra ao mesmo tempo.`);
       return;
     }
@@ -219,6 +228,18 @@ export default function PassoRegistroMedicamento({
       toast.error('Preencha a nova dosagem e a data em que ela começou.');
       return;
     }
+    if (mudouPosologia && padraoPosologiaNova.tipo_posologia === 'ciclica' && (!padraoPosologiaNova.posologia_ciclo_dias_toma || padraoPosologiaNova.posologia_ciclo_dias_pausa == null)) {
+      toast.error(`Complete o padrão de ciclo (toma/pausa) da nova posologia de ${monitoramento.medicamento?.nome}.`);
+      return;
+    }
+    if (mudouPosologia && padraoPosologiaNova.tipo_posologia === 'intervalo' && !padraoPosologiaNova.posologia_intervalo_dias) {
+      toast.error(`Preencha a cada quantos dias ${monitoramento.medicamento?.nome} passou a ser tomado.`);
+      return;
+    }
+    if (mudouPosologia && padraoPosologiaNova.tipo_posologia === 'personalizada' && (!padraoPosologiaNova.posologia_datas_personalizadas || padraoPosologiaNova.posologia_datas_personalizadas.length === 0)) {
+      toast.error(`Marque as novas datas de ${monitoramento.medicamento?.nome} no calendário.`);
+      return;
+    }
 
     onAvancar({
       monitoramentoId: monitoramento.id,
@@ -231,6 +252,7 @@ export default function PassoRegistroMedicamento({
       mudouPosologia,
       novaPosologia,
       dataMudancaPosologia,
+      padraoPosologiaNova: mudouPosologia ? padraoPosologiaNova : null,
       aplicarNovaCompra,
       dadosNovaCompra,
       dataRealInicioNovaCaixa,
@@ -275,8 +297,14 @@ export default function PassoRegistroMedicamento({
 
       <InfoBox>
         <p className="sub-text">
-          Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
+          Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+          {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
         </p>
+        {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' && (
+          <PosologiaChangeAlert style={{ marginTop: 0, marginBottom: '10px' }}>
+            <strong>⚠️ {formatarPadraoPosologia(monitoramento, posologia)}</strong>
+          </PosologiaChangeAlert>
+        )}
         <ProjectedStockBox>
           <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
             <strong>Data administração informada:</strong> {dataReferenciaFormatada}
@@ -290,7 +318,7 @@ export default function PassoRegistroMedicamento({
           <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
             (Margem aceitável calculada: {margemMin} a {margemMax})
           </p>
-          {mudouPosologia && !aplicarNovaCompra && (
+          {mudouPosologia && !escondeCamposMedicamentoAtual && (
             <PosologiaChangeAlert>
               <strong>Matemática Reajustada:</strong>
               <span>Cálculo considerando a data de transição para a nova dosagem prescrita.</span>
@@ -299,7 +327,7 @@ export default function PassoRegistroMedicamento({
         </ProjectedStockBox>
       </InfoBox>
 
-      {!aplicarNovaCompra && (
+      {!escondeCamposMedicamentoAtual && (
         <HighlightedSection>
           <label className="checkbox-label">
             <input
@@ -339,10 +367,19 @@ export default function PassoRegistroMedicamento({
               </div>
             </div>
           )}
+          {mudouPosologia && (
+            <div style={{ marginTop: '12px' }}>
+              <SeletorPosologia
+                dataInicio={dataMudancaPosologia}
+                value={padraoPosologiaNova}
+                onChange={setPadraoPosologiaNova}
+              />
+            </div>
+          )}
         </HighlightedSection>
       )}
 
-      {!aplicarNovaCompra && (
+      {!escondeCamposMedicamentoAtual && (
         <HighlightedSection>
           <label className="checkbox-label">
             <input

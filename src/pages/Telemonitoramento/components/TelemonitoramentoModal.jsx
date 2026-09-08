@@ -20,6 +20,8 @@ import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
 import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
+import SeletorPosologia from '../../../components/SeletorPosologia';
+import { formatarPadraoPosologia } from '../../../utils/posologiaHelpers';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
 
 // 👇 NOVO: mesma lógica de "data sugerida" / divergência de adesão já usada
@@ -97,6 +99,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // Mudança de Posologia no meio do ciclo
   const [mudouPosologia, setMudouPosologia] = useState(false);
   const [novaPosologia, setNovaPosologia] = useState('');
+  const [padraoPosologiaNova, setPadraoPosologiaNova] = useState({ tipo_posologia: 'diaria' });
   const [dataMudancaPosologia, setDataMudancaPosologia] = useState('');
   // 👇 NOVO: uso em conjunto — segunda etapa, coleta completa do medicamento adicional
   const [monitoramentoAdicionalConjunto, setMonitoramentoAdicionalConjunto] = useState(null);
@@ -526,7 +529,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       toast.error('A data do próximo contato não pode ser no passado.');
       return;
     }
-    if (descontinuarMedicamento && aplicarNovaCompra) {
+    if (descontinuarMedicamento && escondeCamposMedicamentoAtual) {
       toast.error('Não é possível descontinuar o medicamento e aplicar uma nova compra ao mesmo tempo.');
       return;
     }
@@ -544,7 +547,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         return;
       }
     }
-    if (mudouPosologia && !aplicarNovaCompra && !descontinuarMedicamento) {
+    if (mudouPosologia && !escondeCamposMedicamentoAtual && !descontinuarMedicamento) {
       if (!novaPosologia || !dataMudancaPosologia) {
         toast.error('Preencha a nova dosagem e a data em que ela começou.');
         return;
@@ -553,6 +556,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         toast.error('A data da mudança de dosagem não pode ser no futuro.');
         return;
       }
+      if (padraoPosologiaNova.tipo_posologia === 'ciclica' && (!padraoPosologiaNova.posologia_ciclo_dias_toma || padraoPosologiaNova.posologia_ciclo_dias_pausa == null)) {
+        toast.error('Complete o padrão de ciclo (toma/pausa) da nova posologia.');
+        return;
+      }
+      if (padraoPosologiaNova.tipo_posologia === 'intervalo' && !padraoPosologiaNova.posologia_intervalo_dias) {
+        toast.error('Preencha a cada quantos dias o medicamento passou a ser tomado.');
+        return;
+      }
+      if (padraoPosologiaNova.tipo_posologia === 'personalizada' && (!padraoPosologiaNova.posologia_datas_personalizadas || padraoPosologiaNova.posologia_datas_personalizadas.length === 0)) {
+        toast.error('Marque as novas datas no calendário.');
+        return;
+      }
+      const confirmarPadrao = window.confirm('Confira o calendário de prévia da nova posologia. Está correto?');
+      if (!confirmarPadrao) return;
     }
     try {
       setLoading(true);
@@ -575,6 +592,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         mudou_posologia: mudouPosologia,
         nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
         data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null,
+        tipo_posologia_nova: mudouPosologia ? padraoPosologiaNova.tipo_posologia : null,
+        posologia_ciclo_dias_toma_nova: mudouPosologia ? padraoPosologiaNova.posologia_ciclo_dias_toma : null,
+        posologia_ciclo_dias_pausa_nova: mudouPosologia ? padraoPosologiaNova.posologia_ciclo_dias_pausa : null,
+        posologia_intervalo_dias_nova: mudouPosologia ? padraoPosologiaNova.posologia_intervalo_dias : null,
+        posologia_datas_personalizadas_nova: mudouPosologia ? padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
         modo_novo_medicamento: (aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) ? modoNovoMedicamento : null
       });
@@ -678,6 +700,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         mudou_posologia: dados.mudouPosologia,
         nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
         data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
+        tipo_posologia_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.tipo_posologia : null,
+        posologia_ciclo_dias_toma_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_toma : null,
+        posologia_ciclo_dias_pausa_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_pausa : null,
+        posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
+        posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
         modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
       });
@@ -729,6 +756,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         mudou_posologia: dados.mudouPosologia,
         nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
         data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
+        tipo_posologia_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.tipo_posologia : null,
+        posologia_ciclo_dias_toma_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_toma : null,
+        posologia_ciclo_dias_pausa_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_pausa : null,
+        posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
+        posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
         modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
       });
@@ -912,6 +944,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   const scoreAtual = localMonitoramento.avaliacao?.total_score;
   const adInfo = getAdherenceClassification(scoreAtual);
+  // 👇 CORREÇÃO DE BUG: quando o novo medicamento detectado é usado "em
+  // conjunto" (mantendo os dois), o ciclo do medicamento ATUAL continua
+  // existindo em paralelo — então as ações que pertencem só a ele (mudou a
+  // posologia, descontinuou) continuam fazendo sentido e precisam continuar
+  // aparecendo. Antes, a condição escondia esses campos sempre que
+  // "aplicarNovaCompra" estava marcado, sem diferenciar de "substituir o
+  // medicamento atual" (onde faz sentido escondê-los, já que o medicamento
+  // atual está sendo encerrado e substituído, não continuando em paralelo).
+  const escondeCamposMedicamentoAtual = aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO';
   const hojeDate = new Date();
   const dataHoje = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
   const opcoesReacoes = listaReacoes.map(reacao => ({
@@ -967,8 +1008,14 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 </span>
               )}
               <p className="sub-text">
-                Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''}) (Dose: {posologia}/dia)
+                Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+                {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
               </p>
+              {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' && (
+                <PosologiaChangeAlert style={{ marginTop: 0, marginBottom: '10px' }}>
+                  <strong>⚠️ {formatarPadraoPosologia(localMonitoramento, posologia)}</strong>
+                </PosologiaChangeAlert>
+              )}
               <ProjectedStockBox>
                 {aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' && (
                   <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed rgba(0,0,0,0.1)', opacity: 0.7 }}>
@@ -1003,7 +1050,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
                   (Margem aceitável calculada: {margemMin} a {margemMax})
                 </p>
-                {mudouPosologia && !aplicarNovaCompra && (
+                {mudouPosologia && !escondeCamposMedicamentoAtual && (
                   <PosologiaChangeAlert>
                     <strong>Matemática Reajustada:</strong>
                     <span>Cálculo quebrado considerando a data de transição para a nova dosagem prescrita.</span>
@@ -1022,7 +1069,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             {/* 👇 NOVO: paciente comprou o medicamento por conta própria e foi
                 reembolsado pela operadora — permite criar o ciclo de reembolso
                 sem sair desta tela, quando o estoque projetado já zerou. */}
-            {!aplicarNovaCompra && !descontinuarMedicamento && idealRemaining <= 0 && (
+            {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && idealRemaining <= 0 && (
               <div style={{ margin: '0 0 20px 0', textAlign: 'right' }}>
                 <button
                   type="button"
@@ -1038,7 +1085,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               </div>
             )}
             <form onSubmit={handleSubmit}>
-              {!aplicarNovaCompra && !descontinuarMedicamento && (
+              {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && (
                 <HighlightedSection>
                   <label className="checkbox-label">
                     <input
@@ -1080,9 +1127,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                       </div>
                     </div>
                   )}
+                  {mudouPosologia && (
+                    <div style={{ marginTop: '12px' }}>
+                      <SeletorPosologia
+                        dataInicio={dataMudancaPosologia}
+                        value={padraoPosologiaNova}
+                        onChange={setPadraoPosologiaNova}
+                      />
+                    </div>
+                  )}
                 </HighlightedSection>
               )}
-              {!aplicarNovaCompra && (
+              {!escondeCamposMedicamentoAtual && (
                 <HighlightedSection>
                   <label className="checkbox-label">
                     <input

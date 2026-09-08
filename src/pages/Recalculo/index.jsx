@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { LuCalculator, LuSearch } from 'react-icons/lu';
 import api from '../../services/api';
+import SeletorPosologia from '../../components/SeletorPosologia';
 import * as S from './styles';
 
 // Página "Recálculo" (aba Atendimento): corrige posologia e data de início
@@ -19,6 +20,7 @@ export default function Recalculo() {
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [posologia, setPosologia] = useState('');
   const [dataInicio, setDataInicio] = useState('');
+  const [padrao, setPadrao] = useState({ tipo_posologia: 'diaria' });
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -52,12 +54,20 @@ export default function Recalculo() {
     setPosologia(item.posologia_diaria || '');
     const dataAtual = item.data_administracao || item.data_entrega;
     setDataInicio(dataAtual ? dataAtual.split('T')[0] : '');
+    setPadrao({
+      tipo_posologia: item.tipo_posologia || 'diaria',
+      posologia_ciclo_dias_toma: item.posologia_ciclo_dias_toma,
+      posologia_ciclo_dias_pausa: item.posologia_ciclo_dias_pausa,
+      posologia_intervalo_dias: item.posologia_intervalo_dias,
+      posologia_datas_personalizadas: item.posologia_datas_personalizadas || []
+    });
   };
 
   const fecharModal = () => {
     setItemSelecionado(null);
     setPosologia('');
     setDataInicio('');
+    setPadrao({ tipo_posologia: 'diaria' });
   };
 
   const handleSalvar = async () => {
@@ -69,12 +79,34 @@ export default function Recalculo() {
       toast.error('Informe a data de início.');
       return;
     }
+    if (padrao.tipo_posologia === 'ciclica' && (!padrao.posologia_ciclo_dias_toma || padrao.posologia_ciclo_dias_pausa == null)) {
+      toast.error('Preencha quantos dias toma e quantos dias pausa.');
+      return;
+    }
+    if (padrao.tipo_posologia === 'intervalo' && !padrao.posologia_intervalo_dias) {
+      toast.error('Preencha a cada quantos dias toma.');
+      return;
+    }
+    if (padrao.tipo_posologia === 'personalizada' && (!padrao.posologia_datas_personalizadas || padrao.posologia_datas_personalizadas.length === 0)) {
+      toast.error('Marque pelo menos uma data no calendário.');
+      return;
+    }
+
+    // 👇 Confirmação explícita antes de salvar, como pedido — sempre revisa
+    // com a pessoa antes de gravar um padrão de posologia diferente do diário.
+    const confirmar = window.confirm('Confira o calendário de prévia. A posologia informada está correta?');
+    if (!confirmar) return;
 
     try {
       setSalvando(true);
       await api.put(`/monitoramento-medicamentos/${itemSelecionado.id}/recalcular`, {
         posologia_diaria: Number(posologia),
-        data_administracao: dataInicio
+        data_administracao: dataInicio,
+        tipo_posologia: padrao.tipo_posologia,
+        posologia_ciclo_dias_toma: padrao.posologia_ciclo_dias_toma,
+        posologia_ciclo_dias_pausa: padrao.posologia_ciclo_dias_pausa,
+        posologia_intervalo_dias: padrao.posologia_intervalo_dias,
+        posologia_datas_personalizadas: padrao.posologia_datas_personalizadas
       });
       toast.success('Recálculo aplicado com sucesso.');
       fecharModal();
@@ -169,6 +201,14 @@ export default function Recalculo() {
                 onChange={(e) => setDataInicio(e.target.value)}
               />
               <span className="hint">A data de fim de caixa e a data do próximo contato serão recalculadas a partir daqui.</span>
+            </S.FormGroup>
+
+            <S.FormGroup>
+              <SeletorPosologia
+                dataInicio={dataInicio}
+                value={padrao}
+                onChange={setPadrao}
+              />
             </S.FormGroup>
 
             <S.ButtonGroup>

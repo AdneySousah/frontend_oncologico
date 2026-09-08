@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { LuUsers } from 'react-icons/lu';
 import api from '../../services/api';
+import SeletorPosologia from '../SeletorPosologia';
 // Importando os estilos proprietários do componente
 import {
   Container, Title, Subtitle, Card, MedName, Label, RadioGroup,
@@ -68,6 +69,7 @@ export default function ConfiguracaoUsoContinuo({
         estadoInicial[medicamento.id] = {
           usa: true,
           posologia: '',
+          padrao_posologia: { tipo_posologia: 'diaria' },
           data_entrega: defaultEntrega,
           data_telemonitoramento: calculateTelemonitoramentoDate(defaultEntrega),
           qtd_capsula_manual: '',
@@ -191,6 +193,11 @@ export default function ConfiguracaoUsoContinuo({
       .map(([medId, data]) => ({
         medicamento_id: Number(medId),
         posologia_diaria: Number(data.posologia),
+        tipo_posologia: data.padrao_posologia?.tipo_posologia || 'diaria',
+        posologia_ciclo_dias_toma: data.padrao_posologia?.posologia_ciclo_dias_toma || null,
+        posologia_ciclo_dias_pausa: data.padrao_posologia?.posologia_ciclo_dias_pausa ?? null,
+        posologia_intervalo_dias: data.padrao_posologia?.posologia_intervalo_dias || null,
+        posologia_datas_personalizadas: data.padrao_posologia?.posologia_datas_personalizadas || null,
         usa: data.usa,
         data_entrega: data.data_entrega,
         data_telemonitoramento: data.data_telemonitoramento,
@@ -221,6 +228,29 @@ export default function ConfiguracaoUsoContinuo({
       toast.error("A quantidade total da caixa é obrigatória para os medicamentos sinalizados.");
       setLoadingMonitoramento(false);
       return;
+    }
+
+    const padraoInvalido = confirmados.find(item => {
+      if (item.tipo_posologia === 'ciclica') return !item.posologia_ciclo_dias_toma || item.posologia_ciclo_dias_pausa == null;
+      if (item.tipo_posologia === 'intervalo') return !item.posologia_intervalo_dias;
+      if (item.tipo_posologia === 'personalizada') return !item.posologia_datas_personalizadas || item.posologia_datas_personalizadas.length === 0;
+      return false;
+    });
+    if (padraoInvalido) {
+      toast.error("Complete o padrão de posologia (toma/pausa, intervalo ou datas marcadas) de todos os medicamentos com posologia diferente da diária.");
+      setLoadingMonitoramento(false);
+      return;
+    }
+
+    // 👇 Confirmação explícita antes de salvar — sempre revisa com a pessoa
+    // antes de gravar um padrão de posologia diferente do diário.
+    const temPadraoNaoDiario = confirmados.some(item => item.tipo_posologia !== 'diaria');
+    if (temPadraoNaoDiario) {
+      const confirmar = window.confirm('Confira o calendário de prévia de cada medicamento. As posologias informadas estão corretas?');
+      if (!confirmar) {
+        setLoadingMonitoramento(false);
+        return;
+      }
     }
 
     try {
@@ -332,6 +362,14 @@ export default function ConfiguracaoUsoContinuo({
                   />
                 </InputGroup>
               </InputRow>
+
+              <div style={{ margin: '14px 0' }}>
+                <SeletorPosologia
+                  dataInicio={medicamentoState[medicamento.id]?.data_entrega}
+                  value={medicamentoState[medicamento.id]?.padrao_posologia || { tipo_posologia: 'diaria' }}
+                  onChange={(novoValor) => handleMonitoramentoChange(medicamento.id, 'padrao_posologia', novoValor)}
+                />
+              </div>
 
               {missingQtdCapsula[medicamento.id] && (
                 <WarningBox>

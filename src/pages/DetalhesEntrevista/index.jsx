@@ -12,6 +12,10 @@ import { LuArrowUpDown, LuEye, LuRefreshCw, LuCirclePause, LuCirclePlay } from "
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
+  // 👇 NOVO: pacientes pausados saem da listagem normal e viram uma
+  // categoria própria — carregados à parte, já que o backend agora os
+  // exclui da consulta principal.
+  const [pacientesPausados, setPacientesPausados] = useState([]);
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedPaciente, setSelectedPaciente] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -76,6 +80,17 @@ export default function ListaEntrevistas() {
     }
   };
 
+  const loadPacientesPausados = async () => {
+    try {
+      const res = await api.get('/evaluations/responses', { params: { apenas_pausados: true } });
+      setPacientesPausados(res.data);
+      return res.data;
+    } catch (error) {
+      console.error("Erro ao buscar pacientes pausados", error);
+      return [];
+    }
+  };
+
   const loadOperadoras = async () => {
     try {
       const res = await api.get('/operadoras');
@@ -101,6 +116,7 @@ export default function ListaEntrevistas() {
 
   useEffect(() => {
     loadLocalData();
+    loadPacientesPausados();
     loadOperadoras();
     checkSyncStatus();
   }, []);
@@ -249,6 +265,7 @@ export default function ListaEntrevistas() {
       toast.success('Tratamento pausado com sucesso.');
       setPacienteParaPausar(null);
       loadLocalData();
+      loadPacientesPausados();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao pausar tratamento.');
     }
@@ -262,6 +279,7 @@ export default function ListaEntrevistas() {
       await api.patch(`/pacientes/${paciente.id}/retomar-tratamento`);
       toast.success('Tratamento retomado com sucesso.');
       loadLocalData();
+      loadPacientesPausados();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao retomar tratamento.');
     }
@@ -406,8 +424,52 @@ export default function ListaEntrevistas() {
           <span className="count">{termoCounts.Todos}</span>
           <span className="label">Todos</span>
         </S.CounterCircle>
+        <S.CounterCircle color="#8e44ad" active={filters.statusTermo === 'Pausados'} onClick={() => changeStatusFilter('Pausados')}>
+          <span className="count">{pacientesPausados.length}</span>
+          <span className="label">⏸ Pausados</span>
+        </S.CounterCircle>
       </S.CountersContainer>
-      <FilterBar filters={filters} setFilters={setFilters} pacientes={pacientesNavegacao} isMaster={isMaster} operadoras={operadoras} />
+      {filters.statusTermo !== 'Pausados' && (
+        <FilterBar filters={filters} setFilters={setFilters} pacientes={pacientesNavegacao} isMaster={isMaster} operadoras={operadoras} />
+      )}
+      {filters.statusTermo === 'Pausados' ? (
+        <S.TableWrapper>
+          <S.Table>
+            <thead>
+              <tr>
+                <th>Paciente</th>
+                <th>CPF</th>
+                <th>Operadora</th>
+                <th>Motivo da pausa</th>
+                <th>Pausado em</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pacientesPausados.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', opacity: 0.6 }}>Nenhum paciente pausado no momento.</td></tr>
+              ) : pacientesPausados.map(paciente => (
+                <tr key={paciente.id}>
+                  <td>{paciente.nome} {paciente.sobrenome}</td>
+                  <td>{paciente.cpf}</td>
+                  <td>{paciente.operadoras?.nome || '-'}</td>
+                  <td>
+                    {paciente.motivoPausaTratamento?.descricao || 'Motivo não estruturado'}
+                    {paciente.motivo_pausa_tratamento ? ` — ${paciente.motivo_pausa_tratamento}` : ''}
+                  </td>
+                  <td>{paciente.data_pausa_tratamento ? new Date(paciente.data_pausa_tratamento).toLocaleDateString('pt-BR') : '-'}</td>
+                  <td>
+                    <S.ActionButton onClick={() => handleRetomarTratamento(paciente)} title="Retomar Tratamento">
+                      <LuCirclePlay size={16} /> Retomar
+                    </S.ActionButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </S.Table>
+        </S.TableWrapper>
+      ) : (
+        <>
       <S.TableWrapper>
         <S.Table>
           <thead>
@@ -543,6 +605,8 @@ export default function ListaEntrevistas() {
       </S.TableWrapper>
       {filteredAndSortedPacientes.length > 0 && (
         <Pagination totalItems={filteredAndSortedPacientes.length} itemsPerPage={itemsPerPage} currentPage={currentPage} setItemsPerPage={setItemsPerPage} setCurrentPage={setCurrentPage} />
+      )}
+        </>
       )}
       <TermoModal
         isOpen={termoModalOpen}
