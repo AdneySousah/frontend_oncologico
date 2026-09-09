@@ -4,7 +4,7 @@ import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
 import SeletorPosologia from '../../../components/SeletorPosologia';
-import { formatarPadraoPosologia } from '../../../utils/posologiaHelpers';
+import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
 import {
   ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox,
   ProjectedStockBox, SkeletonLoader, PosologiaChangeAlert, HighlightedSection
@@ -27,7 +27,11 @@ export default function PassoRegistroMedicamento({
   // etapa do segundo medicamento, mesmo já tendo sido resolvido na primeira.
   eventosExcluidos = [],
   onCancelar,
-  onAvancar
+  onAvancar,
+  // 👇 NOVO: callback pra abrir a correção de data — vem do orquestrador
+  // (TelemonitoramentoModalConjunto), que é quem guarda esse estado.
+  onCorrigirData,
+  corrigirDataDisabled = false
 }) {
   const theme = useTheme();
 
@@ -146,12 +150,15 @@ export default function PassoRegistroMedicamento({
         const safeDataMudanca = dataMudancaObj < dataInicioObj ? dataInicioObj : dataMudancaObj;
         const diasAntigos = Math.floor((safeDataMudanca - dataInicioObj) / (1000 * 60 * 60 * 24));
         const diasNovos = Math.max(0, Math.floor((hoje - safeDataMudanca) / (1000 * 60 * 60 * 24)));
-        const consumoAntigo = diasAntigos * posologia;
-        const consumoNovo = diasNovos * Number(novaPosologia);
+        // 👇 CORREÇÃO: cada período usa o PRÓPRIO padrão de posologia (o
+        // antigo, vigente até a mudança; o novo, escolhido no SeletorPosologia)
+        // em vez de tratar tudo como consumo diário simples.
+        const consumoAntigo = contarComprimidosConsumidos(dataInicioObj, diasAntigos, posologia, monitoramento);
+        const consumoNovo = contarComprimidosConsumidos(safeDataMudanca, diasNovos, Number(novaPosologia), padraoPosologiaNova);
         idealRemainingAntigo = qtdTotalCaixa - (consumoAntigo + consumoNovo);
       } else {
         const diffDays = Math.max(0, Math.floor((hoje - dataInicioObj) / (1000 * 60 * 60 * 24)));
-        idealRemainingAntigo = qtdTotalCaixa - (diffDays * posologia);
+        idealRemainingAntigo = qtdTotalCaixa - contarComprimidosConsumidos(dataInicioObj, diffDays, posologia, monitoramento);
       }
       if (idealRemainingAntigo < 0) idealRemainingAntigo = 0;
       if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;
@@ -308,6 +315,16 @@ export default function PassoRegistroMedicamento({
         <ProjectedStockBox>
           <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
             <strong>Data administração informada:</strong> {dataReferenciaFormatada}
+            {!aplicarNovaCompra && monitoramento?.data_administracao && onCorrigirData && (
+              <button
+                type="button"
+                onClick={onCorrigirData}
+                disabled={corrigirDataDisabled}
+                style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85em', textDecoration: 'underline', padding: 0 }}
+              >
+                Corrigir
+              </button>
+            )}
           </p>
           <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
             <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}

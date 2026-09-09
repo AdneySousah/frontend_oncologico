@@ -21,7 +21,7 @@ import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
 import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
 import SeletorPosologia from '../../../components/SeletorPosologia';
-import { formatarPadraoPosologia } from '../../../utils/posologiaHelpers';
+import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
 
 // 👇 NOVO: mesma lógica de "data sugerida" / divergência de adesão já usada
@@ -288,12 +288,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         const safeDataMudanca = dataMudancaObj < dataInicioObj ? dataInicioObj : dataMudancaObj;
         const diasAntigos = Math.floor((safeDataMudanca - dataInicioObj) / (1000 * 60 * 60 * 24));
         const diasNovos = Math.max(0, Math.floor((hoje - safeDataMudanca) / (1000 * 60 * 60 * 24)));
-        const consumoAntigo = diasAntigos * posologia;
-        const consumoNovo = diasNovos * Number(novaPosologia);
+        // 👇 CORREÇÃO: cada período usa o PRÓPRIO padrão de posologia (o
+        // antigo, vigente até a mudança; o novo, escolhido no SeletorPosologia)
+        // em vez de tratar tudo como consumo diário simples.
+        const consumoAntigo = contarComprimidosConsumidos(dataInicioObj, diasAntigos, posologia, localMonitoramento);
+        const consumoNovo = contarComprimidosConsumidos(safeDataMudanca, diasNovos, Number(novaPosologia), padraoPosologiaNova);
         idealRemainingAntigo = qtdTotalCaixa - (consumoAntigo + consumoNovo);
       } else {
         const diffDays = Math.max(0, Math.floor((hoje - dataInicioObj) / (1000 * 60 * 60 * 24)));
-        idealRemainingAntigo = qtdTotalCaixa - (diffDays * posologia);
+        idealRemainingAntigo = qtdTotalCaixa - contarComprimidosConsumidos(dataInicioObj, diffDays, posologia, localMonitoramento);
       }
       if (idealRemainingAntigo < 0) idealRemainingAntigo = 0;
       if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;

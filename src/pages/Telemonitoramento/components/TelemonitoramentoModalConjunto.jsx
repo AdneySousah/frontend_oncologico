@@ -315,18 +315,6 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             <HistoricoComprasPaciente monitoramento={monitoramentoDaEtapa} />
           </div>
           <div className="center-column">
-            {monitoramentoDaEtapa?.data_administracao && (
-              <div style={{ textAlign: 'right', marginBottom: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setReabrirPreTele(etapa === 'MED_0' ? 'A' : 'B')}
-                  disabled={enviando}
-                  style={{ background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: 0 }}
-                >
-                  Corrigir data de administração informada
-                </button>
-              </div>
-            )}
             <StepTransitionWrapper leaving={transicao}>
               <PassoRegistroMedicamento
                 key={monitoramentoDaEtapa.id}
@@ -337,6 +325,8 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
                 eventosExcluidos={etapa === 'MED_1' ? eventosReivindicados : []}
                 onCancelar={onClose}
                 onAvancar={handleAvancarMedicamento}
+                onCorrigirData={() => setReabrirPreTele(etapa === 'MED_0' ? 'A' : 'B')}
+                corrigirDataDisabled={enviando}
               />
             </StepTransitionWrapper>
           </div>
