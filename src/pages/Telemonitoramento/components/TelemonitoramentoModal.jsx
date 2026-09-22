@@ -86,6 +86,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
   const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
+  // 👇 NOVO: pausar temporariamente (diferente de descontinuar — tem prazo
+  // previsto de retomada, e o registro sai da fila até alguém destravar).
+  const [pausarMedicamento, setPausarMedicamento] = useState(false);
+  const [motivoPausaSelecionado, setMotivoPausaSelecionado] = useState(null);
+  const [dataFimPrevistaPausa, setDataFimPrevistaPausa] = useState('');
+  const [observacaoPausa, setObservacaoPausa] = useState('');
+  const [enviandoPausa, setEnviandoPausa] = useState(false);
   const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
   // Estados Formulario Base
@@ -258,6 +265,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const qtdTotalCaixa = Number(
     localMonitoramento?.qtd_total_capsulas || (localMonitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
   );
+  // 👇 CORREÇÃO: "Quantidade total inicial" no texto precisa sempre ser o
+  // valor real da caixa do medicamento — não qtd_total_capsulas, que em
+  // alguns registros guarda outra coisa. Usada só nesse texto; o cálculo
+  // de estoque/datas (qtdTotalCaixa, acima) continua exatamente como estava.
+  const qtdTotalCaixaReal = Number(localMonitoramento?.medicamento?.qtd_capsula || 0) * qtdCaixas;
   const posologia = Number(localMonitoramento?.posologia_diaria || 1);
   let idealRemainingAntigo = 0;
   const dataUsoReferencia = localMonitoramento?.data_administracao || localMonitoramento?.data_entrega;
@@ -520,6 +532,35 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   }
   // 👇 A partir daqui, etapa === 'FORMULARIO' garantido: contato já
   // confirmado como efetivado, e pré-tele já resolvido se era necessário.
+  // 👇 NOVO: pausar é uma ação separada de "registrar contato" — não
+  // precisa de comprimidos restantes, adesão, etc. Chama o endpoint
+  // dedicado direto, sem passar pelo payload normal de contato.
+  const handleConfirmarPausaMedicamento = async () => {
+    if (!motivoPausaSelecionado) {
+      toast.error('Selecione o motivo da pausa.');
+      return;
+    }
+    if (!dataFimPrevistaPausa) {
+      toast.error('Informe a data prevista de retomada.');
+      return;
+    }
+    try {
+      setEnviandoPausa(true);
+      await api.patch(`/monitoramento-medicamentos/${localMonitoramento.id}/pausar`, {
+        motivo_id: motivoPausaSelecionado.value,
+        data_fim_prevista: dataFimPrevistaPausa,
+        observacao: observacaoPausa || null
+      });
+      toast.success('Medicamento pausado com sucesso.');
+      window.dispatchEvent(new Event('updateAlerts'));
+      onClose(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao pausar medicamento.');
+    } finally {
+      setEnviandoPausa(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const hojeDate = new Date();
@@ -1011,7 +1052,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 </span>
               )}
               <p className="sub-text">
-                Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+                Quantidade total inicial: {qtdTotalCaixaReal} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
                 {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
               </p>
               {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' && (
@@ -1154,6 +1195,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                           setMudouPosologia(false);
                           setNovaPosologia('');
                           setDataMudancaPosologia('');
+                          setPausarMedicamento(false);
                         }
                       }}
                     />
@@ -1187,6 +1229,61 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   )}
                 </HighlightedSection>
               )}
+              {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && (
+                <HighlightedSection>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={pausarMedicamento}
+                      onChange={(e) => {
+                        setPausarMedicamento(e.target.checked);
+                        if (e.target.checked) {
+                          setMudouPosologia(false);
+                          setNovaPosologia('');
+                          setDataMudancaPosologia('');
+                        }
+                      }}
+                    />
+                    <strong>Pausar temporariamente este medicamento (não descontinuar)</strong>
+                  </label>
+                  {pausarMedicamento && (
+                    <div className="inputs-row">
+                      <div className="input-group" style={{ flex: 1 }}>
+                        <label>Motivo da pausa *</label>
+                        <Select
+                          options={listaMotivosEncerramento.map(m => ({ value: m.id, label: m.descricao }))}
+                          value={motivoPausaSelecionado}
+                          onChange={setMotivoPausaSelecionado}
+                          styles={getCustomSelectStyles(theme)}
+                          placeholder="Selecione o motivo..."
+                          noOptionsMessage={() => "Nenhum motivo cadastrado — cadastre em Tabelas Cadastrais"}
+                          menuPosition="fixed"
+                        />
+                      </div>
+                      <div className="input-group" style={{ flex: 1, marginTop: '10px' }}>
+                        <label>Retomar em (data prevista) *</label>
+                        <Input
+                          type="date"
+                          min={dataHoje}
+                          value={dataFimPrevistaPausa}
+                          onChange={(e) => setDataFimPrevistaPausa(e.target.value)}
+                        />
+                      </div>
+                      <div className="input-group" style={{ flex: 1, marginTop: '10px' }}>
+                        <label>Observação adicional (opcional):</label>
+                        <Input
+                          as="textarea"
+                          rows="2"
+                          value={observacaoPausa}
+                          onChange={(e) => setObservacaoPausa(e.target.value)}
+                          placeholder="Detalhes adicionais, se necessário..."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </HighlightedSection>
+              )}
+              {!pausarMedicamento && (
               <FormGroup>
                 <label>Quantos comprimidos restam com o paciente no total?</label>
                 <Input
@@ -1198,6 +1295,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   required
                 />
               </FormGroup>
+              )}
+              {!pausarMedicamento && (
               <FormGroup>
                 <label>O quanto ele adere? (Calculado automaticamente)</label>
                 <Input as="select" value={nivelAdesao} disabled required>
@@ -1206,6 +1305,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
                 </Input>
               </FormGroup>
+              )}
+              {!pausarMedicamento && (
               <FormGroup>
                 <label>O paciente relatou alguma reação adversa?</label>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
@@ -1217,7 +1318,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   </label>
                 </div>
               </FormGroup>
-              {isReacao && (
+              )}
+              {!pausarMedicamento && isReacao && (
                 <FormGroup>
                   <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
                   <Select
@@ -1231,12 +1333,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   />
                 </FormGroup>
               )}
-              {!descontinuarMedicamento && (
+              {!descontinuarMedicamento && !pausarMedicamento && (
                 <FormGroup>
                   <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
                   <Input type="date" min={dataHoje} value={dataAbertura} onChange={(e) => setDataAbertura(e.target.value)} required />
                 </FormGroup>
               )}
+              {!pausarMedicamento && (
               <FormGroup>
                 <label>Observação (Opcional)</label>
                 <Input
@@ -1248,11 +1351,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   style={{ resize: 'vertical', padding: '10px' }}
                 />
               </FormGroup>
+              )}
               <ButtonGroup>
-                <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Salvando...' : 'Salvar Registro'}
-                </Button>
+                <Button type="button" variant="secondary" onClick={onClose} disabled={loading || enviandoPausa}>Cancelar</Button>
+                {pausarMedicamento ? (
+                  <Button type="button" onClick={handleConfirmarPausaMedicamento} disabled={enviandoPausa}>
+                    {enviandoPausa ? 'Pausando...' : 'Confirmar Pausa'}
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={loading}>
+                    {loading ? 'Salvando...' : 'Salvar Registro'}
+                  </Button>
+                )}
               </ButtonGroup>
             </form>
           </ModalContent>

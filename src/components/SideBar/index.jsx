@@ -10,6 +10,7 @@ import { atendimentoOptions, registerOptions, adminOptions } from "./menu";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
 import api from "../../services/api";
+import { toast } from "react-toastify";
 
 import AlertModal from "./AlertModal";
 
@@ -85,6 +86,10 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   // recente com um dado desatualizado — fazendo o alerta "sumir sozinho"
   // mesmo sem nenhuma mudança real ter acontecido.
   const loadAlertsRequestIdRef = useRef(0);
+  // 👇 NOVO: guarda quais medicamentos pausados já dispararam um toast
+  // nesta sessão do navegador — pra não notificar o mesmo de novo a cada
+  // checagem de 5 minutos, só dispara um NOVO por ciclo.
+  const pausasJaNotificadasRef = useRef(new Set());
 
   const loadAlerts = async (userDataOverride = null) => {
     const requestId = ++loadAlertsRequestIdRef.current;
@@ -108,13 +113,19 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       // em vez de substituir por um "zero" que pode estar errado.
       let teleFalhou = false;
       let evalFalhou = false;
+      let pausasFalhou = false;
 
-      const [resTele, resEval] = await Promise.all([
+      const [resTele, resEval, resPausas] = await Promise.all([
         canAccessTele
           ? api.get('/monitoramento-medicamentos/pendentes', { params: { limit: 9999 } }).catch(err => { teleFalhou = true; console.error('Alerta: falha ao buscar pendências de telemonitoramento', err); return { data: [] }; })
           : Promise.resolve({ data: [] }),
         canAccessEval
           ? api.get('/evaluations/pendentes-alerta').catch(err => { evalFalhou = true; console.error('Alerta: falha ao buscar avaliações pendentes', err); return { data: [] }; })
+          : Promise.resolve({ data: [] }),
+        // 👇 NOVO: medicamentos pausados temporariamente cuja retomada
+        // prevista está chegando — mesma proteção de falha das outras duas.
+        canAccessTele
+          ? api.get('/monitoramento-medicamentos/pausados').catch(err => { pausasFalhou = true; console.error('Alerta: falha ao buscar medicamentos pausados', err); return { data: [] }; })
           : Promise.resolve({ data: [] })
       ]);
 
@@ -122,7 +133,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       // já foi disparada, descarta esse resultado — ele já está desatualizado.
       if (requestId !== loadAlertsRequestIdRef.current) return;
 
-      if (teleFalhou || evalFalhou) {
+      if (teleFalhou || evalFalhou || pausasFalhou) {
         console.error('Alerta: uma ou mais fontes falharam nesta checagem — mantendo o último alerta conhecido em vez de zerar.');
         return;
       }
@@ -168,6 +179,47 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
           }
         }
       });
+
+      // 👇 NOVO: pausas de medicamento cuja retomada prevista está a até 2
+      // dias — entram no sino normalmente, e UMA delas (a mais urgente
+      // ainda não notificada nesta sessão) também dispara um toast
+      // persistente, um por ciclo de 5 minutos pra não poluir a tela.
+      const pausasData = Array.isArray(resPausas.data) ? resPausas.data : [];
+      const pausasVencendoOrdenadas = [];
+      pausasData.forEach(item => {
+        if (!item.data_pausa_fim_prevista) return;
+        const diffDays = processDate(item.data_pausa_fim_prevista);
+        if (diffDays <= 2) {
+          if (diffDays < mostCritical) mostCritical = diffDays;
+          const nomePaciente = `${item.paciente?.nome || 'Sem Nome'} ${item.paciente?.sobrenome || ''}`.trim();
+          unifiedAlerts.push({
+            id: `pausa_${item.id}`,
+            type: 'Pausa de Medicamento',
+            patientName: nomePaciente,
+            description: `${item.medicamento?.nome || 'Medicamento'} — retomada prevista`,
+            diffDays,
+            route: `/telemonitoramento?ver_pausados=true&pausado_id=${item.id}`,
+            score: null
+          });
+          pausasVencendoOrdenadas.push({ id: item.id, diffDays, nomePaciente, medicamentoNome: item.medicamento?.nome });
+        }
+      });
+      pausasVencendoOrdenadas.sort((a, b) => a.diffDays - b.diffDays);
+      const proximaParaNotificar = pausasVencendoOrdenadas.find(p => !pausasJaNotificadasRef.current.has(p.id));
+      if (proximaParaNotificar) {
+        pausasJaNotificadasRef.current.add(proximaParaNotificar.id);
+        const rota = `/telemonitoramento?ver_pausados=true&pausado_id=${proximaParaNotificar.id}`;
+        const textoPrazo = proximaParaNotificar.diffDays <= 0 ? 'já venceu' : `termina em ${proximaParaNotificar.diffDays} dia(s)`;
+        toast.info(
+          `⏸ Pausa de ${proximaParaNotificar.nomePaciente} (${proximaParaNotificar.medicamentoNome}) ${textoPrazo}. Clique para retomar.`,
+          {
+            autoClose: false,
+            closeOnClick: false,
+            onClick: () => navigate(rota),
+            style: { cursor: 'pointer' }
+          }
+        );
+      }
 
       unifiedAlerts.sort((a, b) => a.diffDays - b.diffDays);
       setAlertsList(unifiedAlerts);

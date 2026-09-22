@@ -13,7 +13,7 @@ import HistoricoComprasPaciente from './HistoricoComprasPaciente';
 import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
-import NpsModal from './NpsModal'; // 👈 NOVO
+import NpsModal from './NpsModal';
 
 const DIAS_POR_NIVEL = { COMPLETAMENTE: 30, PARCIALMENTE: 15, NAO_ADERE: 7 };
 const LABEL_NIVEL = {
@@ -32,13 +32,19 @@ function ajustarFimDeSemana(date) {
   else if (dia === 0) date.setDate(date.getDate() + 1);
   return date;
 }
-function calcularDataSugerida(nivelA, nivelB) {
-  const dias = Math.round((DIAS_POR_NIVEL[nivelA] + DIAS_POR_NIVEL[nivelB]) / 2);
+// 👇 GENERALIZADO: antes recebia (nivelA, nivelB) e tirava a média de
+// exatamente 2 — agora recebe um array com N níveis (um por medicamento
+// ativo, não descontinuado) e tira a média de todos. Com 2 níveis, dá
+// exatamente o mesmo resultado de antes — não muda nada do comportamento
+// já existente pra quem tem 2 medicamentos.
+function calcularDataSugerida(niveis) {
+  const soma = niveis.reduce((acc, nivel) => acc + (DIAS_POR_NIVEL[nivel] || 0), 0);
+  const dias = Math.round(soma / niveis.length);
   const data = new Date();
   data.setDate(data.getDate() + dias);
   return ajustarFimDeSemana(data);
 }
-function calcularDataPorModo(modo, nivelA, nivelB) {
+function calcularDataPorModo(modo, niveis) {
   if (modo === 'SEMANAL') {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -49,7 +55,7 @@ function calcularDataPorModo(modo, nivelA, nivelB) {
     d.setDate(d.getDate() + 30);
     return ajustarFimDeSemana(d);
   }
-  return calcularDataSugerida(nivelA, nivelB);
+  return calcularDataSugerida(niveis);
 }
 const formatarDataISO = (date) => {
   const y = date.getFullYear();
@@ -59,19 +65,25 @@ const formatarDataISO = (date) => {
 };
 const formatarDataBR = (isoStr) => isoStr.split('-').reverse().join('/');
 
-// Wizard de registro de contato para pacientes em USO EM CONJUNTO (2 medicamentos).
-// Etapas: CONTATO_EFETIVO -> (PRE_TELE_A, se necessário) -> MED_0 ->
-// (PRE_TELE_B, se necessário) -> MED_1 -> DIVERGENCIA (se aplicável) -> NPS -> envio.
+// Wizard de registro de contato para pacientes em USO EM CONJUNTO (N
+// medicamentos, N >= 2). Etapas: CONTATO_EFETIVO -> (PRE_TELE, se
+// necessário, por medicamento) -> MEDICAMENTO (um de cada vez, por índice)
+// -> DIVERGENCIA (se aplicável, comparando todos) -> NPS -> envio.
+// 👇 GENERALIZADO: antes eram 2 medicamentos fixos (A/B, MED_0/MED_1) —
+// agora é um array de qualquer tamanho, percorrido por índice
+// (indiceAtual). Com exatamente 2 medicamentos, o comportamento é
+// idêntico ao de antes — só a forma de representar internamente mudou.
 export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monitoramentos, monitoramentosAnteriores, onSucesso }) {
-  const [etapa, setEtapa] = useState('CONTATO_EFETIVO'); // CONTATO_EFETIVO | PRE_TELE_A | MED_0 | PRE_TELE_B | MED_1 | DIVERGENCIA
+  const [etapa, setEtapa] = useState('CONTATO_EFETIVO'); // CONTATO_EFETIVO | PRE_TELE | MEDICAMENTO | DIVERGENCIA
+  const [indiceAtual, setIndiceAtual] = useState(0);
   const [dadosPorMedicamento, setDadosPorMedicamento] = useState([]);
   const [modoDataProximoContato, setModoDataProximoContato] = useState('MEDIA');
   const [enviando, setEnviando] = useState(false);
   const [transicao, setTransicao] = useState(false);
   const [eventosReivindicados, setEventosReivindicados] = useState([]);
   const [monitoramentosLocais, setMonitoramentosLocais] = useState(null);
-  const [showNpsPrompt, setShowNpsPrompt] = useState(false); // 👈 NOVO
-  const [reabrirPreTele, setReabrirPreTele] = useState(null); // 👈 NOVO: null | 'A' | 'B'
+  const [showNpsPrompt, setShowNpsPrompt] = useState(false);
+  const [reabrirPreTele, setReabrirPreTele] = useState(null); // null | índice do medicamento
   const pacienteIdAtual = monitoramentos?.[0]?.paciente_id || monitoramentos?.[0]?.paciente?.id;
   const { bloqueio: bloqueioEdicao } = useReservaEdicaoPaciente(
     pacienteIdAtual,
@@ -80,11 +92,12 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
   useEffect(() => {
     if (isOpen) {
       setEtapa('CONTATO_EFETIVO');
+      setIndiceAtual(0);
       setDadosPorMedicamento([]);
       setModoDataProximoContato('MEDIA');
       setEventosReivindicados([]);
-      setShowNpsPrompt(false); // 👈 NOVO
-      setReabrirPreTele(null); // 👈 NOVO
+      setShowNpsPrompt(false);
+      setReabrirPreTele(null);
     }
   }, [isOpen]);
   useEffect(() => {
@@ -92,6 +105,9 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       setMonitoramentosLocais(monitoramentos);
     }
   }, [isOpen, monitoramentos]);
+  // 👇 GENERALIZADO: continua exigindo pelo menos 2 (essa tela é só pra
+  // uso em conjunto — 1 medicamento sozinho usa o outro modal) — mas não
+  // trava mais em "exatamente 2", aceita 2, 3, 4...
   if (!isOpen || !monitoramentos || monitoramentos.length < 2) return null;
   if (bloqueioEdicao) {
     return (
@@ -109,51 +125,43 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       </ModalOverlay>
     );
   }
-  const [monitA, monitB] = monitoramentosLocais || monitoramentos;
+  const listaAtual = monitoramentosLocais || monitoramentos;
+  const monitoramentoDaEtapa = listaAtual[indiceAtual];
 
-  // 👇 NOVO: atualiza localmente a data de administração de A ou B, sem
-  // mexer na etapa atual do wizard (usada tanto no fluxo normal quanto na correção manual).
-  const atualizarMonitoramentoLocal = (qual, novaDataAdmin, novaDataFimCaixa) => {
+  // 👇 GENERALIZADO: antes recebia 'A'|'B' e atualizava monitA/monitB
+  // diretamente — agora recebe o ÍNDICE e atualiza esse item específico do
+  // array, mantendo todos os outros intocados.
+  const atualizarMonitoramentoLocal = (indice, novaDataAdmin, novaDataFimCaixa) => {
     setMonitoramentosLocais(prev => {
       const base = prev || monitoramentos;
-      const [a, b] = base;
-      return qual === 'A'
-        ? [{ ...a, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }, b]
-        : [a, { ...b, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa }];
+      return base.map((m, i) => (
+        i === indice ? { ...m, data_administracao: novaDataAdmin, data_calculada_fim_caixa: novaDataFimCaixa } : m
+      ));
     });
   };
 
-  // 👇 NOVO: dispara o NPS assim que o registro conjunto é salvo com sucesso.
+  // 👇 Dispara o NPS assim que o registro conjunto é salvo com sucesso —
+  // usa o primeiro medicamento do grupo como referência (o NPS é do
+  // paciente, não de um medicamento específico, então qualquer um serve).
   if (showNpsPrompt) {
     return (
       <NpsModal
-        monitoramento={monitA}
+        monitoramento={listaAtual[0]}
         onClose={() => onClose()}
       />
     );
   }
 
-  // 👇 NOVO: permite reabrir o pré-tele de A ou B pra corrigir uma data errada,
-  // mesmo depois que data_administracao já foi salva no banco.
-  if (reabrirPreTele === 'A') {
+  // 👇 GENERALIZADO: permite reabrir o pré-tele de QUALQUER medicamento do
+  // grupo (por índice) pra corrigir uma data errada, mesmo depois que
+  // data_administracao já foi salva no banco.
+  if (reabrirPreTele !== null) {
     return (
       <PreMonitoramento
-        monitoramento={monitA}
+        monitoramento={listaAtual[reabrirPreTele]}
         onClose={() => setReabrirPreTele(null)}
         onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
-          atualizarMonitoramentoLocal('A', novaDataAdmin, novaDataFimCaixa);
-          setReabrirPreTele(null);
-        }}
-      />
-    );
-  }
-  if (reabrirPreTele === 'B') {
-    return (
-      <PreMonitoramento
-        monitoramento={monitB}
-        onClose={() => setReabrirPreTele(null)}
-        onSuccess={(novaDataAdmin, novaDataFimCaixa) => {
-          atualizarMonitoramentoLocal('B', novaDataAdmin, novaDataFimCaixa);
+          atualizarMonitoramentoLocal(reabrirPreTele, novaDataAdmin, novaDataFimCaixa);
           setReabrirPreTele(null);
         }}
       />
@@ -168,14 +176,32 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
     }, 220);
   };
   const precisaPreTele = (monit, anterior) => !anterior && !monit?.data_administracao;
+
+  // 👇 GENERALIZADO: decide se o próximo medicamento (por índice) precisa
+  // de pré-tele antes de mostrar o formulário completo — mesma regra de
+  // sempre, só que reutilizável pra qualquer posição da lista, não só a
+  // segunda.
+  const irParaMedicamento = (indice) => {
+    const monit = listaAtual[indice];
+    const anterior = monitoramentosAnteriores?.[monit.id];
+    setIndiceAtual(indice);
+    avancarComEfeito(precisaPreTele(monit, anterior) ? 'PRE_TELE' : 'MEDICAMENTO');
+  };
+
   if (etapa === 'CONTATO_EFETIVO') {
     return (
       <TentativaContatoModal
-        titulo={<><LuUsers size={22} color="#8a2be2" /> Registrar Contato — Uso em Conjunto</>}
+        titulo={<><LuUsers size={22} color="#8a2be2" /> Registrar Contato — Uso em Conjunto ({listaAtual.length} medicamentos)</>}
         descricao={
           <>
-            {monitA.paciente?.nome} {monitA.paciente?.sobrenome} está em uso de <strong>{monitA.medicamento?.nome}</strong> e{' '}
-            <strong>{monitB.medicamento?.nome}</strong> ao mesmo tempo. Este contato será registrado para os dois medicamentos.
+            {listaAtual[0].paciente?.nome} {listaAtual[0].paciente?.sobrenome} está em uso de{' '}
+            {listaAtual.map((m, i) => (
+              <React.Fragment key={m.id}>
+                <strong>{m.medicamento?.nome}</strong>
+                {i < listaAtual.length - 2 ? ', ' : (i === listaAtual.length - 2 ? ' e ' : '')}
+              </React.Fragment>
+            ))}
+            {' '}ao mesmo tempo. Este contato será registrado para todos.
           </>
         }
         onCancelar={onClose}
@@ -185,10 +211,10 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             try {
               setEnviando(true);
               await api.put('/monitoramento-medicamentos/conjunto/registrar', {
-                grupo_medicamentos_id: monitA.grupo_medicamentos_id,
+                grupo_medicamentos_id: listaAtual[0].grupo_medicamentos_id,
                 contato_efetivo: false,
                 motivo_falha_contato_id: motivoSelecionado.value,
-                registros: [{ monitoramento_id: monitA.id }, { monitoramento_id: monitB.id }]
+                registros: listaAtual.map(m => ({ monitoramento_id: m.id }))
               });
               toast.success('Contato sem sucesso registrado. Reagendado para o próximo dia útil.');
               onSucesso();
@@ -200,69 +226,60 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             }
             return;
           }
-          const precisaA = precisaPreTele(monitA, monitoramentosAnteriores?.[monitA.id]);
-          avancarComEfeito(precisaA ? 'PRE_TELE_A' : 'MED_0');
+          irParaMedicamento(0);
         }}
       />
     );
   }
-  const handlePreTeleASuccess = (novaDataAdmin, novaDataFimCaixa) => {
-    atualizarMonitoramentoLocal('A', novaDataAdmin, novaDataFimCaixa);
-    avancarComEfeito('MED_0');
+
+  const handlePreTeleSuccess = (novaDataAdmin, novaDataFimCaixa) => {
+    atualizarMonitoramentoLocal(indiceAtual, novaDataAdmin, novaDataFimCaixa);
+    avancarComEfeito('MEDICAMENTO');
   };
-  const handlePreTeleBSuccess = (novaDataAdmin, novaDataFimCaixa) => {
-    atualizarMonitoramentoLocal('B', novaDataAdmin, novaDataFimCaixa);
-    avancarComEfeito('MED_1');
-  };
-  if (etapa === 'PRE_TELE_A') {
+  if (etapa === 'PRE_TELE') {
     return (
       <PreMonitoramento
-        monitoramento={monitA}
+        monitoramento={monitoramentoDaEtapa}
         onClose={onClose}
-        onSuccess={handlePreTeleASuccess}
+        onSuccess={handlePreTeleSuccess}
       />
     );
   }
-  if (etapa === 'PRE_TELE_B') {
-    return (
-      <PreMonitoramento
-        monitoramento={monitB}
-        onClose={onClose}
-        onSuccess={handlePreTeleBSuccess}
-      />
-    );
-  }
+
+  // 👇 GENERALIZADO: antes só sabia lidar com exatamente 2 posições
+  // (avançar da 1ª pra 2ª, depois checar divergência entre as duas) —
+  // agora avança item por item até acabar a lista, e só então checa
+  // divergência entre TODOS os que ficaram ativos (não descontinuados).
   const handleAvancarMedicamento = (dados) => {
     const novaLista = [...dadosPorMedicamento, dados];
     setDadosPorMedicamento(novaLista);
     if (dados.aplicarNovaCompra && dados.dadosNovaCompra?.evento_externo_id) {
       setEventosReivindicados(prev => [...prev, dados.dadosNovaCompra.evento_externo_id]);
     }
-    if (novaLista.length === 1) {
-      const precisaB = precisaPreTele(monitB, monitoramentosAnteriores?.[monitB.id]);
-      avancarComEfeito(precisaB ? 'PRE_TELE_B' : 'MED_1');
+    if (indiceAtual < listaAtual.length - 1) {
+      irParaMedicamento(indiceAtual + 1);
+      return;
+    }
+    const algumDescontinuado = novaLista.some(d => d.descontinuarMedicamento);
+    const niveisAtivos = novaLista.filter(d => !d.descontinuarMedicamento).map(d => d.nivelAdesao);
+    const todosIguais = niveisAtivos.length <= 1 || niveisAtivos.every(n => n === niveisAtivos[0]);
+    if (algumDescontinuado || todosIguais) {
+      enviarRegistroConjunto(novaLista, 'MEDIA');
     } else {
-      const [dadosA, dadosB] = novaLista;
-      const algumDescontinuado = dadosA.descontinuarMedicamento || dadosB.descontinuarMedicamento;
-      if (algumDescontinuado || dadosA.nivelAdesao === dadosB.nivelAdesao) {
-        enviarRegistroConjunto(novaLista, 'MEDIA');
-      } else {
-        avancarComEfeito('DIVERGENCIA');
-      }
+      avancarComEfeito('DIVERGENCIA');
     }
   };
   const enviarRegistroConjunto = async (dadosLista, modo) => {
     const ativos = dadosLista.filter(d => !d.descontinuarMedicamento);
     let dataProximoContato = null;
     if (ativos.length > 0) {
-      const nivelA = ativos[0].nivelAdesao;
-      const nivelB = ativos[1] ? ativos[1].nivelAdesao : ativos[0].nivelAdesao;
-      dataProximoContato = formatarDataISO(calcularDataPorModo(modo, nivelA, nivelB));
+      const niveis = ativos.map(a => a.nivelAdesao);
+      dataProximoContato = formatarDataISO(calcularDataPorModo(modo, niveis));
     }
     try {
       setEnviando(true);
       await api.put('/monitoramento-medicamentos/conjunto/registrar', {
-        grupo_medicamentos_id: monitA.grupo_medicamentos_id,
+        grupo_medicamentos_id: listaAtual[0].grupo_medicamentos_id,
         contato_efetivo: true,
         data_proximo_contato: dataProximoContato,
         registros: dadosLista.map(d => ({
@@ -290,23 +307,32 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null
         }))
       });
-      toast.success('Contato registrado para os dois medicamentos com sucesso!');
+      toast.success(`Contato registrado para os ${dadosLista.length} medicamentos com sucesso!`);
       onSucesso();
-      window.dispatchEvent(new Event('updateAlerts')); // 👈 NOVO: paridade com o modal individual
-      setShowNpsPrompt(true); // 👈 NOVO: antes fechava direto e nunca oferecia o NPS
+      window.dispatchEvent(new Event('updateAlerts'));
+      setShowNpsPrompt(true);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
     } finally {
       setEnviando(false);
     }
   };
-  const monitoramentoDaEtapa = etapa === 'MED_0' ? monitA : (etapa === 'MED_1' ? monitB : null);
   const monitoramentoAnteriorDaEtapa = monitoramentoDaEtapa
     ? monitoramentosAnteriores?.[monitoramentoDaEtapa.id]
     : null;
+
+  // 👇 GENERALIZADO: pra tela de divergência, lista TODOS os medicamentos
+  // ativos (não só dois fixos) e calcula a data sugerida pela média de
+  // TODOS os níveis de adesão — com 2, dá o mesmo resultado de sempre.
+  const dadosAtivosParaDivergencia = dadosPorMedicamento.filter(d => !d.descontinuarMedicamento);
+  const niveisParaSugestao = dadosAtivosParaDivergencia.map(d => d.nivelAdesao);
+  const dataSugeridaISO = niveisParaSugestao.length > 0
+    ? formatarDataISO(calcularDataSugerida(niveisParaSugestao))
+    : null;
+
   return (
     <ModalOverlay style={{ overflowY: 'auto', padding: '20px 0' }}>
-      {(etapa === 'MED_0' || etapa === 'MED_1') && (
+      {etapa === 'MEDICAMENTO' && (
         <ModalLayoutWrapper>
           <div className="left-column">
             {monitoramentoAnteriorDaEtapa && (
@@ -320,12 +346,12 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
                 key={monitoramentoDaEtapa.id}
                 monitoramento={monitoramentoDaEtapa}
                 monitoramentoAnterior={monitoramentoAnteriorDaEtapa}
-                numeroEtapa={etapa === 'MED_0' ? 1 : 2}
-                totalEtapas={2}
-                eventosExcluidos={etapa === 'MED_1' ? eventosReivindicados : []}
+                numeroEtapa={indiceAtual + 1}
+                totalEtapas={listaAtual.length}
+                eventosExcluidos={eventosReivindicados}
                 onCancelar={onClose}
                 onAvancar={handleAvancarMedicamento}
-                onCorrigirData={() => setReabrirPreTele(etapa === 'MED_0' ? 'A' : 'B')}
+                onCorrigirData={() => setReabrirPreTele(indiceAtual)}
                 corrigirDataDisabled={enviando}
               />
             </StepTransitionWrapper>
@@ -341,24 +367,25 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             <LuTriangleAlert size={22} /> Divergência de Adesão Identificada
           </h3>
           <InfoBox style={{ backgroundColor: 'rgba(243, 156, 18, 0.1)', borderColor: '#f39c12' }}>
-            <p>Os dois medicamentos apresentaram níveis de adesão diferentes neste contato:</p>
+            <p>Os medicamentos apresentaram níveis de adesão diferentes neste contato:</p>
             <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
-              <li><strong>{dadosPorMedicamento[0]?.medicamentoNome}:</strong> {LABEL_NIVEL[dadosPorMedicamento[0]?.nivelAdesao]}</li>
-              <li><strong>{dadosPorMedicamento[1]?.medicamentoNome}:</strong> {LABEL_NIVEL[dadosPorMedicamento[1]?.nivelAdesao]}</li>
+              {dadosAtivosParaDivergencia.map((d) => (
+                <li key={d.monitoramentoId}><strong>{d.medicamentoNome}:</strong> {LABEL_NIVEL[d.nivelAdesao]}</li>
+              ))}
             </ul>
-            <p style={{ margin: 0 }}>
-              Data sugerida com base na média entre os dois:{' '}
-              <strong>
-                {formatarDataBR(formatarDataISO(calcularDataSugerida(dadosPorMedicamento[0]?.nivelAdesao, dadosPorMedicamento[1]?.nivelAdesao)))}
-              </strong>
-            </p>
+            {dataSugeridaISO && (
+              <p style={{ margin: 0 }}>
+                Data sugerida com base na média entre os {dadosAtivosParaDivergencia.length}:{' '}
+                <strong>{formatarDataBR(dataSugeridaISO)}</strong>
+              </p>
+            )}
           </InfoBox>
           <FormGroup style={{ marginTop: '15px' }}>
             <label>Como deseja agendar o próximo contato?</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal', cursor: 'pointer' }}>
                 <input type="radio" checked={modoDataProximoContato === 'MEDIA'} onChange={() => setModoDataProximoContato('MEDIA')} />
-                Usar a data sugerida (média entre os dois medicamentos)
+                Usar a data sugerida (média entre os medicamentos)
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal', cursor: 'pointer' }}>
                 <input type="radio" checked={modoDataProximoContato === 'SEMANAL'} onChange={() => setModoDataProximoContato('SEMANAL')} />
@@ -371,7 +398,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             </div>
           </FormGroup>
           <ButtonGroup style={{ marginTop: '20px' }}>
-            <Button type="button" variant="secondary" onClick={() => setEtapa('MED_1')} disabled={enviando}>Voltar</Button>
+            <Button type="button" variant="secondary" onClick={() => setEtapa('MEDICAMENTO')} disabled={enviando}>Voltar</Button>
             <Button type="button" onClick={() => enviarRegistroConjunto(dadosPorMedicamento, modoDataProximoContato)} disabled={enviando}>
               {enviando ? 'Salvando...' : 'Confirmar e Salvar'}
             </Button>

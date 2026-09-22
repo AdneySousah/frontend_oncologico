@@ -8,7 +8,7 @@ import {
   Button, WaitingBox, ErrorBox, SuccessBox, Input
 } from './styles';
 
-export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBackground, startWaiting }) {
+export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBackground, startWaiting, onEnviado, onRecusado }) {
   const [step, setStep] = useState('initial');
   const [countdown, setCountdown] = useState(3);
   const [destinoEnvio, setDestinoEnvio] = useState('paciente');
@@ -93,6 +93,17 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
     return () => { if (timerId) clearInterval(timerId); };
   }, [isOpen, step, paciente, onSuccess]);
 
+  // 👇 CORREÇÃO DE BUG: quando o termo era recusado (manualmente ou
+  // detectado pelo polling), nada avisava o componente pai — igual ao caso
+  // do "aceito" (que já limpa a marcação de 2º Plano), um paciente recusado
+  // enquanto estava em 2º Plano continuava preso lá pra sempre, mesmo não
+  // havendo mais nada esperando resposta.
+  useEffect(() => {
+    if (isOpen && step === 'rejected') {
+      onRecusado?.(paciente?.id);
+    }
+  }, [isOpen, step, paciente, onRecusado]);
+
   const handleTelefoneManualChange = (e) => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 11) value = value.slice(0, 11);
@@ -127,6 +138,16 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
         } else {
           toast.success("Operação iniciada, mas o link não foi retornado pelo servidor.");
         }
+
+        // 👇 CORREÇÃO DE BUG: o backend já muda o status pra "Pendente" no
+        // momento do envio (não quando o paciente responde) — mas a lista
+        // do componente pai só era atualizada se o paciente aceitasse
+        // DURANTE o polling deste modal, ou se o operador clicasse
+        // explicitamente em "Colocar em 2º Plano". Se o operador só
+        // fechasse o modal sem fazer nenhuma das duas coisas, a lista
+        // ficava com o status antigo até um F5 manual. Chamando aqui,
+        // logo após o envio confirmado, cobre todos os casos.
+        onEnviado?.(paciente.id);
 
         setTimeout(() => {
           setWaitCountdown(10);
@@ -174,6 +195,9 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
         destino_tipo: destinoEnvio,
         email_destino: destinoEnvio === 'email' ? emailManual : undefined
       });
+      // 👇 Mesma correção do fluxo de copiar link — ver comentário lá.
+      onEnviado?.(paciente.id);
+
       setTimeout(() => {
         setWaitCountdown(10);
         setShowManualFallback(false);

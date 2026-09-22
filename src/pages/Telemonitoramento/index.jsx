@@ -19,6 +19,7 @@ import {
 
 
 import IniciarTratamentoModal from './components/IniciarTratamentoModal';
+import PausarMedicamentoModal from './components/PausarMedicamentoModal';
 
 export const getAdherenceClassification = (score) => {
   if (score == null) return { label: 'Sem Avaliação', level: 'none' };
@@ -89,6 +90,9 @@ export default function Telemonitoramento() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
   const [incluirDescontinuados, setIncluirDescontinuados] = useState(false);
+  const [mostrarPausados, setMostrarPausados] = useState(false);
+  const [listaPausados, setListaPausados] = useState([]);
+  const [carregandoPausados, setCarregandoPausados] = useState(false);
 
   const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0 });
   const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
@@ -112,6 +116,13 @@ export default function Telemonitoramento() {
   const [npsWaitingItems, setNpsWaitingItems] = useState([]);
   const [isNpsModalOpen, setIsNpsModalOpen] = useState(false);
   const [monitoramentoParaNps, setMonitoramentoParaNps] = useState(null);
+  const [monitoramentoParaPausar, setMonitoramentoParaPausar] = useState(null);
+  const [monitoramentoParaDestravar, setMonitoramentoParaDestravar] = useState(null);
+  const [destravando, setDestravando] = useState(false);
+  const [dataRetomadaReal, setDataRetomadaReal] = useState('');
+  const [monitoramentoParaEstender, setMonitoramentoParaEstender] = useState(null);
+  const [novaDataFimPrevista, setNovaDataFimPrevista] = useState('');
+  const [estendendo, setEstendendo] = useState(false);
 
   const [sincronizandoId, setSincronizandoId] = useState(null);
 
@@ -129,6 +140,13 @@ export default function Telemonitoramento() {
 
   const [searchParams] = useSearchParams();
   const highlightKey = searchParams.get('highlight');
+  // 👇 NOVO: chegando aqui pelo toast/sino de "pausa vencendo", abre já na
+  // aba de pausados, sem precisar marcar o checkbox manualmente.
+  useEffect(() => {
+    if (searchParams.get('ver_pausados') === 'true') {
+      setMostrarPausados(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const loadNpsWaiting = () => {
@@ -168,6 +186,22 @@ export default function Telemonitoramento() {
   useEffect(() => {
     fetchMonitoramentos();
   }, [currentPage, debouncedSearch, filterMonth, sortConfig, incluirDescontinuados]);
+
+  const fetchPausados = async () => {
+    try {
+      setCarregandoPausados(true);
+      const response = await api.get('/monitoramento-medicamentos/pausados');
+      setListaPausados(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar medicamentos pausados', error);
+    } finally {
+      setCarregandoPausados(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPausados(); // carrega já na montagem, pra ter a contagem no botão da aba
+  }, []);
 
   async function fetchMonitoramentos() {
     try {
@@ -389,6 +423,58 @@ const sincronizarPacienteAntesDeAbrir = async (pacienteId) => {
   }
 };
 
+const handleDestravarPausa = async () => {
+  if (!monitoramentoParaDestravar) return;
+  try {
+    setDestravando(true);
+    const response = await api.patch(`/monitoramento-medicamentos/${monitoramentoParaDestravar.id}/destravar-pausa`, {
+      // 👇 NOVO: usa a data real de retomada informada (pode ser diferente
+      // de hoje — ex: paciente já voltou a tomar há alguns dias, e o
+      // operador só está processando isso no sistema agora).
+      data_retomada_real: dataRetomadaReal || undefined
+    });
+    toast.success('Pausa destravada — retomando o acompanhamento.');
+    window.dispatchEvent(new Event('updateAlerts'));
+    setMonitoramentoParaDestravar(null);
+    setDataRetomadaReal('');
+    fetchPausados();
+    // 👇 Vai direto pro Registrar Contato normal desse medicamento, como
+    // pedido — sem precisar de uma etapa extra de "confirmar que já pode
+    // retomar". A comparação com o ciclo anterior não aparece aqui (não
+    // temos o histórico completo do grupo nesta tela), mas o registro do
+    // contato funciona normalmente.
+    setSelectedMonitoramento(response.data.monitoramento);
+    setMonitoramentoAnterior(null);
+    setIsModalOpen(true);
+  } catch (error) {
+    toast.error(error.response?.data?.error || 'Erro ao destravar a pausa.');
+  } finally {
+    setDestravando(false);
+  }
+};
+
+const handleEstenderPausa = async () => {
+  if (!monitoramentoParaEstender || !novaDataFimPrevista) {
+    toast.error('Informe a nova data prevista de retomada.');
+    return;
+  }
+  try {
+    setEstendendo(true);
+    await api.patch(`/monitoramento-medicamentos/${monitoramentoParaEstender.id}/estender-pausa`, {
+      nova_data_fim_prevista: novaDataFimPrevista
+    });
+    toast.success('Prazo da pausa estendido.');
+    window.dispatchEvent(new Event('updateAlerts'));
+    setMonitoramentoParaEstender(null);
+    setNovaDataFimPrevista('');
+    fetchPausados();
+  } catch (error) {
+    toast.error(error.response?.data?.error || 'Erro ao estender a pausa.');
+  } finally {
+    setEstendendo(false);
+  }
+};
+
 const handleOpenModal = async (hist, latestScore, historicoDoGrupo) => {
   setSincronizandoId(hist.id);
   await sincronizarPacienteAntesDeAbrir(hist.paciente_id);
@@ -587,7 +673,7 @@ const renderLinhaConjunto = (itens, grupo, zebraBg) => {
               disabled={estaSincronizando}
               onClick={() => handleOpenModalConjunto(itens, grupo.historico, grupo.avaliacao?.total_score)}
             >
-              {estaSincronizando ? 'Sincronizando...' : 'Registrar Contato (2 medicamentos)'}
+              {estaSincronizando ? 'Sincronizando...' : `Registrar Contato (${itens.length} medicamentos)`}
             </ActionButton>
           ) : (
             <span
@@ -712,8 +798,86 @@ return (
           />
           Mostrar apenas pacientes com acompanhamento encerrado
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#8e44ad', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: mostrarPausados ? 700 : 400 }}>
+          <input
+            type="checkbox"
+            checked={mostrarPausados}
+            onChange={(e) => setMostrarPausados(e.target.checked)}
+          />
+          ⏸ Ver pausados temporariamente ({listaPausados.length})
+        </label>
       </ControlsContainer>
 
+      {mostrarPausados ? (
+        <div style={{ marginTop: '20px' }}>
+          {carregandoPausados ? (
+            <div style={{ padding: 40, textAlign: 'center' }}>Carregando pausados...</div>
+          ) : listaPausados.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', opacity: 0.6 }}>Nenhum medicamento pausado no momento.</div>
+          ) : (
+            <SubTableWrapper>
+              <SubTable>
+                <thead>
+                  <tr>
+                    <th>Paciente</th>
+                    <th>Medicamento</th>
+                    <th>Motivo</th>
+                    <th>Retomada prevista</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaPausados.map(item => {
+                    const dataFim = item.data_pausa_fim_prevista ? new Date(item.data_pausa_fim_prevista) : null;
+                    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+                    const diasRestantes = dataFim ? Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24)) : null;
+                    const destacada = String(item.id) === searchParams.get('pausado_id');
+                    return (
+                      <tr key={item.id} style={destacada ? { backgroundColor: 'rgba(142,68,173,0.12)' } : undefined}>
+                        <td>{item.paciente?.nome} {item.paciente?.sobrenome}</td>
+                        <td>{item.medicamento?.nome}</td>
+                        <td>
+                          {item.motivoPausaMedicamento?.descricao || 'Motivo não estruturado'}
+                          {item.motivo_pausa_medicamento_observacao ? ` — ${item.motivo_pausa_medicamento_observacao}` : ''}
+                        </td>
+                        <td>
+                          {dataFim ? dataFim.toLocaleDateString('pt-BR') : '-'}
+                          {diasRestantes != null && (
+                            <span style={{ marginLeft: '6px', fontSize: '0.78rem', color: diasRestantes <= 2 ? '#e74c3c' : '#888' }}>
+                              ({diasRestantes <= 0 ? 'vencida' : `em ${diasRestantes} dia(s)`})
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <ActionButton
+                              onClick={() => {
+                                const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+                                setDataRetomadaReal(hojeStr);
+                                setMonitoramentoParaDestravar(item);
+                              }}
+                            >
+                              Destravar Pausa
+                            </ActionButton>
+                            <ActionButton
+                              style={{ backgroundColor: '#f0ad4e', borderColor: '#f0ad4e' }}
+                              onClick={() => setMonitoramentoParaEstender(item)}
+                              title="Paciente ainda não pode retomar — só empurra a data prevista"
+                            >
+                              Estender
+                            </ActionButton>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </SubTable>
+            </SubTableWrapper>
+          )}
+        </div>
+      ) : (
+      <>
       {loading && monitoramentosAgrupados.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', fontSize: '1.1rem' }}>Carregando contatos agendados...</div>
       ) : monitoramentosAgrupados.length === 0 ? (
@@ -986,6 +1150,14 @@ return (
                                                 >
                                                   {estaSincronizando ? 'Sincronizando...' : 'Registrar Contato'}
                                                 </ActionButton>
+                                                <ActionButton
+                                                  disabled={estaSincronizando}
+                                                  style={{ backgroundColor: '#8e44ad', borderColor: '#8e44ad' }}
+                                                  onClick={() => setMonitoramentoParaPausar({ ...hist, paciente: grupo.paciente })}
+                                                  title="Pausar temporariamente este medicamento (com prazo de retomada)"
+                                                >
+                                                  ⏸ Pausar
+                                                </ActionButton>
                                                 {/* 👇 NOVO: só aparece quando o estoque projetado desta linha é 0
                                                     (medicamento acabou e não há compra sincronizada disponível) */}
                                                 {estoqueProjetadoLinha === 0 && (
@@ -1064,6 +1236,8 @@ return (
           )}
         </>
       )}
+      </>
+      )}
     </SectionWrapper>
 
     <TelemonitoramentoModal
@@ -1118,6 +1292,85 @@ return (
         }}
         onBackground={() => setIsNpsModalOpen(false)}
       />
+    )}
+
+    {monitoramentoParaPausar && (
+      <PausarMedicamentoModal
+        monitoramento={monitoramentoParaPausar}
+        onClose={() => setMonitoramentoParaPausar(null)}
+        onPausado={() => {
+          setMonitoramentoParaPausar(null);
+          fetchMonitoramentos();
+          fetchPausados();
+        }}
+      />
+    )}
+
+    {monitoramentoParaDestravar && (
+      <ModalOverlay onClick={() => !destravando && setMonitoramentoParaDestravar(null)}>
+        <ModalContent style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+          <h3>Destravar Pausa</h3>
+          <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: '10px 0 20px' }}>
+            {monitoramentoParaDestravar.paciente?.nome} {monitoramentoParaDestravar.paciente?.sobrenome} —{' '}
+            {monitoramentoParaDestravar.medicamento?.nome}
+          </p>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              Quando ele realmente voltou a tomar? *
+            </label>
+            <input
+              type="date"
+              value={dataRetomadaReal}
+              onChange={(e) => setDataRetomadaReal(e.target.value)}
+              max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
+            />
+            <p style={{ fontSize: '0.78rem', opacity: 0.65, margin: '6px 0 0' }}>
+              Já vem preenchido com hoje — mude só se o paciente voltou a tomar antes de você processar isso no sistema (evita contar dias de pausa que não existiram de verdade).
+            </p>
+          </div>
+          <p style={{ opacity: 0.8, fontSize: '0.85rem', marginBottom: '20px' }}>
+            Isso encerra a pausa e abre o Registrar Contato normal, já considerando os dias parados no cálculo do estoque.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <Button type="button" variant="secondary" onClick={() => setMonitoramentoParaDestravar(null)} disabled={destravando}>Cancelar</Button>
+            <Button type="button" onClick={handleDestravarPausa} disabled={destravando}>
+              {destravando ? 'Destravando...' : 'Destravar e Registrar Contato'}
+            </Button>
+          </div>
+        </ModalContent>
+      </ModalOverlay>
+    )}
+
+    {monitoramentoParaEstender && (
+      <ModalOverlay onClick={() => !estendendo && setMonitoramentoParaEstender(null)}>
+        <ModalContent style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+          <h3>Estender Pausa</h3>
+          <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: '10px 0 20px' }}>
+            {monitoramentoParaEstender.paciente?.nome} {monitoramentoParaEstender.paciente?.sobrenome} —{' '}
+            {monitoramentoParaEstender.medicamento?.nome}
+            <br /><br />
+            O paciente ainda não pode retomar? Isso só empurra a data prevista de retomada — o medicamento continua pausado, sem nenhuma contagem, e sem passar pelo Registrar Contato.
+          </p>
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+              Nova data prevista de retomada *
+            </label>
+            <input
+              type="date"
+              value={novaDataFimPrevista}
+              onChange={(e) => setNovaDataFimPrevista(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <Button type="button" variant="secondary" onClick={() => setMonitoramentoParaEstender(null)} disabled={estendendo}>Cancelar</Button>
+            <Button type="button" onClick={handleEstenderPausa} disabled={estendendo}>
+              {estendendo ? 'Salvando...' : 'Estender Prazo'}
+            </Button>
+          </div>
+        </ModalContent>
+      </ModalOverlay>
     )}
 
     {isLegendModalOpen && (

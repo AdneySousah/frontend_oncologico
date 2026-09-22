@@ -44,6 +44,22 @@ function ehDiaDeTomaLocal(offsetDias, tipoPosologia, monitoramento) {
   return false; // 'personalizada' é tratado à parte, por não seguir um ciclo repetido
 }
 
+// 👇 NOVO: diz se uma data cai dentro de algum período de pausa (mesma
+// lógica do backend, replicada aqui pro cálculo instantâneo na tela).
+function estaDentroDePausaLocal(dataObj, periodosPausa) {
+  if (!Array.isArray(periodosPausa) || periodosPausa.length === 0) return false;
+  return periodosPausa.some(p => {
+    if (!p || !p.inicio) return false;
+    const [ai, mi, di] = p.inicio.split('-');
+    const inicio = new Date(Number(ai), Number(mi) - 1, Number(di));
+    if (dataObj < inicio) return false;
+    if (!p.fim) return true;
+    const [af, mf, df] = p.fim.split('-');
+    const fim = new Date(Number(af), Number(mf) - 1, Number(df));
+    return dataObj <= fim;
+  });
+}
+
 // 👇 CORREÇÃO DE BUG: o "Estoque Projetado para Hoje" sempre calculava
 // `diasPassados * posologia`, como se a posologia fosse sempre "X por
 // dia" — isso está certo pro padrão diário, mas é errado pra cíclica,
@@ -60,6 +76,10 @@ function ehDiaDeTomaLocal(offsetDias, tipoPosologia, monitoramento) {
 export function contarComprimidosConsumidos(dataInicioObj, diasPassados, posologiaPorDose, monitoramento) {
   if (diasPassados <= 0 || !posologiaPorDose) return 0;
   const tipo = monitoramento?.tipo_posologia || 'diaria';
+  const periodosPausa = [
+    ...(Array.isArray(monitoramento?.pausas_historico) ? monitoramento.pausas_historico : []),
+    ...(monitoramento?.data_pausa_inicio ? [{ inicio: monitoramento.data_pausa_inicio, fim: null }] : [])
+  ];
 
   if (tipo === 'personalizada') {
     const datas = monitoramento?.posologia_datas_personalizadas || [];
@@ -69,13 +89,16 @@ export function contarComprimidosConsumidos(dataInicioObj, diasPassados, posolog
     datas.forEach(dStr => {
       const [a, m, d] = dStr.split('-');
       const dataObj = new Date(Number(a), Number(m) - 1, Number(d));
-      if (dataObj >= dataInicioObj && dataObj < fimExclusivo) doses++;
+      if (dataObj >= dataInicioObj && dataObj < fimExclusivo && !estaDentroDePausaLocal(dataObj, periodosPausa)) doses++;
     });
     return doses * posologiaPorDose;
   }
 
   let doses = 0;
   for (let offset = 0; offset < diasPassados; offset++) {
+    const dataDoOffset = new Date(dataInicioObj);
+    dataDoOffset.setDate(dataDoOffset.getDate() + offset);
+    if (estaDentroDePausaLocal(dataDoOffset, periodosPausa)) continue;
     if (ehDiaDeTomaLocal(offset, tipo, monitoramento)) doses++;
   }
   return doses * posologiaPorDose;

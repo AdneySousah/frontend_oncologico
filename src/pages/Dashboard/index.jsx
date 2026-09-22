@@ -10,6 +10,7 @@ import PacientesMonitoradosChart from './components/PacientesMonitoradosChart';
 import NpsChart from './components/NpsChart';
 import HistoricoTrocaTable from './components/HistoricoTrocaTable';
 import TermosChart from './components/TermosChart';
+import NovosPacientesOperadoraChart from './components/NovosPacientesOperadoraChart';
 import ProblemasContatoChart from './components/ProblemasContatoChart'; // <-- NOVO IMPORT
 
 import { Container, Title, Grid, Card, ControlsPanel, FilterGroup, SelectGroup } from './styles';
@@ -119,6 +120,7 @@ export default function Dashboard() {
             <option value="ficha_ram">Fichas RAM (Eventos Adversos)</option>
             <option value="problemas_contato">Problemas de Contato (Falhas)</option> {/* <-- NOVA OPÇÃO */}
             <option value="troca_medicamentos">Histórico de Troca de Medicamentos</option>
+            <option value="novos_pacientes_operadora">Novos Pacientes Cadastrados (por Operadora)</option>
           </select>
         </SelectGroup>
 
@@ -172,6 +174,16 @@ export default function Dashboard() {
             />
           </Card>
         )}
+
+
+        
+     {/*    
+      comentado, sem uso devido no sistema até então sera descomentado no momento em que for utilizado
+     {(graficoSelecionado === 'todos' || graficoSelecionado === 'novos_pacientes_operadora') && (
+          <Card $isFullWidth={graficoSelecionado !== 'todos'}>
+            <NovosPacientesOperadoraChart />
+          </Card>
+        )} */}
 
         {(graficoSelecionado === 'todos' || graficoSelecionado === 'adesao_score') && data.adesaoScore && (
           <Card $isFullWidth={graficoSelecionado !== 'todos'}>

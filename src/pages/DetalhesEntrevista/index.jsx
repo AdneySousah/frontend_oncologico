@@ -8,7 +8,7 @@ import TermoModal from './components/TermoModal';
 import PausarTratamentoModal from './components/PausarTratamentoModal';
 import FilterBar from './components/FilterBar';
 import Pagination from './components/Pagination';
-import { LuArrowUpDown, LuEye, LuRefreshCw, LuCirclePause, LuCirclePlay } from "react-icons/lu";
+import { LuArrowUpDown, LuEye, LuRefreshCw, LuCirclePause, LuCirclePlay, LuX } from "react-icons/lu";
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
@@ -255,6 +255,31 @@ export default function ListaEntrevistas() {
   // do Telemonitoramento, até alguém retomar o tratamento manualmente.
   // O motivo é selecionado de uma lista compartilhada com o "Descontinuar
   // Medicamento" do Telemonitoramento, pra ficar contabilizável.
+  // 👇 NOVO: cancela/invalida um termo já enviado — funciona em qualquer
+  // status (Pendente, Aceito ou Recusado), pra corrigir envio errado ou
+  // desfazer uma resposta.
+  const handleCancelarTermo = async (paciente) => {
+    const confirmar = window.confirm(`Cancelar o termo de ${paciente.nome} ${paciente.sobrenome}? O link enviado deixa de funcionar até um novo termo ser enviado.`);
+    if (!confirmar) return;
+
+    try {
+      await api.patch(`/termos/paciente/${paciente.id}/cancelar`);
+      // 👇 CORREÇÃO DE BUG: "2º Plano" marca "este termo está aguardando
+      // resposta, não me pergunte de novo" — mas é uma lista guardada só
+      // no navegador (localStorage), completamente separada do
+      // status_termo. Cancelar o termo não tinha nenhuma limpeza
+      // correspondente aqui, então o paciente saía de "Pendentes" (que
+      // olha status_termo) mas continuava preso em "2º Plano" (que olha
+      // essa lista à parte) — não tem mais nada esperando resposta depois
+      // de cancelado, então precisa sair dos dois lugares.
+      setEmSegundoPlanoIds(prev => prev.filter(pid => pid !== paciente.id));
+      toast.success('Termo cancelado com sucesso.');
+      loadLocalData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao cancelar o termo.');
+    }
+  };
+
   const handlePausarTratamento = (paciente) => {
     setPacienteParaPausar(paciente);
   };
@@ -290,12 +315,12 @@ export default function ListaEntrevistas() {
     if (!isMaster && nomeOperadoraUsuario) {
       baseData = baseData.filter(paciente => paciente.operadoras?.nome === nomeOperadoraUsuario);
     }
-    const counts = { Aceito: 0, Recusado: 0, Pendente: 0, Todos: baseData.length, SegundoPlano: 0 };
+    const counts = { Aceito: 0, Recusado: 0, Pendente: 0, 'Nao Enviado': 0, Cancelado: 0, Todos: baseData.length, SegundoPlano: 0 };
 
     baseData.forEach(p => {
-      const status = p.status_termo || 'Pendente';
+      const status = p.status_termo || 'Nao Enviado';
       if (counts[status] !== undefined) counts[status]++;
-      else counts['Pendente']++;
+      else counts['Nao Enviado']++;
 
       if (emSegundoPlanoIds.includes(p.id)) counts.SegundoPlano++;
     });
@@ -404,6 +429,10 @@ export default function ListaEntrevistas() {
         </div>
       )}
       <S.CountersContainer>
+        <S.CounterCircle color="#999999" active={filters.statusTermo === 'Nao Enviado'} onClick={() => changeStatusFilter('Nao Enviado')}>
+          <span className="count">{termoCounts['Nao Enviado']}</span>
+          <span className="label">Não Enviados</span>
+        </S.CounterCircle>
         <S.CounterCircle color="#faad14" active={filters.statusTermo === 'Pendente'} onClick={() => changeStatusFilter('Pendente')}>
           <span className="count">{termoCounts.Pendente}</span>
           <span className="label">Pendentes</span>
@@ -588,6 +617,16 @@ export default function ListaEntrevistas() {
                           <LuCirclePause size={16} />
                         </S.ActionButton>
                       )}
+                      {statusTermo !== 'Nao Enviado' && statusTermo !== 'Cancelado' && (
+                        <S.ActionButton
+                          className="view-btn"
+                          style={{ color: '#d9534f', borderColor: '#d9534f' }}
+                          onClick={() => handleCancelarTermo(paciente)}
+                          title="Cancelar Termo (invalida o link enviado)"
+                        >
+                          <LuX size={16} />
+                        </S.ActionButton>
+                      )}
                       <S.ActionButton className="view-btn" onClick={() => { setSelectedPaciente(paciente); setModalOpen(true); }} title="Ver Histórico">
                         <LuEye size={16} />
                       </S.ActionButton>
@@ -610,14 +649,20 @@ export default function ListaEntrevistas() {
       )}
       <TermoModal
         isOpen={termoModalOpen}
-        onClose={() => setTermoModalOpen(false)}
+        onClose={() => { setTermoModalOpen(false); loadLocalData(); }}
         paciente={pacienteParaTermo}
         startWaiting={termoStartWaiting}
+        onEnviado={() => loadLocalData()}
+        onRecusado={(id) => {
+          setEmSegundoPlanoIds(prev => prev.filter(pid => pid !== id));
+          loadLocalData();
+        }}
         onBackground={(id) => {
           setEmSegundoPlanoIds(prev => {
             if (!prev.includes(id)) return [...prev, id];
             return prev;
           });
+          loadLocalData();
           toast.info(`O paciente foi colocado em 2º plano. Você será notificado quando ele responder.`);
         }}
         onSuccess={(pacienteAtualizado) => {

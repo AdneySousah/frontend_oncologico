@@ -146,6 +146,23 @@ export default function TelaAceiteTermo() {
         );
     }
 
+    // 👇 NOVO: link cancelado/invalidado pelo atendente (ex: enviado pro
+    // número errado) — não mostra o formulário nem os estados de
+    // aceito/recusado, só avisa que esse link específico não vale mais.
+    if (statusTermo === 'Cancelado') {
+        return (
+            <Container>
+                <Card>
+                    <Title>Link Indisponível</Title>
+                    <Text large>Este link não está mais disponível para resposta.</Text>
+                    <Text variant="muted" mt="20px">
+                        Se você recebeu este link por engano, ou precisa de um novo, entre em contato com quem te enviou.
+                    </Text>
+                </Card>
+            </Container>
+        );
+    }
+
     // Fluxo 3: Janela de confirmação caso ele clique em "Não aceito"
     if (showConfirmReject) {
         return (

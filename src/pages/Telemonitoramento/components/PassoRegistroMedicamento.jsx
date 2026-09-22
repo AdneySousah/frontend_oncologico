@@ -120,6 +120,11 @@ export default function PassoRegistroMedicamento({
   const qtdTotalCaixa = Number(
     monitoramento?.qtd_total_capsulas || (monitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
   );
+  // 👇 CORREÇÃO: mesmo motivo do TelemonitoramentoModal.jsx — o texto
+  // "Quantidade total inicial" precisa sempre mostrar o valor real da
+  // caixa do medicamento, não qtd_total_capsulas. Só pra exibição; o
+  // cálculo (qtdTotalCaixa, acima) continua como estava.
+  const qtdTotalCaixaReal = Number(monitoramento?.medicamento?.qtd_capsula || 0) * qtdCaixas;
   const posologia = Number(monitoramento?.posologia_diaria || 1);
   let idealRemainingAntigo = 0;
   const dataUsoReferencia = monitoramento?.data_administracao || monitoramento?.data_entrega;
@@ -304,7 +309,7 @@ export default function PassoRegistroMedicamento({
 
       <InfoBox>
         <p className="sub-text">
-          Quantidade total inicial: {qtdTotalCaixa} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+          Quantidade total inicial: {qtdTotalCaixaReal} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
           {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
         </p>
         {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' && (

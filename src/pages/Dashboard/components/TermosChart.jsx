@@ -4,7 +4,21 @@ import { exportToXLSX } from '../../../utils/exportExcel';
 import { ChartHeader } from '../styles';
 import ButtonExcelExport from '../../../components/Buttons/ExportButtons';
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444']; 
+// 👇 CORREÇÃO DE BUG: antes as cores eram escolhidas pela POSIÇÃO no array
+// (COLORS[index % COLORS.length]) — funcionava enquanto eram sempre 3
+// categorias, mas quando "Não Enviado" virou a 4ª categoria, o índice 3
+// "dava a volta" (3 % 3 = 0) e reusava a MESMA cor de "Aceito" (índice 0),
+// deixando os dois com verde idêntico no gráfico. Mapear por NOME em vez
+// de posição evita esse tipo de colisão se a ordem ou a quantidade de
+// categorias mudar de novo no futuro.
+const CORES_POR_STATUS = {
+  'Aceito': '#10B981',      // verde
+  'Pendente': '#F59E0B',    // laranja
+  'Recusado': '#EF4444',    // vermelho
+  'Não Enviado': '#9CA3AF', // cinza neutro
+  'Cancelado': '#6B7280',   // cinza mais escuro
+};
+const COR_PADRAO = '#94A3B8'; // qualquer categoria futura não mapeada
 
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
   const RADIAN = Math.PI / 180;
@@ -60,7 +74,7 @@ const TermosChart = ({ chartData, reportData }) => {
             stroke="none"
           >
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              <Cell key={`cell-${index}`} fill={CORES_POR_STATUS[entry.name] || COR_PADRAO} />
             ))}
           </Pie>
           <Tooltip 
