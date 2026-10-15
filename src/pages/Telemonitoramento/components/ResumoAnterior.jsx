@@ -43,7 +43,14 @@ export default function ResumoAnterior({ monitoramento }) {
 
       <div>
         <span style={{ fontSize: '0.85rem', color: '#666' }}>Data do último contato:</span>
-        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{formatarData(monitoramento.createdAt)}</div>
+        {/* 👇 CORREÇÃO DE BUG: createdAt é quando o registro foi CRIADO
+            (agendado, no momento em que o contato ANTERIOR foi concluído)
+            — quase nunca é a data em que essa conversa de verdade
+            aconteceu. data_telemonitoramento_efetivado é setada só quando
+            o registro passa de PENDENTE pra CONCLUÍDO, e é essa a data real
+            do contato. updatedAt como respaldo, pro caso raro de algum
+            registro antigo não ter esse campo preenchido. */}
+        <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{formatarData(monitoramento.data_telemonitoramento_efetivado || monitoramento.updatedAt)}</div>
       </div>
 
       <div>

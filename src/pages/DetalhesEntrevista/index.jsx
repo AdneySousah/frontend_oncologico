@@ -42,7 +42,7 @@ export default function ListaEntrevistas() {
     cuidador: '',
     telefone: '',
     operadora: '',
-    statusTermo: 'Pendente'
+    statusTermo: 'Nao Enviado'
   });
 
   const [currentPage, setCurrentPage] = useState(1);

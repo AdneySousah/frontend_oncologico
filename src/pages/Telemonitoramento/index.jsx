@@ -21,12 +21,9 @@ import {
 import IniciarTratamentoModal from './components/IniciarTratamentoModal';
 import PausarMedicamentoModal from './components/PausarMedicamentoModal';
 
-export const getAdherenceClassification = (score) => {
-  if (score == null) return { label: 'Sem Avaliação', level: 'none' };
-  if (score <= 9) return { label: 'Paciente com alta tendência a adesão ao tratamento', level: 'alta' };
-  if (score <= 12) return { label: 'Paciente com tendência moderada a adesão ao tratamento', level: 'media' };
-  return { label: 'Paciente com tendência baixa a adesão ao tratamento', level: 'baixa' };
-};
+// getAdherenceClassification foi pra src/utils/adherenceClassification.js: o
+// export de função daqui quebrava a regra react-refresh/only-export-components.
+import { getAdherenceClassification } from '../../utils/adherenceClassification';
 
 const percentualAdesao = (nivel) => {
   if (nivel === 'COMPLETAMENTE') return 100;
@@ -94,7 +91,7 @@ export default function Telemonitoramento() {
   const [listaPausados, setListaPausados] = useState([]);
   const [carregandoPausados, setCarregandoPausados] = useState(false);
 
-  const [resumo, setResumo] = useState({ concluidos: 0, pendentes: 0 });
+  const [, setResumo] = useState({ concluidos: 0, pendentes: 0 }); // resumo não é lido na tela
   const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -268,6 +265,25 @@ export default function Telemonitoramento() {
 
         grupo.medicamentoAtual = grupo.contatoAtual?.medicamento || null;
 
+        // 👇 NOVO: medicamentos que a pessoa ENCERROU (último registro do
+        // medicamento é DESCONTINUADO e não há ciclo pendente/pausado dele),
+        // enquanto segue com outro medicamento. Vira alerta no cabeçalho.
+        const porMedicamento = {};
+        grupo.historico.forEach(h => {
+          if (!porMedicamento[h.medicamento_id]) porMedicamento[h.medicamento_id] = [];
+          porMedicamento[h.medicamento_id].push(h);
+        });
+        grupo.medicamentosEncerrados = Object.values(porMedicamento).flatMap(registros => {
+          if (registros.some(r => r.status === 'PENDENTE' || r.status === 'PAUSADO')) return [];
+          const ultimo = [...registros].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+          if (ultimo?.status !== 'DESCONTINUADO') return [];
+          return [{
+            medicamento_id: ultimo.medicamento_id,
+            nome: ultimo.medicamento?.nome || `medicamento ${ultimo.medicamento_id}`,
+            data: ultimo.data_telemonitoramento_efetivado || ultimo.createdAt
+          }];
+        });
+
         if (grupo.contatoAtual?.status === 'PENDENTE' && grupo.contatoAtual.grupo_medicamentos_id) {
           grupo.contatosConjuntoAtual = pendentes.filter(
             p => p.grupo_medicamentos_id === grupo.contatoAtual.grupo_medicamentos_id
@@ -360,8 +376,14 @@ export default function Telemonitoramento() {
 
       if (incluirDescontinuados && agrupadosArray.length > 0) {
         buscarCandidatosRetomada(agrupadosArray.map(g => g.key));
+      } else {
+        // 👇 NOVO: na lista normal, quem encerrou um medicamento pode ter outro
+        // esperando pra ser iniciado (compra recebida sem ciclo) — busca os
+        // candidatos só desses pacientes, pra mostrar o "Iniciar Tratamento".
+        const idsComEncerrado = agrupadosArray.filter(g => g.medicamentosEncerrados?.length > 0).map(g => g.key);
+        if (idsComEncerrado.length > 0) buscarCandidatosRetomada(idsComEncerrado);
       }
-    } catch (error) {
+    } catch {
       toast.error('Erro ao carregar lista de monitoramentos.');
     } finally {
       setLoading(false);
@@ -552,7 +574,7 @@ const abrirContatoAposReembolso = async (novoRegistro) => {
     setSelectedMonitoramento(res.data);
     setMonitoramentoAnterior(null);
     setIsModalOpen(true);
-  } catch (err) {
+  } catch {
     toast.error('Evento de reembolso criado, mas houve um erro ao abrir o contato. Atualize a lista e tente novamente.');
   } finally {
     fetchMonitoramentos();
@@ -574,7 +596,7 @@ const calcularEstoqueProjetadoLinha = (hist) => {
     const calculado = Math.max(0, diffDays * hist.posologia_diaria);
     const qtdCaixa = hist.medicamento?.qtd_capsula || calculado;
     return Math.min(qtdCaixa, calculado);
-  } catch (err) {
+  } catch {
     return null;
   }
 };
@@ -796,7 +818,7 @@ return (
             checked={incluirDescontinuados}
             onChange={(e) => setIncluirDescontinuados(e.target.checked)}
           />
-          Mostrar apenas pacientes com acompanhamento encerrado
+          Mostrar apenas pacientes com acompanhamento encerrado (todos os medicamentos)
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#8e44ad', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: mostrarPausados ? 700 : 400 }}>
           <input
@@ -963,6 +985,17 @@ return (
                               {adInfo.label}
                             </AdherenceBadge>
                           )}
+                          {/* 👇 NOVO: encerrou um medicamento mas segue com outro —
+                              fica na lista normal, com este alerta */}
+                          {!incluirDescontinuados && grupo.medicamentosEncerrados?.length > 0 && (
+                            <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {grupo.medicamentosEncerrados.map(m => (
+                                <span key={m.medicamento_id} style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#c0392b', backgroundColor: 'rgba(231, 76, 60, 0.1)', border: '1px solid rgba(231, 76, 60, 0.35)', borderRadius: '4px', padding: '2px 6px', width: 'fit-content' }}>
+                                  ⚠ Encerrou {m.nome} em {formatarData(m.data)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td>
                           {grupo.paciente?.possui_cuidador ? (
@@ -1036,15 +1069,35 @@ return (
                                   </button>
                                 )}
                               </div>
-                            ) : grupo.proximoContatoData ? (
+                            ) : (
                             <>
-                              <div style={{ fontWeight: 'bold' }}>{formatarData(grupo.proximoContatoData)}</div>
-                              <span style={{ fontSize: '0.8rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
-                                {tempoProximoContato.texto}
-                              </span>
+                              {/* 👇 NOVO: outro medicamento recebido e sem ciclo — dá pra iniciar daqui mesmo */}
+                              {grupo.medicamentosEncerrados?.length > 0 && candidatosPorPaciente[grupo.key]?.length > 0 && (
+                                <div style={{ marginBottom: '6px' }}>
+                                  <span style={{ fontSize: '0.78rem', color: '#27ae60', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
+                                    🔔 {candidatosPorPaciente[grupo.key].map(c => c.medicamento_nome).join(' + ')}
+                                  </span>
+                                  <ActionButton
+                                    style={{ backgroundColor: '#27ae60', borderColor: '#27ae60' }}
+                                    onClick={(e) => { e.stopPropagation(); abrirIniciarTratamento(grupo); }}
+                                  >
+                                    Iniciar Tratamento
+                                  </ActionButton>
+                                </div>
+                              )}
+                              {grupo.proximoContatoData ? (
+                                <>
+                                  <div style={{ fontWeight: 'bold' }}>{formatarData(grupo.proximoContatoData)}</div>
+                                  <span style={{ fontSize: '0.8rem', color: tempoProximoContato.status === 'atrasado' ? '#e74c3c' : '#888' }}>
+                                    {tempoProximoContato.texto}
+                                  </span>
+                                </>
+                              ) : grupo.medicamentosEncerrados?.length > 0 ? (
+                                <span style={{ color: '#c0392b', fontWeight: 'bold', fontSize: '0.85rem' }}>Sem ciclo ativo — outro medicamento aguardando início</span>
+                              ) : (
+                                <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>Ciclo Concluído</span>
+                              )}
                             </>
-                          ) : (
-                            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>Ciclo Concluído</span>
                           )}
                         </td>
                         <td>

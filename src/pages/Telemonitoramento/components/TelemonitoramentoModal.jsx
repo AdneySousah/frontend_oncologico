@@ -9,7 +9,7 @@ import {
   HighlightedSection
 } from './styles';
 import { AdherenceBadge } from '../styles';
-import { getAdherenceClassification } from '../index';
+import { getAdherenceClassification } from '../../../utils/adherenceClassification';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
 import NpsModal from './NpsModal';
 import ResumoAnterior from './ResumoAnterior';
@@ -23,6 +23,10 @@ import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
 import SeletorPosologia from '../../../components/SeletorPosologia';
 import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
+import {
+  MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra,
+  montarCamposDecisaoNovaCompra, limparDadosNovaCompraParaEnvio
+} from '../../../utils/novaCompraHelpers';
 
 // 👇 NOVO: mesma lógica de "data sugerida" / divergência de adesão já usada
 // em TelemonitoramentoModalConjunto.jsx, reaproveitada aqui pro fluxo
@@ -84,6 +88,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
+  // 👇 NOVO (rastreio de compras): confirmação de que as compras anteriores
+  // puladas foram usadas, e motivo quando o operador não aplica a oferecida.
+  const [confirmouConsumoAnteriores, setConfirmouConsumoAnteriores] = useState(false);
+  const [motivoNaoAplicar, setMotivoNaoAplicar] = useState(MOTIVO_NAO_APLICAR_VAZIO);
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
   const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
   // 👇 NOVO: pausar temporariamente (diferente de descontinuar — tem prazo
@@ -146,7 +154,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       if (!isMountedCheck()) return;
       if (response.data && response.data.novaCompraDetectada) {
         setDadosNovaCompra(response.data.detalhes);
-        setAplicarNovaCompra(true);
+        // 👇 NOVO: com mais de uma compra do mesmo medicamento pendente, o
+        // operador precisa escolher qual aplicar — nada é pré-marcado.
+        setAplicarNovaCompra(!response.data.detalhes.existe_mais_recente_mesmo_medicamento);
+        setConfirmouConsumoAnteriores(false);
+        setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO);
         setPosologiaNovaCaixa(monit.posologia_diaria || '');
         if (response.data.detalhes.data_novo_inicio) {
           const dataDoBackend = response.data.detalhes.data_novo_inicio.split('T')[0];
@@ -188,6 +200,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setDataMudancaPosologia('');
       setDadosNovaCompra(null);
       setAplicarNovaCompra(false);
+      setConfirmouConsumoAnteriores(false); // 👈 NOVO
+      setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO); // 👈 NOVO
       setPosologiaNovaCaixa('');
       setModoNovoMedicamento(null);
       setDescontinuarMedicamento(false);
@@ -222,7 +236,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             checkFuturePurchase(localMonitoramento, () => isMounted);
           }
         })
-        .catch(err => {
+        .catch(() => {
           if (!isMounted) return;
           setLoadingCompra(false);
         });
@@ -243,7 +257,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       toast.success('Fornecimento atualizado com sucesso!');
       setSyncPrompt(null);
       await checkFuturePurchase(res.data.monitoramento);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao confirmar atualização');
       setLoadingCompra(false);
     }
@@ -288,7 +302,6 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   if (localMonitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
     dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`;
-    const dataFim = new Date(ano, mes - 1, dia);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     if (isAntesDoInicio) {
@@ -549,7 +562,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       await api.patch(`/monitoramento-medicamentos/${localMonitoramento.id}/pausar`, {
         motivo_id: motivoPausaSelecionado.value,
         data_fim_prevista: dataFimPrevistaPausa,
-        observacao: observacaoPausa || null
+        observacao: observacaoPausa || null,
+        // 👇 NOVO: a compra oferecida nesta tela fica registrada como "não
+        // aplicada por pausa" — continua pendente e volta a ser oferecida ao destravar.
+        compra_oferecida_evento_id: dadosNovaCompra?.evento_externo_id || null
       });
       toast.success('Medicamento pausado com sucesso.');
       window.dispatchEvent(new Event('updateAlerts'));
@@ -559,6 +575,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     } finally {
       setEnviandoPausa(false);
     }
+  };
+
+  // 👇 NOVO: operador trocou a compra a aplicar (ex: paciente já está na mais
+  // recente). Recalcula a data sugerida de início e volta a exigir a
+  // confirmação do consumo das anteriores, se houver.
+  const handleSelecionarEvento = (eventoEscolhido) => {
+    setDadosNovaCompra(prev => selecionarEventoNovaCompra(prev, eventoEscolhido));
+    setDataRealInicioNovaCaixa(eventoEscolhido.data_novo_inicio ? eventoEscolhido.data_novo_inicio.split('T')[0] : '');
+    setConfirmouConsumoAnteriores(false);
+    setAplicarNovaCompra((eventoEscolhido.eventos_anteriores?.length || 0) === 0);
+  };
+  const handleConfirmarConsumoAnteriores = (confirmou) => {
+    setConfirmouConsumoAnteriores(confirmou);
+    if (confirmou) setAplicarNovaCompra(true);
   };
 
   const handleSubmit = async (e) => {
@@ -588,6 +618,25 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       }
       if (dadosNovaCompra?.mudou_medicamento && dadosNovaCompra?.pode_ser_conjunto && !modoNovoMedicamento) {
         toast.error('Selecione se deseja usar os medicamentos em conjunto ou substituir o medicamento atual.');
+        return;
+      }
+    }
+    // 👇 NOVO: aplicar a mais recente exige confirmar o consumo das anteriores;
+    // não aplicar exige motivo (mesmas regras do backend).
+    const erroDecisaoCompra = validarDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, descontinuarMedicamento, confirmouConsumoAnteriores, motivoNaoAplicar });
+    if (erroDecisaoCompra) {
+      toast.error(erroDecisaoCompra);
+      return;
+    }
+    // 👇 NOVO: pausar junto com a nova compra — o novo ciclo é criado e
+    // pausado em seguida, então motivo e data da pausa já precisam estar aqui.
+    if (pausarMedicamento && aplicarNovaCompra) {
+      if (!motivoPausaSelecionado) {
+        toast.error('Selecione o motivo da pausa.');
+        return;
+      }
+      if (!dataFimPrevistaPausa) {
+        toast.error('Informe a data prevista de retomada.');
         return;
       }
     }
@@ -630,7 +679,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         reacoes_adversas: isReacao ? reacoesIds : [],
         observacao: observacao || null,
         aplicar_nova_compra: aplicarNovaCompra,
-        dados_nova_compra: aplicarNovaCompra ? dadosNovaCompra : null,
+        dados_nova_compra: aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dadosNovaCompra) : null,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
         mudou_posologia: mudouPosologia,
@@ -642,10 +691,34 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         posologia_intervalo_dias_nova: mudouPosologia ? padraoPosologiaNova.posologia_intervalo_dias : null,
         posologia_datas_personalizadas_nova: mudouPosologia ? padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
-        modo_novo_medicamento: (aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) ? modoNovoMedicamento : null
+        modo_novo_medicamento: (aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) ? modoNovoMedicamento : null,
+        // 👇 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo
+        ...montarCamposDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, confirmouConsumoAnteriores, motivoNaoAplicar })
       });
       toast.success('Contato registrado com sucesso!');
       window.dispatchEvent(new Event('updateAlerts'));
+
+      // 👇 NOVO: paciente recebeu a caixa nova, começou a usar e precisa
+      // pausar (ex: internação) — o ciclo da nova compra acabou de ser criado
+      // com a data de início informada; pausa ele agora, pra que a contagem
+      // dos comprimidos já tomados e o período parado fiquem no ciclo certo.
+      if (pausarMedicamento && aplicarNovaCompra) {
+        const idNovoCiclo = response.data?.proximo_ciclo_atual_id;
+        if (idNovoCiclo) {
+          try {
+            await api.patch(`/monitoramento-medicamentos/${idNovoCiclo}/pausar`, {
+              motivo_id: motivoPausaSelecionado.value,
+              data_fim_prevista: dataFimPrevistaPausa,
+              observacao: observacaoPausa || null
+            });
+            toast.success('Novo ciclo criado e pausado.');
+          } catch (errPausa) {
+            toast.error(errPausa.response?.data?.error || 'O contato foi salvo, mas não foi possível pausar o novo ciclo. Pause pela lista.');
+          }
+        } else {
+          toast.warning('O contato foi salvo, mas o novo ciclo não foi identificado para pausar. Pause pela lista.');
+        }
+      }
 
       // 👇 NOVO: se este contato acabou de criar o medicamento adicional em
       // "uso em conjunto", não fecha o modal ainda — carrega esse registro
@@ -661,7 +734,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           const resAdicional = await api.get(`/monitoramento-medicamentos/${idAdicional}`);
           setMonitoramentoAdicionalConjunto(resAdicional.data);
           setEtapa('MEDICAMENTO_ADICIONAL_CONJUNTO');
-        } catch (errAdicional) {
+        } catch {
           toast.error('O contato do medicamento atual foi salvo, mas houve um erro ao abrir o medicamento adicional. Registre o contato dele diretamente na lista.');
           onSucesso();
           onClose();
@@ -738,7 +811,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         reacoes_adversas: reacoesIds,
         observacao: dados.observacao || null,
         aplicar_nova_compra: dados.aplicarNovaCompra,
-        dados_nova_compra: dados.aplicarNovaCompra ? dados.dadosNovaCompra : null,
+        dados_nova_compra: dados.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dados.dadosNovaCompra) : null,
         data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
         mudou_posologia: dados.mudouPosologia,
@@ -750,7 +823,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
         posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
-        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
+        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
+        ...(dados.camposDecisaoNovaCompra || {}) // 👈 NOVO: vem do PassoRegistroMedicamento
       });
 
       if (dataEscolhidaISO && proximoCicloAtualId) {
@@ -794,7 +868,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         reacoes_adversas: reacoesIds,
         observacao: dados.observacao || null,
         aplicar_nova_compra: dados.aplicarNovaCompra,
-        dados_nova_compra: dados.aplicarNovaCompra ? dados.dadosNovaCompra : null,
+        dados_nova_compra: dados.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dados.dadosNovaCompra) : null,
         data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
         mudou_posologia: dados.mudouPosologia,
@@ -806,7 +880,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
         posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
-        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null
+        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
+        ...(dados.camposDecisaoNovaCompra || {}) // 👈 NOVO: vem do PassoRegistroMedicamento
       });
       toast.success('Contato registrado com sucesso!');
       onSucesso();
@@ -834,7 +909,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       const res = await api.get(`/monitoramento-medicamentos/${novoRegistro.id}`);
       setMonitoramentoReembolso(res.data);
       setEtapa('MEDICAMENTO_REEMBOLSO');
-    } catch (err) {
+    } catch {
       toast.error('Evento de reembolso criado, mas houve um erro ao abrir o monitoramento. Registre o contato dele diretamente na lista.');
       onSucesso();
       onClose();
@@ -997,6 +1072,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // medicamento atual" (onde faz sentido escondê-los, já que o medicamento
   // atual está sendo encerrado e substituído, não continuando em paralelo).
   const escondeCamposMedicamentoAtual = aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO';
+  // 👇 NOVO: a pausa só "engole" o formulário (sem comprimidos/adesão) quando
+  // NÃO há nova compra sendo aplicada. Com a compra marcada, o contato é
+  // registrado normalmente e o novo ciclo é pausado logo depois de criado.
+  const pausaExclusiva = pausarMedicamento && !aplicarNovaCompra;
   const hojeDate = new Date();
   const dataHoje = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
   const opcoesReacoes = listaReacoes.map(reacao => ({
@@ -1042,6 +1121,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 isAntesDoInicio={isAntesDoInicio}
                 modoNovoMedicamento={modoNovoMedicamento}
                 onChangeModoNovoMedicamento={setModoNovoMedicamento}
+                onSelecionarEvento={handleSelecionarEvento}
+                confirmouConsumoAnteriores={confirmouConsumoAnteriores}
+                onChangeConfirmouConsumoAnteriores={handleConfirmarConsumoAnteriores}
+                motivoNaoAplicar={motivoNaoAplicar}
+                onChangeMotivoNaoAplicar={setMotivoNaoAplicar}
+                pausando={pausaExclusiva}
               />
             )}
             <InfoBox>
@@ -1229,7 +1314,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   )}
                 </HighlightedSection>
               )}
-              {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && (
+              {/* 👇 CORREÇÃO: a pausa sumia quando havia nova compra marcada —
+                  justamente o caso de quem recebeu a caixa nova, começou a usar e
+                  foi internado no meio. Agora aparece sempre (exceto ao descontinuar). */}
+              {!descontinuarMedicamento && (
                 <HighlightedSection>
                   <label className="checkbox-label">
                     <input
@@ -1246,6 +1334,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                     />
                     <strong>Pausar temporariamente este medicamento (não descontinuar)</strong>
                   </label>
+                  {pausarMedicamento && dadosNovaCompra && (
+                    <p style={{ margin: '8px 0 0 0', fontSize: '0.85em', color: '#2980b9', lineHeight: '1.4' }}>
+                      {aplicarNovaCompra
+                        ? `Como a compra #${dadosNovaCompra.evento_externo_id} está marcada para aplicar, o contato será registrado, o novo ciclo será criado com a data de início informada e pausado em seguida.`
+                        : `A compra #${dadosNovaCompra.evento_externo_id} não será aplicada agora: fica pendente e volta a ser oferecida quando a pausa for destravada.`}
+                    </p>
+                  )}
                   {pausarMedicamento && (
                     <div className="inputs-row">
                       <div className="input-group" style={{ flex: 1 }}>
@@ -1283,7 +1378,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   )}
                 </HighlightedSection>
               )}
-              {!pausarMedicamento && (
+              {!pausaExclusiva && (
               <FormGroup>
                 <label>Quantos comprimidos restam com o paciente no total?</label>
                 <Input
@@ -1296,7 +1391,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 />
               </FormGroup>
               )}
-              {!pausarMedicamento && (
+              {!pausaExclusiva && (
               <FormGroup>
                 <label>O quanto ele adere? (Calculado automaticamente)</label>
                 <Input as="select" value={nivelAdesao} disabled required>
@@ -1306,7 +1401,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 </Input>
               </FormGroup>
               )}
-              {!pausarMedicamento && (
+              {!pausaExclusiva && (
               <FormGroup>
                 <label>O paciente relatou alguma reação adversa?</label>
                 <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
@@ -1319,7 +1414,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 </div>
               </FormGroup>
               )}
-              {!pausarMedicamento && isReacao && (
+              {!pausaExclusiva && isReacao && (
                 <FormGroup>
                   <label>Quais foram as reações adversas? (Marque todas que se aplicam)</label>
                   <Select
@@ -1333,13 +1428,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   />
                 </FormGroup>
               )}
-              {!descontinuarMedicamento && !pausarMedicamento && (
+              {!descontinuarMedicamento && !pausaExclusiva && (
                 <FormGroup>
                   <label>Data do próximo contato de acordo com a adesão ao medicamento</label>
                   <Input type="date" min={dataHoje} value={dataAbertura} onChange={(e) => setDataAbertura(e.target.value)} required />
                 </FormGroup>
               )}
-              {!pausarMedicamento && (
+              {!pausaExclusiva && (
               <FormGroup>
                 <label>Observação (Opcional)</label>
                 <Input
@@ -1354,13 +1449,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               )}
               <ButtonGroup>
                 <Button type="button" variant="secondary" onClick={onClose} disabled={loading || enviandoPausa}>Cancelar</Button>
-                {pausarMedicamento ? (
+                {pausaExclusiva ? (
                   <Button type="button" onClick={handleConfirmarPausaMedicamento} disabled={enviandoPausa}>
                     {enviandoPausa ? 'Pausando...' : 'Confirmar Pausa'}
                   </Button>
                 ) : (
                   <Button type="submit" disabled={loading}>
-                    {loading ? 'Salvando...' : 'Salvar Registro'}
+                    {loading ? 'Salvando...' : (pausarMedicamento ? 'Salvar e Pausar o Novo Ciclo' : 'Salvar Registro')}
                   </Button>
                 )}
               </ButtonGroup>

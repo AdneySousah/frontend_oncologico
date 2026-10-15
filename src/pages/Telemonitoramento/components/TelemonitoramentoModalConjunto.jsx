@@ -14,6 +14,7 @@ import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
 import NpsModal from './NpsModal';
+import { limparDadosNovaCompraParaEnvio } from '../../../utils/novaCompraHelpers';
 
 const DIAS_POR_NIVEL = { COMPLETAMENTE: 30, PARCIALMENTE: 15, NAO_ADERE: 7 };
 const LABEL_NIVEL = {
@@ -298,13 +299,14 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           posologia_intervalo_dias_nova: (d.mudouPosologia && d.padraoPosologiaNova) ? d.padraoPosologiaNova.posologia_intervalo_dias : null,
           posologia_datas_personalizadas_nova: (d.mudouPosologia && d.padraoPosologiaNova) ? d.padraoPosologiaNova.posologia_datas_personalizadas : null,
           aplicar_nova_compra: d.aplicarNovaCompra,
-          dados_nova_compra: d.aplicarNovaCompra ? d.dadosNovaCompra : null,
+          dados_nova_compra: d.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(d.dadosNovaCompra) : null,
           data_inicio_nova_caixa: d.aplicarNovaCompra ? d.dataRealInicioNovaCaixa : null,
           posologia_nova_caixa: d.aplicarNovaCompra ? Number(d.posologiaNovaCaixa) : null,
           modo_novo_medicamento: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento) ? d.modoNovoMedicamento : null,
           descontinuar_medicamento: d.descontinuarMedicamento,
           motivo_encerramento: d.descontinuarMedicamento ? (d.motivoEncerramento || null) : null,
-          motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null
+          motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null,
+          ...(d.camposDecisaoNovaCompra || {}) // 👈 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo (vem do PassoRegistroMedicamento)
         }))
       });
       toast.success(`Contato registrado para os ${dadosLista.length} medicamentos com sucesso!`);

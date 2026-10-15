@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { LuTriangleAlert, LuArrowRight, LuPackageCheck, LuCalendarClock, LuUsers } from 'react-icons/lu';
 import { FormGroup, Input } from './styles';
+import { MOTIVOS_NAO_APLICAR_COMPRA } from '../../../utils/novaCompraHelpers';
 
 const BannerContainer = styled.div`
   background: ${props => props.isChange ? 'rgba(243, 156, 18, 0.12)' : 'rgba(39, 174, 96, 0.12)'};
@@ -116,8 +117,54 @@ export default function ComparativoNovaCompra({
   dataInicioAtual,
   isAntesDoInicio,
   modoNovoMedicamento,          // 👈 NOVO: 'CONJUNTO' | 'SUBSTITUICAO' | null
-  onChangeModoNovoMedicamento   // 👈 NOVO
+  onChangeModoNovoMedicamento,  // 👈 NOVO
+  // 👇 NOVO (rastreio de compras): troca da compra selecionada entre as
+  // pendentes do mesmo medicamento, confirmação do consumo das anteriores
+  // que ficam puladas, e motivo quando o operador decide não aplicar.
+  onSelecionarEvento,
+  confirmouConsumoAnteriores = false,
+  onChangeConfirmouConsumoAnteriores,
+  motivoNaoAplicar,
+  onChangeMotivoNaoAplicar,
+  // 👇 NOVO: o operador marcou "pausar" sem aplicar a compra — a decisão sobre
+  // a compra é implícita (fica pendente), então o checkbox e o motivo saem.
+  pausando = false
 }) {
+  // 👇 NOVO: quando o evento é antigo, a confirmação normal ("Aplicar
+  // dados desta nova compra...") fica bloqueada até o operador confirmar
+  // explicitamente que sabe que é um evento antigo e quer vincular mesmo
+  // assim — não basta mostrar um aviso, precisa de uma ação deliberada.
+  // Hooks precisam vir ANTES de qualquer return condicional (regra do
+  // React), por isso ficam aqui em cima, antes do "if (!data)" — usando
+  // optional chaining pra funcionar mesmo antes de "data" existir.
+  const [confirmouEventoAntigo, setConfirmouEventoAntigo] = useState(false);
+  useEffect(() => {
+    setConfirmouEventoAntigo(false);
+  }, [data?.evento_externo_id]);
+
+  // 👇 CORREÇÃO: o back nunca enviava evento_antigo (o alerta era código
+  // morto) e a regra valia só pra medicamento diferente. Agora vale pra
+  // qualquer compra com previsão de uso há mais de 90 dias.
+  const precisaConfirmarEventoAntigo = !!data?.evento_antigo;
+  const bloqueadoPorEventoAntigo = precisaConfirmarEventoAntigo && !confirmouEventoAntigo;
+  // 👇 NOVO: também fica bloqueado enquanto o operador não escolher qual
+  // compra aplicar (há mais de uma do mesmo medicamento pendente) e enquanto
+  // não confirmar o consumo das anteriores que ficariam puladas.
+  const precisaEscolherCompra = !!data?.existe_mais_recente_mesmo_medicamento && !data?.selecionado_pelo_operador;
+  const precisaConfirmarConsumo = (data?.eventos_anteriores?.length || 0) > 0 && !confirmouConsumoAnteriores;
+  const bloqueadoAplicar = bloqueadoPorEventoAntigo || precisaEscolherCompra || precisaConfirmarConsumo;
+
+  // Proteção extra: se o bloqueio entrar em vigor com o checkbox
+  // principal já marcado (ex: o usuário desmarcou a confirmação depois de
+  // já ter marcado "aplicar"), desmarca junto — nunca deixa "aplicar"
+  // marcado enquanto o aviso não foi confirmado.
+  useEffect(() => {
+    if (bloqueadoAplicar && checked) {
+      onChangeChecked(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bloqueadoAplicar]);
+
   if (!data) return null;
 
   const {
@@ -125,6 +172,12 @@ export default function ComparativoNovaCompra({
     medicamento_novo,
     mudou_medicamento,
     pode_ser_conjunto, // 👈 NOVO, vindo do backend (verificarNovaCompra)
+    dias_desde_previsao, // 👈 NOVO: evento_antigo (previsão de uso há mais de 90 dias) é lido antes do return condicional, lá em cima
+    evento_externo_id,
+    medicamento_id,
+    selecionado_pelo_operador,
+    eventos_anteriores = [], // 👈 NOVO: compras anteriores do mesmo medicamento que ficam puladas se esta for aplicada
+    eventos_pendentes = [],  // 👈 NOVO: todas as compras pendentes, pra trocar a seleção sem nova consulta
     qtd_caixas,
     data_entrega,
     data_previsao_administracao,
@@ -132,6 +185,10 @@ export default function ComparativoNovaCompra({
     existe_outro_evento_pendente, // 👈 NOVO: havia mais de uma compra pendente pro paciente
     outro_evento_pendente
   } = data;
+
+  // Compras pendentes do MESMO medicamento da selecionada — é entre elas que o
+  // operador escolhe qual o paciente está usando de fato.
+  const opcoesMesmoMedicamento = eventos_pendentes.filter(e => e.medicamento_id === medicamento_id);
 
   // Só é considerado "modo conjunto" de fato quando houve troca de medicamento
   // detectada E o usuário escolheu essa opção.
@@ -177,6 +234,9 @@ export default function ComparativoNovaCompra({
       <Header isChange={mudou_medicamento}>
         {mudou_medicamento ? <LuTriangleAlert size={22} /> : <LuPackageCheck size={22} />}
         <span>
+          <span style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.08)', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>
+            #{evento_externo_id}
+          </span>
           {mudou_medicamento
             ? 'Atenção: Novo Medicamento Detectado na Compra!'
             : 'Nova Compra Identificada para o Próximo Ciclo!'}
@@ -200,6 +260,91 @@ export default function ComparativoNovaCompra({
               )}
               {' '}Depois de registrar este contato, rode a verificação novamente para tratar o(s) evento(s) restante(s).
             </span>
+          </div>
+        </AlertMessage>
+      )}
+
+      {precisaConfirmarEventoAntigo && (
+        <AlertMessage style={{ borderLeftColor: '#c0392b', backgroundColor: '#fdecea', color: '#922b21' }}>
+          <LuTriangleAlert size={22} color="#c0392b" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ lineHeight: '1.4' }}>
+              <strong style={{ color: '#922b21', fontSize: '0.95em' }}>Este é um evento antigo (previsão de uso há {dias_desde_previsao} dias, mais de 90)</strong>
+              <br />
+              {mudou_medicamento ? (
+                <>O medicamento <strong>{medicamento_novo.nome}</strong> pode estar descontinuado, ou a paciente pode nunca ter usado esse medicamento de fato. Confirme se realmente deseja vincular este medicamento à paciente antes de continuar.</>
+              ) : (
+                <>Essa caixa de <strong>{medicamento_novo.nome}</strong> provavelmente já foi consumida. Se o paciente já está em uma compra mais recente, selecione-a; só aplique esta se ela realmente ainda estiver em uso.</>
+              )}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={confirmouEventoAntigo}
+                onChange={(e) => setConfirmouEventoAntigo(e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              Sim, confirmo que quero aplicar esta compra mesmo sendo um evento antigo
+            </label>
+          </div>
+        </AlertMessage>
+      )}
+
+      {/* 👇 NOVO: mais de uma compra do mesmo medicamento aguardando — o
+          operador escolhe qual o paciente está usando. Antes o sistema
+          aplicava sempre a mais antiga, mesmo com a caixa já consumida. */}
+      {opcoesMesmoMedicamento.length > 1 && (
+        <AlertMessage style={{ borderLeftColor: '#e67e22', backgroundColor: '#fdf2e9', color: '#784212', flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong style={{ color: '#784212', fontSize: '0.95em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <LuTriangleAlert size={18} color="#e67e22" />
+            Há {opcoesMesmoMedicamento.length} compras de {medicamento_novo.nome} aguardando aplicação
+          </strong>
+          <span style={{ lineHeight: '1.4', marginTop: '4px' }}>
+            {precisaEscolherCompra
+              ? 'Selecione qual delas o paciente está usando agora. A mais antiga pode estar defasada: se a caixa dela já foi consumida, escolha a mais recente e as anteriores serão marcadas como processadas.'
+              : 'Compra selecionada abaixo. Troque se o paciente já estiver usando outra.'}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+            {opcoesMesmoMedicamento.map(opcao => (
+              <label key={opcao.evento_externo_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#4a2f16' }}>
+                <input
+                  type="radio"
+                  name="compra-selecionada"
+                  checked={!!selecionado_pelo_operador && opcao.evento_externo_id === evento_externo_id}
+                  onChange={() => onSelecionarEvento && onSelecionarEvento(opcao)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span>
+                  <strong>#{opcao.evento_externo_id}</strong> — {opcao.qtd_caixas} cx, entrega {formatarDataLocal(opcao.data_entrega)}, previsão de uso {formatarDataLocal(opcao.data_previsao_administracao)}
+                  {opcao.dias_desde_previsao > 0 ? ` (há ${opcao.dias_desde_previsao} dias)` : ''}
+                </span>
+              </label>
+            ))}
+          </div>
+        </AlertMessage>
+      )}
+
+      {/* 👇 NOVO: aplicar uma compra mais recente pula as anteriores — elas
+          não somem: ficam registradas como medicamento usado sem ciclo
+          próprio, com confirmação explícita de quem está no contato. */}
+      {eventos_anteriores.length > 0 && (
+        <AlertMessage style={{ borderLeftColor: '#c0392b', backgroundColor: '#fdecea', color: '#922b21' }}>
+          <LuTriangleAlert size={22} color="#c0392b" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ lineHeight: '1.4' }}>
+              <strong style={{ color: '#922b21', fontSize: '0.95em' }}>Compra(s) anterior(es) será(ão) marcada(s) como processada(s)</strong>
+              <br />
+              Ao aplicar a <strong>#{evento_externo_id}</strong>, a(s) compra(s) <strong>{eventos_anteriores.map(id => `#${id}`).join(', ')}</strong> de {medicamento_novo.nome} fica(m) registrada(s) como medicamento usado sem ciclo de monitoramento próprio e não será(ão) mais oferecida(s).
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={!!confirmouConsumoAnteriores}
+                onChange={(e) => onChangeConfirmouConsumoAnteriores && onChangeConfirmouConsumoAnteriores(e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              Confirmo que o paciente já utilizou essa(s) compra(s) anterior(es)
+            </label>
           </div>
         </AlertMessage>
       )}
@@ -256,6 +401,10 @@ export default function ComparativoNovaCompra({
               <span>{medicamento_novo.nome}</span>
             )}
           </p>
+        </ItemBlock>
+        <ItemBlock>
+          <p className="label">ID do Evento (sistema externo)</p>
+          <p className="value">#{evento_externo_id}</p>
         </ItemBlock>
         <ItemBlock>
           <p className="label">Data Prevista Para Entrega</p>
@@ -338,18 +487,65 @@ export default function ComparativoNovaCompra({
         </ItemBlock>
       </GridInfo>
 
-      <CheckboxWrapper>
+      {pausando && (
+        <AlertMessage style={{ borderLeftColor: '#3498db', backgroundColor: '#ebf5fb', color: '#2980b9' }}>
+          <LuPackageCheck size={22} color="#2980b9" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <span style={{ lineHeight: '1.4' }}>
+            O medicamento será <strong>pausado</strong> e a compra <strong>#{evento_externo_id}</strong> não será aplicada agora: ela continua pendente e volta a ser oferecida quando a pausa for destravada (fica registrado na auditoria).
+          </span>
+        </AlertMessage>
+      )}
+
+      {!pausando && (
+      <CheckboxWrapper style={bloqueadoAplicar ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
         <input
           type="checkbox"
           checked={checked}
+          disabled={bloqueadoAplicar}
           onChange={(e) => onChangeChecked(e.target.checked)}
         />
         <span>
           {modoConjunto
             ? 'Confirmar início do acompanhamento deste medicamento adicional no fechamento deste contato'
             : 'Aplicar dados desta nova compra automaticamente no fechamento deste contato'}
+          {bloqueadoAplicar && (precisaEscolherCompra ? ' (selecione a compra acima primeiro)' : ' (confirme o aviso acima primeiro)')}
         </span>
       </CheckboxWrapper>
+      )}
+
+      {/* 👇 NOVO: não aplicar exige motivo — vai pra auditoria. Sem isso a
+          compra ficava pendente por meses sem ninguém saber que foi
+          oferecida e recusada. */}
+      {!checked && !pausando && (
+        <div style={{ marginTop: '12px', padding: '12px', background: 'var(--surface-color)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+          <FormGroup style={{ margin: '0 0 10px 0' }}>
+            <label>Motivo para não aplicar esta compra agora <span style={{ color: '#c0392b' }}>*</span></label>
+            <span style={{ fontSize: '0.8rem', color: '#666', marginBottom: '8px', display: 'block' }}>
+              Fica registrado na auditoria. A compra continua pendente e será oferecida de novo no próximo contato.
+            </span>
+            <Input
+              as="select"
+              value={motivoNaoAplicar?.motivo || ''}
+              onChange={(e) => onChangeMotivoNaoAplicar && onChangeMotivoNaoAplicar({ ...(motivoNaoAplicar || {}), motivo: e.target.value })}
+            >
+              <option value="">Selecione...</option>
+              {Object.entries(MOTIVOS_NAO_APLICAR_COMPRA).map(([chave, rotulo]) => (
+                <option key={chave} value={chave}>{rotulo}</option>
+              ))}
+            </Input>
+          </FormGroup>
+          <FormGroup style={{ margin: 0 }}>
+            <label>Descrição {motivoNaoAplicar?.motivo === 'OUTRO' ? <span style={{ color: '#c0392b' }}>*</span> : '(opcional)'}</label>
+            <Input
+              as="textarea"
+              rows="2"
+              value={motivoNaoAplicar?.texto || ''}
+              onChange={(e) => onChangeMotivoNaoAplicar && onChangeMotivoNaoAplicar({ ...(motivoNaoAplicar || {}), texto: e.target.value })}
+              style={{ resize: 'vertical', padding: '10px' }}
+            />
+          </FormGroup>
+        </div>
+      )}
 
       {checked && (
         <div style={{ marginTop: '15px', padding: '15px', background: 'var(--surface-color)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>

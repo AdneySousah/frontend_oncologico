@@ -11,14 +11,18 @@ import {
 } from './styles';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
+import {
+  MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra, montarCamposDecisaoNovaCompra
+} from '../../../utils/novaCompraHelpers';
 
 // Componente de UMA etapa do wizard de "uso em conjunto": coleta os dados de
 // UM medicamento por vez (estoque, reação adversa, mudança de posologia, nova
 // compra). Não calcula nem envia a data do próximo contato — isso é decidido
 // em conjunto pelos dois medicamentos, no orquestrador (TelemonitoramentoModalConjunto).
+// (os pais ainda passam monitoramentoAnterior; esta etapa não o lê, por isso
+// ele não é destruturado — evita o erro de lint de variável sem uso)
 export default function PassoRegistroMedicamento({
   monitoramento,
-  monitoramentoAnterior,
   numeroEtapa,
   totalEtapas,
   // 👇 NOVO: ids de evento_externo_id já aplicados por OUTRO medicamento
@@ -41,6 +45,10 @@ export default function PassoRegistroMedicamento({
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
+  // 👇 NOVO (rastreio de compras): confirmação de que as compras anteriores
+  // puladas foram usadas, e motivo quando o operador não aplica a oferecida.
+  const [confirmouConsumoAnteriores, setConfirmouConsumoAnteriores] = useState(false);
+  const [motivoNaoAplicar, setMotivoNaoAplicar] = useState(MOTIVO_NAO_APLICAR_VAZIO);
 
   // 👇 CORREÇÃO DE BUG (mesma do TelemonitoramentoModal.jsx): em uso
   // CONJUNTO (medicamento adicional, diferente do atual), o ciclo do
@@ -85,7 +93,11 @@ export default function PassoRegistroMedicamento({
         if (!isMounted) return;
         if (res.data && res.data.novaCompraDetectada) {
           setDadosNovaCompra(res.data.detalhes);
-          setAplicarNovaCompra(true);
+          // 👇 NOVO: com mais de uma compra do mesmo medicamento pendente, o
+          // operador precisa escolher qual aplicar — nada é pré-marcado.
+          setAplicarNovaCompra(!res.data.detalhes.existe_mais_recente_mesmo_medicamento);
+          setConfirmouConsumoAnteriores(false);
+          setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO);
           setPosologiaNovaCaixa(monitoramento.posologia_diaria || '');
           if (res.data.detalhes.data_novo_inicio) {
             setDataRealInicioNovaCaixa(res.data.detalhes.data_novo_inicio.split('T')[0]);
@@ -105,6 +117,20 @@ export default function PassoRegistroMedicamento({
     return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitoramento.id]);
+
+  // 👇 NOVO: operador trocou a compra a aplicar (ex: paciente já está na mais
+  // recente). Recalcula a data sugerida de início e volta a exigir a
+  // confirmação do consumo das anteriores, se houver.
+  const handleSelecionarEvento = (eventoEscolhido) => {
+    setDadosNovaCompra(prev => selecionarEventoNovaCompra(prev, eventoEscolhido));
+    setDataRealInicioNovaCaixa(eventoEscolhido.data_novo_inicio ? eventoEscolhido.data_novo_inicio.split('T')[0] : '');
+    setConfirmouConsumoAnteriores(false);
+    setAplicarNovaCompra((eventoEscolhido.eventos_anteriores?.length || 0) === 0);
+  };
+  const handleConfirmarConsumoAnteriores = (confirmou) => {
+    setConfirmouConsumoAnteriores(confirmou);
+    if (confirmou) setAplicarNovaCompra(true);
+  };
 
   // ==========================================
   // Cálculo de estoque projetado (mesma lógica do fluxo individual)
@@ -236,6 +262,13 @@ export default function PassoRegistroMedicamento({
         return;
       }
     }
+    // 👇 NOVO: aplicar a mais recente exige confirmar o consumo das anteriores;
+    // não aplicar exige motivo (mesmas regras do backend).
+    const erroDecisaoCompra = validarDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, descontinuarMedicamento, confirmouConsumoAnteriores, motivoNaoAplicar });
+    if (erroDecisaoCompra) {
+      toast.error(erroDecisaoCompra);
+      return;
+    }
     if (mudouPosologia && (!novaPosologia || !dataMudancaPosologia)) {
       toast.error('Preencha a nova dosagem e a data em que ela começou.');
       return;
@@ -272,7 +305,9 @@ export default function PassoRegistroMedicamento({
       modoNovoMedicamento,
       descontinuarMedicamento,
       motivoEncerramento,
-      motivoEncerramentoId: motivoEncerramentoSelecionado?.value || null
+      motivoEncerramentoId: motivoEncerramentoSelecionado?.value || null,
+      // 👇 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo
+      camposDecisaoNovaCompra: montarCamposDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, confirmouConsumoAnteriores, motivoNaoAplicar })
     });
   };
 
@@ -304,6 +339,11 @@ export default function PassoRegistroMedicamento({
           isAntesDoInicio={isAntesDoInicio}
           modoNovoMedicamento={modoNovoMedicamento}
           onChangeModoNovoMedicamento={setModoNovoMedicamento}
+          onSelecionarEvento={handleSelecionarEvento}
+          confirmouConsumoAnteriores={confirmouConsumoAnteriores}
+          onChangeConfirmouConsumoAnteriores={handleConfirmarConsumoAnteriores}
+          motivoNaoAplicar={motivoNaoAplicar}
+          onChangeMotivoNaoAplicar={setMotivoNaoAplicar}
         />
       )}
 

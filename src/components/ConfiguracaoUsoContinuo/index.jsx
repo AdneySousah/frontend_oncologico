@@ -55,6 +55,19 @@ export default function ConfiguracaoUsoContinuo({
     return dia.charAt(0).toUpperCase() + dia.slice(1);
   };
 
+  // 👇 CORREÇÃO DE BUG: o efeito abaixo precisa disparar só quando o
+  // paciente (ou a lista de medicamentos dele) muda DE VERDADE — não toda
+  // vez que o componente pai recria o objeto `paciente` (por exemplo
+  // `{ ...paciente, medicamentos: [...] }`, um objeto novo a cada render
+  // do pai, mesmo com o mesmo conteúdo). Antes, o efeito dependia do
+  // objeto inteiro por REFERÊNCIA (`[paciente]`) — então qualquer
+  // re-render do componente pai, por qualquer motivo (um timer, um
+  // polling em outra parte da tela, etc.), resetava o formulário inteiro,
+  // apagando o que a pessoa acabou de digitar. Uma chave estável baseada
+  // só no id do paciente e nos ids dos medicamentos resolve isso: só
+  // reseta quando o paciente ou a lista de medicamentos realmente mudam.
+  const chaveIdentidadePaciente = `${paciente?.id ?? ''}|${medicamentosList.map(m => m.id).join(',')}`;
+
   useEffect(() => {
     if (medicamentosList.length > 0) {
       const estadoInicial = {};
@@ -82,7 +95,7 @@ export default function ConfiguracaoUsoContinuo({
       setEtapaAtual(0); // 👈 NOVO: sempre reinicia no primeiro medicamento
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paciente]);
+  }, [chaveIdentidadePaciente]);
 
   // ==========================================================
   // USO EM CONJUNTO: unifica a data do primeiro telemonitoramento entre os
