@@ -306,7 +306,8 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           descontinuar_medicamento: d.descontinuarMedicamento,
           motivo_encerramento: d.descontinuarMedicamento ? (d.motivoEncerramento || null) : null,
           motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null,
-          ...(d.camposDecisaoNovaCompra || {}) // 👈 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo (vem do PassoRegistroMedicamento)
+          ...(d.camposDecisaoNovaCompra || {}), // 👈 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo (vem do PassoRegistroMedicamento)
+          ...(d.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra confirmada, quando descontinuou
         }))
       });
       toast.success(`Contato registrado para os ${dadosLista.length} medicamentos com sucesso!`);

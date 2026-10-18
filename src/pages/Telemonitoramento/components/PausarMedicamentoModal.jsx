@@ -5,6 +5,8 @@ import { useTheme } from 'styled-components';
 import api from '../../../services/api';
 import { ModalOverlay, ModalContent, FormGroup, Button } from './styles';
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
+import ConfirmacaoRestante from './ConfirmacaoRestante';
+import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposRestantePausa } from '../../../utils/restanteHelpers';
 
 // Modal dedicado pra pausar temporariamente UM medicamento específico —
 // diferente de "Pausar Tratamento" (paciente inteiro, sem prazo). Aqui tem
@@ -17,6 +19,8 @@ export default function PausarMedicamentoModal({ monitoramento, onClose, onPausa
   const [dataFimPrevista, setDataFimPrevista] = useState('');
   const [observacao, setObservacao] = useState('');
   const [enviando, setEnviando] = useState(false);
+  // 👇 NOVO: "parou de tomar em" + comprimidos restantes confirmados
+  const [restante, setRestante] = useState(ESTADO_RESTANTE_VAZIO);
 
   useEffect(() => {
     api.get('/motivos-pausa-tratamento')
@@ -36,12 +40,18 @@ export default function PausarMedicamentoModal({ monitoramento, onClose, onPausa
       toast.error('Informe a data prevista de retomada.');
       return;
     }
+    const erroRestante = validarRestante(restante);
+    if (erroRestante) {
+      toast.error(erroRestante);
+      return;
+    }
     try {
       setEnviando(true);
       await api.patch(`/monitoramento-medicamentos/${monitoramento.id}/pausar`, {
         motivo_id: motivoSelecionado.value,
         data_fim_prevista: dataFimPrevista,
-        observacao: observacao || null
+        observacao: observacao || null,
+        ...montarCamposRestantePausa(restante) // 👈 NOVO: data em que parou + restante confirmado
       });
       toast.success(`${monitoramento.medicamento?.nome || 'Medicamento'} pausado com sucesso.`);
       window.dispatchEvent(new Event('updateAlerts'));
@@ -71,6 +81,16 @@ export default function PausarMedicamentoModal({ monitoramento, onClose, onPausa
             placeholder="Selecione o motivo..."
             noOptionsMessage={() => "Nenhum motivo cadastrado — cadastre em Tabelas Cadastrais"}
             menuPosition="fixed"
+          />
+        </FormGroup>
+
+        {/* 👇 NOVO: data real em que parou + projeção de comprimidos pra confirmar com o paciente */}
+        <FormGroup>
+          <ConfirmacaoRestante
+            monitoramentoId={monitoramento.id}
+            valor={restante}
+            onChange={setRestante}
+            nome="restante-pausa-lista"
           />
         </FormGroup>
 

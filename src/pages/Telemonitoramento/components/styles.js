@@ -15,6 +15,15 @@ export const ModalContent = styled.div`
   max-height: 90vh; 
   overflow-y: auto; 
   border: 1px solid ${props => props.theme.colors.border};
+
+  /* 👇 LAYOUT: em telas até 1400px a coluna central do telemonitoramento fica
+     estreita (laterais fixas) — padding menor devolve espaço aos campos. */
+  @media (max-width: 1400px) {
+    padding: 28px 24px;
+  }
+  @media (max-width: 600px) {
+    padding: 20px 16px;
+  }
   
   h3 { 
     margin-bottom: 20px; 
@@ -236,6 +245,12 @@ export const ModalLayoutWrapper = styled.div`
     gap: 20px;
     flex-shrink: 0;
 
+    /* 👇 LAYOUT: entre 1150 e 1400px as laterais encolhem pra sobrar
+       largura útil pro modal central (antes ele ficava com ~500px). */
+    @media (max-width: 1400px) {
+      width: 250px;
+    }
+
     @media (max-width: 1150px) {
       width: 100%;
       max-width: 750px;
@@ -245,7 +260,8 @@ export const ModalLayoutWrapper = styled.div`
   .center-column {
     flex: 1;
     width: 100%;
-    max-width: 750px;
+    max-width: 800px;
+    min-width: 0; /* permite o flex encolher sem estourar a grade interna */
   }
 `;
 
@@ -292,22 +308,25 @@ export const HighlightedSection = styled.div`
     }
   }
 
+  /* 👇 LAYOUT: era um flex em linha única — com 3 ou 4 campos num modal de
+     ~500px cada um ficava com ~100px. Agora é uma grade que quebra linha:
+     colunas de no mínimo 210px, quantas couberem; um campo com a classe
+     "full" (ex: a confirmação de comprimidos restantes) ocupa a linha toda. */
   .inputs-row {
-    display: flex;
-    gap: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px 20px;
     margin-top: 20px;
-    align-items: flex-end; /* ALINHAMENTO MÁGICO PELA BASE DOS INPUTS */
-
-    @media (max-width: 600px) {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 15px;
-    }
+    align-items: end; /* alinhamento pela base dos inputs */
 
     .input-group {
-      flex: 1;
       display: flex;
       flex-direction: column;
+      min-width: 0;
+
+      &.full {
+        grid-column: 1 / -1;
+      }
       
       label {
         font-size: 0.85em;

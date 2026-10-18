@@ -14,6 +14,8 @@ import ComparativoNovaCompra from './ComparativoNovaCompra';
 import {
   MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra, montarCamposDecisaoNovaCompra
 } from '../../../utils/novaCompraHelpers';
+import ConfirmacaoRestante from './ConfirmacaoRestante';
+import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao } from '../../../utils/restanteHelpers';
 
 // Componente de UMA etapa do wizard de "uso em conjunto": coleta os dados de
 // UM medicamento por vez (estoque, reação adversa, mudança de posologia, nova
@@ -69,6 +71,8 @@ export default function PassoRegistroMedicamento({
 
   const [descontinuarMedicamento, setDescontinuarMedicamento] = useState(false);
   const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
+  // 👇 NOVO: "parou de tomar em" + comprimidos restantes confirmados, na descontinuação
+  const [restanteDescontinuacao, setRestanteDescontinuacao] = useState(ESTADO_RESTANTE_VAZIO);
   const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
 
@@ -248,6 +252,13 @@ export default function PassoRegistroMedicamento({
       toast.error(`Não é possível descontinuar ${monitoramento.medicamento?.nome} e aplicar uma nova compra ao mesmo tempo.`);
       return;
     }
+    if (descontinuarMedicamento) {
+      const erroRestante = validarRestante(restanteDescontinuacao, monitoramento.medicamento?.nome || 'o medicamento');
+      if (erroRestante) {
+        toast.error(erroRestante);
+        return;
+      }
+    }
     if (descontinuarMedicamento && !motivoEncerramentoSelecionado) {
       toast.error(`Selecione o motivo do encerramento de ${monitoramento.medicamento?.nome}.`);
       return;
@@ -307,12 +318,14 @@ export default function PassoRegistroMedicamento({
       motivoEncerramento,
       motivoEncerramentoId: motivoEncerramentoSelecionado?.value || null,
       // 👇 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo
-      camposDecisaoNovaCompra: montarCamposDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, confirmouConsumoAnteriores, motivoNaoAplicar })
+      camposDecisaoNovaCompra: montarCamposDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, confirmouConsumoAnteriores, motivoNaoAplicar }),
+      // 👇 NOVO: data em que parou + sobra confirmada, quando descontinuou
+      camposDescontinuacao: descontinuarMedicamento ? montarCamposDescontinuacao(restanteDescontinuacao) : {}
     });
   };
 
   return (
-    <ModalContent style={{ width: '100%', maxWidth: '650px', margin: '0 auto' }}>
+    <ModalContent style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
       <h3>Medicamento {numeroEtapa} de {totalEtapas}: {monitoramento.medicamento?.nome}</h3>
 
       {loadingCompra ? (
@@ -469,6 +482,13 @@ export default function PassoRegistroMedicamento({
                 <label>Observação adicional (opcional):</label>
                 <Input as="textarea" rows="2" value={motivoEncerramento} onChange={(e) => setMotivoEncerramento(e.target.value)} />
               </div>
+              {/* 👇 NOVO: quando parou + quantos comprimidos sobraram (confirmado com o paciente) */}
+              <ConfirmacaoRestante
+                monitoramentoId={monitoramento.id}
+                valor={restanteDescontinuacao}
+                onChange={setRestanteDescontinuacao}
+                nome={`restante-descontinuacao-${monitoramento.id}`}
+              />
             </div>
           )}
         </HighlightedSection>

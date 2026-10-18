@@ -27,6 +27,8 @@ import {
   MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra,
   montarCamposDecisaoNovaCompra, limparDadosNovaCompraParaEnvio
 } from '../../../utils/novaCompraHelpers';
+import ConfirmacaoRestante from './ConfirmacaoRestante';
+import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposRestantePausa, montarCamposDescontinuacao } from '../../../utils/restanteHelpers';
 
 // 👇 NOVO: mesma lógica de "data sugerida" / divergência de adesão já usada
 // em TelemonitoramentoModalConjunto.jsx, reaproveitada aqui pro fluxo
@@ -100,6 +102,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [motivoPausaSelecionado, setMotivoPausaSelecionado] = useState(null);
   const [dataFimPrevistaPausa, setDataFimPrevistaPausa] = useState('');
   const [observacaoPausa, setObservacaoPausa] = useState('');
+  // 👇 NOVO: "parou de tomar em" + comprimidos restantes confirmados, na pausa
+  // temporária e na descontinuação (ver ConfirmacaoRestante).
+  const [restantePausa, setRestantePausa] = useState(ESTADO_RESTANTE_VAZIO);
+  const [restanteDescontinuacao, setRestanteDescontinuacao] = useState(ESTADO_RESTANTE_VAZIO);
   const [enviandoPausa, setEnviandoPausa] = useState(false);
   const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
@@ -202,6 +208,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setAplicarNovaCompra(false);
       setConfirmouConsumoAnteriores(false); // 👈 NOVO
       setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO); // 👈 NOVO
+      setRestantePausa(ESTADO_RESTANTE_VAZIO); // 👈 NOVO
+      setRestanteDescontinuacao(ESTADO_RESTANTE_VAZIO); // 👈 NOVO
       setPosologiaNovaCaixa('');
       setModoNovoMedicamento(null);
       setDescontinuarMedicamento(false);
@@ -557,12 +565,18 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       toast.error('Informe a data prevista de retomada.');
       return;
     }
+    const erroRestante = validarRestante(restantePausa);
+    if (erroRestante) {
+      toast.error(erroRestante);
+      return;
+    }
     try {
       setEnviandoPausa(true);
       await api.patch(`/monitoramento-medicamentos/${localMonitoramento.id}/pausar`, {
         motivo_id: motivoPausaSelecionado.value,
         data_fim_prevista: dataFimPrevistaPausa,
         observacao: observacaoPausa || null,
+        ...montarCamposRestantePausa(restantePausa), // 👈 NOVO: data em que parou + restante confirmado
         // 👇 NOVO: a compra oferecida nesta tela fica registrada como "não
         // aplicada por pausa" — continua pendente e volta a ser oferecida ao destravar.
         compra_oferecida_evento_id: dadosNovaCompra?.evento_externo_id || null
@@ -639,6 +653,19 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         toast.error('Informe a data prevista de retomada.');
         return;
       }
+      const erroRestantePausa = validarRestante(restantePausa);
+      if (erroRestantePausa) {
+        toast.error(erroRestantePausa);
+        return;
+      }
+    }
+    // 👇 NOVO: descontinuação exige a data em que parou e a sobra confirmada
+    if (descontinuarMedicamento) {
+      const erroRestanteDesc = validarRestante(restanteDescontinuacao);
+      if (erroRestanteDesc) {
+        toast.error(erroRestanteDesc);
+        return;
+      }
     }
     if (mudouPosologia && !escondeCamposMedicamentoAtual && !descontinuarMedicamento) {
       if (!novaPosologia || !dataMudancaPosologia) {
@@ -675,6 +702,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         descontinuar_medicamento: descontinuarMedicamento,
         motivo_encerramento: descontinuarMedicamento ? (motivoEncerramento || null) : null,
         motivo_encerramento_id: descontinuarMedicamento ? (motivoEncerramentoSelecionado?.value || null) : null,
+        ...(descontinuarMedicamento ? montarCamposDescontinuacao(restanteDescontinuacao) : {}), // 👈 NOVO
         is_reacao: isReacao,
         reacoes_adversas: isReacao ? reacoesIds : [],
         observacao: observacao || null,
@@ -709,7 +737,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             await api.patch(`/monitoramento-medicamentos/${idNovoCiclo}/pausar`, {
               motivo_id: motivoPausaSelecionado.value,
               data_fim_prevista: dataFimPrevistaPausa,
-              observacao: observacaoPausa || null
+              observacao: observacaoPausa || null,
+              ...montarCamposRestantePausa(restantePausa) // 👈 NOVO
             });
             toast.success('Novo ciclo criado e pausado.');
           } catch (errPausa) {
@@ -824,7 +853,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
         modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
-        ...(dados.camposDecisaoNovaCompra || {}) // 👈 NOVO: vem do PassoRegistroMedicamento
+        ...(dados.camposDecisaoNovaCompra || {}), // 👈 NOVO: vem do PassoRegistroMedicamento
+        ...(dados.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra, quando descontinuou
       });
 
       if (dataEscolhidaISO && proximoCicloAtualId) {
@@ -881,7 +911,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
         motivo_falha_contato_id: null,
         modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
-        ...(dados.camposDecisaoNovaCompra || {}) // 👈 NOVO: vem do PassoRegistroMedicamento
+        ...(dados.camposDecisaoNovaCompra || {}), // 👈 NOVO: vem do PassoRegistroMedicamento
+        ...(dados.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra, quando descontinuou
       });
       toast.success('Contato registrado com sucesso!');
       onSucesso();
@@ -1310,6 +1341,13 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                           placeholder="Detalhes adicionais, se necessário..."
                         />
                       </div>
+                      {/* 👇 NOVO: quando parou + quantos comprimidos sobraram (confirmado com o paciente) */}
+                      <ConfirmacaoRestante
+                        monitoramentoId={localMonitoramento.id}
+                        valor={restanteDescontinuacao}
+                        onChange={setRestanteDescontinuacao}
+                        nome="restante-descontinuacao"
+                      />
                     </div>
                   )}
                 </HighlightedSection>
@@ -1343,6 +1381,21 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   )}
                   {pausarMedicamento && (
                     <div className="inputs-row">
+                      {/* 👇 NOVO: data real em que parou + projeção de comprimidos pra confirmar
+                          com o paciente. Com a compra nova marcada, projeta a caixa nova
+                          (que será criada e pausada neste mesmo contato). */}
+                      <ConfirmacaoRestante
+                        monitoramentoId={localMonitoramento.id}
+                        base={(aplicarNovaCompra && dadosNovaCompra) ? {
+                          data_inicio: dataRealInicioNovaCaixa || null,
+                          qtd_total: dadosNovaCompra.total_capsulas_novas,
+                          posologia: Number(posologiaNovaCaixa) || localMonitoramento.posologia_diaria,
+                          tipo_posologia: 'diaria'
+                        } : null}
+                        valor={restantePausa}
+                        onChange={setRestantePausa}
+                        nome="restante-pausa"
+                      />
                       <div className="input-group" style={{ flex: 1 }}>
                         <label>Motivo da pausa *</label>
                         <Select
