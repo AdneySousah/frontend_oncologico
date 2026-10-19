@@ -25,6 +25,8 @@ import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao } fr
 // ele não é destruturado — evita o erro de lint de variável sem uso)
 export default function PassoRegistroMedicamento({
   monitoramento,
+  // 👇 LINHA DE TRATAMENTO: medicamentos do grupo neste contato (pra "substitui qual?")
+  monitoramentosDoGrupo = [],
   numeroEtapa,
   totalEtapas,
   // 👇 NOVO: ids de evento_externo_id já aplicados por OUTRO medicamento
@@ -47,6 +49,8 @@ export default function PassoRegistroMedicamento({
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
+  // 👇 LINHA DE TRATAMENTO: qual medicamento do grupo o medicamento novo substitui (padrão: o desta etapa)
+  const [substituiMonitoramentoId, setSubstituiMonitoramentoId] = useState(monitoramento?.id || null);
   // 👇 NOVO (rastreio de compras): confirmação de que as compras anteriores
   // puladas foram usadas, e motivo quando o operador não aplica a oferecida.
   const [confirmouConsumoAnteriores, setConfirmouConsumoAnteriores] = useState(false);
@@ -91,7 +95,12 @@ export default function PassoRegistroMedicamento({
 
     setLoadingCompra(true);
     api.get(`/monitoramento-medicamentos/${monitoramento.id}/verificar-compra`, {
-      params: eventosExcluidos.length > 0 ? { excluir_eventos: eventosExcluidos.join(',') } : {}
+      params: {
+        ...(eventosExcluidos.length > 0 ? { excluir_eventos: eventosExcluidos.join(',') } : {}),
+        // 👇 LINHA DE TRATAMENTO: medicamento novo (linha sem acompanhamento) só é
+        // oferecido na primeira etapa; nas outras, só compras do medicamento da etapa.
+        novas_linhas: numeroEtapa === 1 ? 1 : 0
+      }
     })
       .then(res => {
         if (!isMounted) return;
@@ -272,6 +281,10 @@ export default function PassoRegistroMedicamento({
         toast.error('Selecione se deseja usar os medicamentos em conjunto ou substituir.');
         return;
       }
+      if (dadosNovaCompra?.mudou_medicamento && modoNovoMedicamento === 'SUBSTITUICAO' && monitoramentosDoGrupo.length > 1 && !substituiMonitoramentoId) {
+        toast.error('Informe qual medicamento o novo medicamento substitui.');
+        return;
+      }
     }
     // 👇 NOVO: aplicar a mais recente exige confirmar o consumo das anteriores;
     // não aplicar exige motivo (mesmas regras do backend).
@@ -314,6 +327,8 @@ export default function PassoRegistroMedicamento({
       dataRealInicioNovaCaixa,
       posologiaNovaCaixa,
       modoNovoMedicamento,
+      // 👇 LINHA DE TRATAMENTO: ciclo substituído (quando o medicamento novo substitui outro do grupo)
+      substituiMonitoramentoId: modoNovoMedicamento === 'SUBSTITUICAO' ? (substituiMonitoramentoId || monitoramento.id) : null,
       descontinuarMedicamento,
       motivoEncerramento,
       motivoEncerramentoId: motivoEncerramentoSelecionado?.value || null,
@@ -352,6 +367,9 @@ export default function PassoRegistroMedicamento({
           isAntesDoInicio={isAntesDoInicio}
           modoNovoMedicamento={modoNovoMedicamento}
           onChangeModoNovoMedicamento={setModoNovoMedicamento}
+          opcoesSubstituicao={monitoramentosDoGrupo.map(m => ({ monitoramento_id: m.id, nome: m.medicamento?.nome || `Medicamento ${m.id}` }))}
+          substituiMonitoramentoId={substituiMonitoramentoId}
+          onChangeSubstituiMonitoramentoId={setSubstituiMonitoramentoId}
           onSelecionarEvento={handleSelecionarEvento}
           confirmouConsumoAnteriores={confirmouConsumoAnteriores}
           onChangeConfirmouConsumoAnteriores={handleConfirmarConsumoAnteriores}

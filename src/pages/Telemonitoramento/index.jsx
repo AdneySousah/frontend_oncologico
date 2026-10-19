@@ -24,6 +24,7 @@ import PausarMedicamentoModal from './components/PausarMedicamentoModal';
 // getAdherenceClassification foi pra src/utils/adherenceClassification.js: o
 // export de função daqui quebrava a regra react-refresh/only-export-components.
 import { getAdherenceClassification } from '../../utils/adherenceClassification';
+import { chaveLinhaTratamento } from '../../utils/linhaTratamento';
 
 const percentualAdesao = (nivel) => {
   if (nivel === 'COMPLETAMENTE') return 100;
@@ -268,10 +269,13 @@ export default function Telemonitoramento() {
         // 👇 NOVO: medicamentos que a pessoa ENCERROU (último registro do
         // medicamento é DESCONTINUADO e não há ciclo pendente/pausado dele),
         // enquanto segue com outro medicamento. Vira alerta no cabeçalho.
+        // 👇 LINHA DE TRATAMENTO: agrupa pelo princípio ativo (Ribociclibe X 21 e
+        // X 42 são a mesma cadeia), não pelo id local do cadastro.
         const porMedicamento = {};
         grupo.historico.forEach(h => {
-          if (!porMedicamento[h.medicamento_id]) porMedicamento[h.medicamento_id] = [];
-          porMedicamento[h.medicamento_id].push(h);
+          const chave = chaveLinhaTratamento(h.medicamento) || `id:${h.medicamento_id}`;
+          if (!porMedicamento[chave]) porMedicamento[chave] = [];
+          porMedicamento[chave].push(h);
         });
         grupo.medicamentosEncerrados = Object.values(porMedicamento).flatMap(registros => {
           if (registros.some(r => r.status === 'PENDENTE' || r.status === 'PAUSADO')) return [];
@@ -503,7 +507,7 @@ const handleOpenModal = async (hist, latestScore, historicoDoGrupo) => {
   setSincronizandoId(null);
 
   const concluidos = historicoDoGrupo.filter(
-    item => item.status === 'CONCLUIDO' && item.medicamento_id === hist.medicamento_id
+    item => item.status === 'CONCLUIDO' && (chaveLinhaTratamento(item.medicamento) || `id:${item.medicamento_id}`) === (chaveLinhaTratamento(hist.medicamento) || `id:${hist.medicamento_id}`)
   );
   concluidos.sort((a, b) => {
     const dateA = a.data_telemonitoramento_efetivado ? new Date(a.data_telemonitoramento_efetivado) : new Date(a.createdAt);
@@ -533,7 +537,7 @@ const handleOpenModalConjunto = async (pendentesDoGrupo, historicoDoGrupo, lates
   const anteriores = {};
   pendentesDoGrupo.forEach(hist => {
     const concluidos = historicoDoGrupo
-      .filter(item => item.status === 'CONCLUIDO' && item.medicamento_id === hist.medicamento_id)
+      .filter(item => item.status === 'CONCLUIDO' && (chaveLinhaTratamento(item.medicamento) || `id:${item.medicamento_id}`) === (chaveLinhaTratamento(hist.medicamento) || `id:${hist.medicamento_id}`))
       .sort((a, b) => {
         const dateA = a.data_telemonitoramento_efetivado ? new Date(a.data_telemonitoramento_efetivado) : new Date(a.createdAt);
         const dateB = b.data_telemonitoramento_efetivado ? new Date(b.data_telemonitoramento_efetivado) : new Date(b.createdAt);

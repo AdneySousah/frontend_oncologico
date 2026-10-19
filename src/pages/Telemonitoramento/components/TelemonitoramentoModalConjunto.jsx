@@ -303,6 +303,8 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           data_inicio_nova_caixa: d.aplicarNovaCompra ? d.dataRealInicioNovaCaixa : null,
           posologia_nova_caixa: d.aplicarNovaCompra ? Number(d.posologiaNovaCaixa) : null,
           modo_novo_medicamento: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento) ? d.modoNovoMedicamento : null,
+          // 👇 LINHA DE TRATAMENTO: qual medicamento do grupo o novo substitui (o back redireciona a compra pra etapa dele)
+          substitui_monitoramento_id: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento && d.modoNovoMedicamento === 'SUBSTITUICAO') ? (d.substituiMonitoramentoId || null) : null,
           descontinuar_medicamento: d.descontinuarMedicamento,
           motivo_encerramento: d.descontinuarMedicamento ? (d.motivoEncerramento || null) : null,
           motivo_encerramento_id: d.descontinuarMedicamento ? (d.motivoEncerramentoId || null) : null,
@@ -348,6 +350,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
               <PassoRegistroMedicamento
                 key={monitoramentoDaEtapa.id}
                 monitoramento={monitoramentoDaEtapa}
+                monitoramentosDoGrupo={listaAtual}
                 monitoramentoAnterior={monitoramentoAnteriorDaEtapa}
                 numeroEtapa={indiceAtual + 1}
                 totalEtapas={listaAtual.length}

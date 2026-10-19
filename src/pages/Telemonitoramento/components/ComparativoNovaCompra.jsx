@@ -128,7 +128,12 @@ export default function ComparativoNovaCompra({
   onChangeMotivoNaoAplicar,
   // 👇 NOVO: o operador marcou "pausar" sem aplicar a compra — a decisão sobre
   // a compra é implícita (fica pendente), então o checkbox e o motivo saem.
-  pausando = false
+  pausando = false,
+  // 👇 LINHA DE TRATAMENTO: no contato em conjunto, o medicamento novo pode
+  // substituir qualquer medicamento do grupo — lista pra escolher qual.
+  opcoesSubstituicao = [],
+  substituiMonitoramentoId = null,
+  onChangeSubstituiMonitoramentoId
 }) {
   // 👇 NOVO: quando o evento é antigo, a confirmação normal ("Aplicar
   // dados desta nova compra...") fica bloqueada até o operador confirmar
@@ -174,7 +179,8 @@ export default function ComparativoNovaCompra({
     pode_ser_conjunto, // 👈 NOVO, vindo do backend (verificarNovaCompra)
     dias_desde_previsao, // 👈 NOVO: evento_antigo (previsão de uso há mais de 90 dias) é lido antes do return condicional, lá em cima
     evento_externo_id,
-    medicamento_id,
+    mudou_apresentacao, // 👈 LINHA DE TRATAMENTO: mesmo princípio ativo, outro cadastro (dose/marca/caixa)
+    outras_linhas_novas = [], // 👈 LINHA DE TRATAMENTO: outros medicamentos novos recebidos, além do oferecido
     selecionado_pelo_operador,
     eventos_anteriores = [], // 👈 NOVO: compras anteriores do mesmo medicamento que ficam puladas se esta for aplicada
     eventos_pendentes = [],  // 👈 NOVO: todas as compras pendentes, pra trocar a seleção sem nova consulta
@@ -186,9 +192,10 @@ export default function ComparativoNovaCompra({
     outro_evento_pendente
   } = data;
 
-  // Compras pendentes do MESMO medicamento da selecionada — é entre elas que o
+  // Compras pendentes da MESMA LINHA de tratamento (mesmo princípio ativo,
+  // qualquer apresentação) — o back já devolve só essas; é entre elas que o
   // operador escolhe qual o paciente está usando de fato.
-  const opcoesMesmoMedicamento = eventos_pendentes.filter(e => e.medicamento_id === medicamento_id);
+  const opcoesMesmoMedicamento = eventos_pendentes;
 
   // Só é considerado "modo conjunto" de fato quando houve troca de medicamento
   // detectada E o usuário escolheu essa opção.
@@ -290,6 +297,26 @@ export default function ComparativoNovaCompra({
         </AlertMessage>
       )}
 
+      {/* 👇 LINHA DE TRATAMENTO: mesmo princípio ativo com outro cadastro —
+          não é troca de medicamento; o ciclo passa a usar o cadastro da compra
+          e o operador confere a posologia. */}
+      {mudou_apresentacao && !mudou_medicamento && (
+        <AlertMessage style={{ borderLeftColor: '#3498db', backgroundColor: '#ebf5fb', color: '#2980b9' }}>
+          <LuPackageCheck size={22} color="#2980b9" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <span style={{ lineHeight: '1.4' }}>
+            <strong>Apresentação diferente da atual</strong> (mesmo princípio ativo): <s>{medicamento_atual?.nome}</s> → <strong>{medicamento_novo.nome}</strong>. O novo ciclo usa esse cadastro — confira a posologia abaixo (dose por caixa pode ter mudado).
+          </span>
+        </AlertMessage>
+      )}
+      {outras_linhas_novas.length > 0 && (
+        <AlertMessage style={{ borderLeftColor: '#8e44ad', backgroundColor: '#f5eef8', color: '#6c3483' }}>
+          <LuTriangleAlert size={22} color="#8e44ad" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <span style={{ lineHeight: '1.4' }}>
+            Também chegou outro medicamento novo: {outras_linhas_novas.map(o => `${o.medicamento_nome} (#${o.evento_externo_id}, entrega ${formatarDataLocal(o.data_entrega)})`).join('; ')}. Ele será oferecido no próximo contato.
+          </span>
+        </AlertMessage>
+      )}
+
       {/* 👇 NOVO: mais de uma compra do mesmo medicamento aguardando — o
           operador escolhe qual o paciente está usando. Antes o sistema
           aplicava sempre a mais antiga, mesmo com a caixa já consumida. */}
@@ -365,8 +392,24 @@ export default function ComparativoNovaCompra({
               checked={modoNovoMedicamento === 'SUBSTITUICAO'}
               onChange={() => onChangeModoNovoMedicamento('SUBSTITUICAO')}
             />
-            <LuArrowRight size={16} /> Substituir o medicamento atual
+            <LuArrowRight size={16} /> {opcoesSubstituicao.length > 1 ? 'Substituir um dos medicamentos em uso' : 'Substituir o medicamento atual'}
           </label>
+          {/* 👇 LINHA DE TRATAMENTO: no conjunto, qual medicamento ele substitui? */}
+          {modoNovoMedicamento === 'SUBSTITUICAO' && opcoesSubstituicao.length > 1 && (
+            <FormGroup style={{ margin: '8px 0 0 28px' }}>
+              <label>Qual medicamento ele substitui? <span style={{ color: '#c0392b' }}>*</span></label>
+              <Input
+                as="select"
+                value={substituiMonitoramentoId || ''}
+                onChange={(e) => onChangeSubstituiMonitoramentoId && onChangeSubstituiMonitoramentoId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">Selecione...</option>
+                {opcoesSubstituicao.map(opcao => (
+                  <option key={opcao.monitoramento_id} value={opcao.monitoramento_id}>{opcao.nome}</option>
+                ))}
+              </Input>
+            </FormGroup>
+          )}
         </ModoSelector>
       )}
 
