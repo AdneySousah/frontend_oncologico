@@ -15,6 +15,7 @@ import {
   ButtonGroup,
   Button
 } from './styles';
+import { capitalizar } from '../../utils/texto'; // 👈 NOVO: padrão de exibição (Primeira Letra Maiúscula)
 
 // Motivos compartilhados entre "Pausar Tratamento" (Necessidade de Navegação)
 // e "Descontinuar Medicamento" (Telemonitoramento) — mesma lista nos dois
@@ -40,7 +41,7 @@ export default function MotivosPausaTratamento() {
       setLoading(true);
       const response = await api.get('/motivos-pausa-tratamento?all=true');
       setMotivos(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao buscar a lista de motivos.');
     } finally {
       setLoading(false);
@@ -106,7 +107,7 @@ export default function MotivosPausaTratamento() {
       await api.put(`/motivos-pausa-tratamento/${id}`, { ativo: !statusAtual });
       toast.success(`Motivo ${!statusAtual ? 'ativado' : 'inativado'} com sucesso!`);
       fetchMotivos();
-    } catch (error) {
+    } catch {
       toast.error('Erro ao alterar status do motivo.');
     } finally {
       setLoading(false);
@@ -146,7 +147,7 @@ export default function MotivosPausaTratamento() {
               motivos.map(motivo => (
                 <tr key={motivo.id}>
                   <td>{motivo.id}</td>
-                  <td>{motivo.descricao}</td>
+                  <td>{capitalizar(motivo.descricao)}</td>
                   <td>
                     <StatusBadge ativo={motivo.ativo}>
                       {motivo.ativo ? 'Ativo' : 'Inativo'}

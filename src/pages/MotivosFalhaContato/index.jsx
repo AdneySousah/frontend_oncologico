@@ -38,7 +38,7 @@ export default function MotivosFalhaContato() {
       setLoading(true);
       const response = await api.get('/motivos-falha-contato?all=true');
       setMotivos(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao buscar a lista de motivos.');
     } finally {
       setLoading(false);
@@ -104,7 +104,7 @@ export default function MotivosFalhaContato() {
       await api.put(`/motivos-falha-contato/${id}`, { ativo: !statusAtual });
       toast.success(`Motivo ${!statusAtual ? 'ativado' : 'inativado'} com sucesso!`);
       fetchMotivos();
-    } catch (error) {
+    } catch {
       toast.error('Erro ao alterar status do motivo.');
     } finally {
       setLoading(false);

@@ -37,7 +37,7 @@ const UsersPage = () => {
     try {
       const response = await api.get('/users');
       setUsers(response.data);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao carregar usuários.');
     } finally {
       setLoading(false);
@@ -74,7 +74,7 @@ const UsersPage = () => {
         await api.delete(`/users/${user.id}`);
         toast.success(`Usuário ${user.active ? 'desativado' : 'ativado'} com sucesso.`);
         loadUsers();
-      } catch (err) {
+      } catch {
         toast.error('Erro ao alterar status do usuário.');
       }
     }

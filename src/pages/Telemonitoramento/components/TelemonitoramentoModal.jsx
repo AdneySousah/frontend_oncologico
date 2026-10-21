@@ -22,6 +22,7 @@ import TentativaContatoModal from './TentativaContatoModal';
 import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
 import SeletorPosologia from '../../../components/SeletorPosologia';
 import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
+import { calcularEstoqueProjetado } from '../../../utils/estoqueProjetado';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
 import {
   MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra,
@@ -328,8 +329,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         const consumoNovo = contarComprimidosConsumidos(safeDataMudanca, diasNovos, Number(novaPosologia), padraoPosologiaNova);
         idealRemainingAntigo = qtdTotalCaixa - (consumoAntigo + consumoNovo);
       } else {
-        const diffDays = Math.max(0, Math.floor((hoje - dataInicioObj) / (1000 * 60 * 60 * 24)));
-        idealRemainingAntigo = qtdTotalCaixa - contarComprimidosConsumidos(dataInicioObj, diffDays, posologia, localMonitoramento);
+        // 👇 mesma conta da lista (utils/estoqueProjetado.js)
+        idealRemainingAntigo = calcularEstoqueProjetado(localMonitoramento, hoje) ?? 0;
       }
       if (idealRemainingAntigo < 0) idealRemainingAntigo = 0;
       if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;

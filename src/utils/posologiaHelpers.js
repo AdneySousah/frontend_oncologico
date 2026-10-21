@@ -50,11 +50,14 @@ function estaDentroDePausaLocal(dataObj, periodosPausa) {
   if (!Array.isArray(periodosPausa) || periodosPausa.length === 0) return false;
   return periodosPausa.some(p => {
     if (!p || !p.inicio) return false;
-    const [ai, mi, di] = p.inicio.split('-');
+    // 👇 CORREÇÃO: as pausas chegam da API como timestamp ISO
+    // ("2026-10-11T03:00:00.000Z"); sem descartar a hora, o dia virava NaN e
+    // a pausa era ignorada no estoque projetado.
+    const [ai, mi, di] = String(p.inicio).split('T')[0].split('-');
     const inicio = new Date(Number(ai), Number(mi) - 1, Number(di));
     if (dataObj < inicio) return false;
     if (!p.fim) return true;
-    const [af, mf, df] = p.fim.split('-');
+    const [af, mf, df] = String(p.fim).split('T')[0].split('-');
     const fim = new Date(Number(af), Number(mf) - 1, Number(df));
     return dataObj <= fim;
   });

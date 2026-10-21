@@ -25,6 +25,7 @@ import PausarMedicamentoModal from './components/PausarMedicamentoModal';
 // export de função daqui quebrava a regra react-refresh/only-export-components.
 import { getAdherenceClassification } from '../../utils/adherenceClassification';
 import { chaveLinhaTratamento } from '../../utils/linhaTratamento';
+import { calcularEstoqueProjetado } from '../../utils/estoqueProjetado';
 
 const percentualAdesao = (nivel) => {
   if (nivel === 'COMPLETAMENTE') return 100;
@@ -296,23 +297,12 @@ export default function Telemonitoramento() {
           grupo.contatosConjuntoAtual = grupo.contatoAtual ? [grupo.contatoAtual] : [];
         }
 
-        grupo.estoqueProjetado = null;
-        if (grupo.contatoAtual?.status === 'PENDENTE' && grupo.contatoAtual.data_calculada_fim_caixa && grupo.contatoAtual.posologia_diaria) {
-          try {
-            const dataFimStr = grupo.contatoAtual.data_calculada_fim_caixa.split('T')[0];
-            const [ano, mes, dia] = dataFimStr.split('-');
-            const dataFim = new Date(ano, mes - 1, dia);
-            const hoje = new Date();
-            hoje.setHours(0, 0, 0, 0);
-            const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
-            let calculado = Math.max(0, diffDays * grupo.contatoAtual.posologia_diaria);
-            const qtdCaixa = grupo.medicamentoAtual?.qtd_capsula || calculado;
-            grupo.estoqueProjetado = Math.min(qtdCaixa, calculado);
-          } catch (err) {
-            console.error("Erro na conversão de data para o estoque:", err);
-            grupo.estoqueProjetado = null;
-          }
-        }
+        // 👇 CORREÇÃO: mesma conta do modal (utils/estoqueProjetado.js) — antes a
+        // lista contava os dias até o fim de caixa e dava um número diferente
+        // do "Estoque Projetado para Hoje" pro mesmo paciente.
+        grupo.estoqueProjetado = grupo.contatoAtual?.status === 'PENDENTE'
+          ? calcularEstoqueProjetado(grupo.contatoAtual)
+          : null;
 
         // Conta RODADAS DE CONTATO (monitoramentos), não linhas cruas do banco.
         // Um par em uso conjunto é UMA rodada, mesmo gerando 2 registros.
@@ -588,22 +578,10 @@ const abrirContatoAposReembolso = async (novoRegistro) => {
 // 👇 NOVO: estoque projetado calculado por LINHA (qualquer registro
 // PENDENTE), não só o "contatoAtual" do grupo — usado pra decidir se
 // mostra o botão de "Criar Evento Reembolso" naquela linha específica.
-const calcularEstoqueProjetadoLinha = (hist) => {
-  if (!hist || hist.status !== 'PENDENTE' || !hist.data_calculada_fim_caixa || !hist.posologia_diaria) return null;
-  try {
-    const dataFimStr = hist.data_calculada_fim_caixa.split('T')[0];
-    const [ano, mes, dia] = dataFimStr.split('-');
-    const dataFim = new Date(ano, mes - 1, dia);
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil((dataFim - hoje) / (1000 * 60 * 60 * 24));
-    const calculado = Math.max(0, diffDays * hist.posologia_diaria);
-    const qtdCaixa = hist.medicamento?.qtd_capsula || calculado;
-    return Math.min(qtdCaixa, calculado);
-  } catch {
-    return null;
-  }
-};
+// 👇 CORREÇÃO: mesma conta do modal e do cabeçalho (utils/estoqueProjetado.js)
+const calcularEstoqueProjetadoLinha = (hist) => (
+  hist && hist.status === 'PENDENTE' ? calcularEstoqueProjetado(hist) : null
+);
 
 const formatarData = (dataStr) => {
   if (!dataStr) return '-';
@@ -965,7 +943,7 @@ return (
                         }
                       >
                         <td>
-                          <strong>{grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
+                          <strong><span style={{ opacity: 0.6, fontWeight: 500 }}>#{grupo.paciente?.id}</span> {grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
                           <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span>Score: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
                             {grupo.mediaAdesao !== null && (

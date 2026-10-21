@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import AlertModal from "./AlertModal";
 
 import logoBranca from "../../assets/logo_branca.png";
+import { capitalizar } from '../../utils/texto'; // 👈 NOVO: padrão de exibição (Primeira Letra Maiúscula)
 
 export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const { logout } = useContext(AuthContext);
@@ -51,7 +52,18 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     return initials;
   };
 
-  const temPermissaoDeAcesso = (modulo, userData = userProfileData || userStorage?.user) => {
+  // 👇 CORREÇÃO: o setInterval de 5 min e o ouvinte de "updateAlerts" são
+  // criados na montagem e ficam presos à PRIMEIRA versão desta função, quando
+  // userProfileData/userStorage ainda eram null. Nas chamadas seguintes a
+  // permissão vinha como "sem acesso", nada era consultado e o sino zerava —
+  // o alerta "sumia" depois de alguns minutos na tela. A ref guarda sempre o
+  // usuário mais recente, independente de qual versão da função foi chamada.
+  const dadosUsuarioRef = useRef(null);
+  useEffect(() => {
+    dadosUsuarioRef.current = userProfileData || userStorage?.user || dadosUsuarioRef.current;
+  }, [userProfileData, userStorage]);
+
+  const temPermissaoDeAcesso = (modulo, userData = dadosUsuarioRef.current) => {
     if (!modulo) return true;
     if (!userData?.perfil?.permissoes) return false;
     return userData.perfil.permissoes[modulo]?.acessar === true;
@@ -74,7 +86,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return Math.round((date - today) / (1000 * 60 * 60 * 24));
-    } catch (error) {
+    } catch {
       return 999;
     }
   };
@@ -254,6 +266,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     let parsedUser = null;
     if (user) {
       parsedUser = JSON.parse(user);
+      dadosUsuarioRef.current = parsedUser?.user || null; // 👈 disponível já na primeira chamada
       setUserStorage(parsedUser);
 
       if (parsedUser?.token) {
@@ -318,7 +331,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   const menusCadastroVisiveis = registerOptions.filter(item => temPermissaoDeAcesso(item.modulo));
   const menusAdminVisiveis = adminOptions.filter(item => temPermissaoDeAcesso(item.modulo));
 
-  const userNameToShow = userProfileData?.name || userStorage?.user?.name || "Usuário";
+  const userNameToShow = capitalizar(userProfileData?.name || userStorage?.user?.name || "Usuário");
 
   return (
     <>

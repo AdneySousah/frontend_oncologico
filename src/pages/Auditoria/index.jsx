@@ -27,6 +27,8 @@ export default function AuditoriaPage() {
   const [fDataFim, setFDataFim] = useState('');
   const [fEntity, setFEntity] = useState('');
   const [fActionType, setFActionType] = useState('');
+  // 👇 NOVO: busca por paciente (id, nome, sobrenome ou CPF) — "para quem"
+  const [fPaciente, setFPaciente] = useState('');
 
   // Carrega usuários ao montar a página
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function AuditoriaPage() {
         fetchedUsers = fetchedUsers.filter(u => u.name.toLowerCase().includes(fNome.toLowerCase()));
       }
       setUsers(fetchedUsers);
-    } catch (err) {
+    } catch {
       toast.error("Erro ao carregar usuários");
     } finally {
       setLoadingUsers(false);
@@ -57,12 +59,18 @@ export default function AuditoriaPage() {
   };
 
   const loadHistory = async () => {
-    if (!selectedUser) return;
+    // 👇 NOVO: o histórico pode ser por usuário, por paciente, ou os dois;
+    // sem nenhum dos dois não há o que listar.
+    if (!selectedUser && !fPaciente.trim()) {
+      setLogs([]);
+      return;
+    }
     setLoadingLogs(true);
     try {
       const res = await api.get('/audit-logs', {
         params: {
-          user_id: selectedUser.id,
+          user_id: selectedUser?.id,
+          paciente: fPaciente.trim() || undefined,
           data_inicio: fDataInicio,
           data_fim: fDataFim,
           entity: fEntity,
@@ -71,7 +79,7 @@ export default function AuditoriaPage() {
         }
       });
       setLogs(res.data.data || []);
-    } catch (err) {
+    } catch {
       toast.error("Erro ao carregar histórico");
     } finally {
       setLoadingLogs(false);
@@ -93,7 +101,15 @@ export default function AuditoriaPage() {
     setFDataFim('');
     setFEntity('');
     setFActionType('');
+    setFPaciente('');
     setTimeout(() => loadHistory(), 0);
+  };
+
+  // 👇 NOVO: aba de histórico sem usuário selecionado (busca por paciente entre todos)
+  const abrirHistoricoGeral = () => {
+    setSelectedUser(null);
+    setLogs([]);
+    setActiveTab('history');
   };
 
   const handleExport = () => {
@@ -105,6 +121,8 @@ export default function AuditoriaPage() {
     // Estrutura as colunas esperadas pelo seu utilitário
     const columns = [
       { header: 'Data / Hora', key: 'dataHora', width: 22 },
+      { header: 'Usuário', key: 'usuario', width: 24 },
+      { header: 'Paciente', key: 'paciente', width: 30 },
       { header: 'Módulo Afetado', key: 'modulo', width: 20 },
       { header: 'Ação Realizada', key: 'acao', width: 20 },
       { header: 'Detalhes da Operação', key: 'detalhes', width: 60 },
@@ -113,13 +131,15 @@ export default function AuditoriaPage() {
     // Mapeia os dados do estado para o formato da planilha
     const dataToExport = logs.map(log => ({
       dataHora: `${new Date(log.createdAt).toLocaleDateString('pt-BR')} as ${new Date(log.createdAt).toLocaleTimeString('pt-BR')}`,
+      usuario: log.usuario?.name || 'Sistema',
+      paciente: log.paciente ? `#${log.paciente.id} ${log.paciente.nome} ${log.paciente.sobrenome || ''}`.trim() : '-',
       modulo: log.entity || '-',
       acao: log.action_type || '-',
       detalhes: log.details || '-',
     }));
 
-    const reportTitle = `Relatório de Auditoria - ${selectedUser?.name}`;
-    const filename = `Auditoria_${selectedUser?.name.replace(/\s+/g, '_')}_${Date.now()}`;
+    const reportTitle = `Relatório de Auditoria - ${selectedUser?.name || (fPaciente.trim() ? `paciente "${fPaciente.trim()}"` : 'todos os usuários')}`;
+    const filename = `Auditoria_${(selectedUser?.name || fPaciente.trim() || 'geral').replace(/\s+/g, '_')}_${Date.now()}`;
 
     exportToXLSX(dataToExport, columns, filename, reportTitle);
   };
@@ -134,11 +154,10 @@ export default function AuditoriaPage() {
         </TabButton>
         <TabButton
           active={activeTab === 'history'}
-          disabled={!selectedUser}
-          onClick={() => selectedUser && setActiveTab('history')}
+          onClick={() => (selectedUser ? setActiveTab('history') : abrirHistoricoGeral())}
         >
           <LuHistory style={{ marginRight: '8px' }} />
-          {selectedUser ? `Histórico de: ${selectedUser.name}` : 'Histórico (Selecione um usuário)'}
+          {selectedUser ? `Histórico de: ${selectedUser.name}` : 'Histórico por paciente (todos os usuários)'}
         </TabButton>
       </TabContainer>
 
@@ -164,9 +183,20 @@ export default function AuditoriaPage() {
       )}
 
       {/* VIEW DE HISTÓRICO */}
-      {activeTab === 'history' && selectedUser && (
+      {activeTab === 'history' && (
         <>
           <FilterBar style={{ flexWrap: 'wrap', gap: '10px' }}>
+            {/* 👇 NOVO: filtro por paciente — id, nome, sobrenome ou CPF */}
+            <div style={{ flex: 1.4, minWidth: '180px' }}>
+              <label>Paciente (id, nome ou CPF)</label>
+              <FilterInput
+                type="text"
+                value={fPaciente}
+                onChange={e => setFPaciente(e.target.value)}
+                placeholder="Ex: 387, Maria, 000.000.000-00"
+                onKeyDown={e => e.key === 'Enter' && loadHistory()}
+              />
+            </div>
             <div style={{ flex: 1, minWidth: '120px' }}>
               <label>Data Início</label>
               <FilterInput
@@ -232,7 +262,13 @@ export default function AuditoriaPage() {
             </div>
           </FilterBar>
 
-          <HistoryList data={logs} loading={loadingLogs} />
+          {!selectedUser && !fPaciente.trim() ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: '#666' }}>
+              Informe um paciente acima para ver tudo o que foi feito para ele (por qualquer usuário), ou selecione um usuário na aba ao lado.
+            </div>
+          ) : (
+            <HistoryList data={logs} loading={loadingLogs} />
+          )}
         </>
       )}
     </Container>

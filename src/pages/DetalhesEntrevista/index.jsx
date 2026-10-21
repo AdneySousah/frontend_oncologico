@@ -194,7 +194,7 @@ export default function ListaEntrevistas() {
       }
       await loadLocalData();
       await checkSyncStatus();
-    } catch (error) {
+    } catch {
       toast.error("Houve um erro ao sincronizar.");
     } finally {
       setIsSyncing(false);
