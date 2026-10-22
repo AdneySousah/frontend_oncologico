@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../../services/api';
 import SeletorPosologia from '../../../components/SeletorPosologia';
+import SeletorCompraBase from '../../../components/SeletorCompraBase'; // 👈 escolha de qual compra é a atual
 import {
   ModalOverlay, ModalContent, FormGroup, Input, ButtonGroup, Button
 } from './styles';
@@ -54,7 +55,10 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
           dataTelemonitoramento: c.data_sugerida_primeiro_contato
             ? String(c.data_sugerida_primeiro_contato).split('T')[0]
             : calcularDataSugeridaLocal(dataEntrega),
-          qtdCaixas: c.qtd_caixas || 1
+          qtdCaixas: c.qtd_caixas || 1,
+          // 👇 compra-base: a mais antiga vem marcada; trocar exige confirmar o consumo das anteriores
+          eventoSelecionado: c.evento_externo_id,
+          confirmarAnteriores: false
         };
       });
       setSelecionados(sel);
@@ -95,6 +99,23 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
     setDadosPorMedicamento(prev => ({ ...prev, [medId]: { ...prev[medId], [campo]: valor } }));
   };
 
+  // 👇 trocar a compra-base atualiza entrega, caixas e a data sugerida do 1º contato
+  const selecionarCompraBase = (medId, evento) => {
+    const dataEntrega = evento.data_entrega ? String(evento.data_entrega).split('T')[0] : '';
+    const dataBase = evento.data_administracao_prevista ? String(evento.data_administracao_prevista).split('T')[0] : dataEntrega;
+    setDadosPorMedicamento(prev => ({
+      ...prev,
+      [medId]: {
+        ...prev[medId],
+        eventoSelecionado: evento.evento_externo_id,
+        confirmarAnteriores: false,
+        dataEntrega,
+        qtdCaixas: evento.qtd_caixas || 1,
+        dataTelemonitoramento: calcularDataSugeridaLocal(dataBase)
+      }
+    }));
+  };
+
   const handleConfirmar = async () => {
     const idsSelecionados = Object.keys(selecionados).filter(id => selecionados[id]);
     if (idsSelecionados.length === 0) {
@@ -115,6 +136,13 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
       }
       if (!candidato.qtd_capsula_conhecida && !dados.qtdCapsulaManual) {
         toast.error(`Informe a quantidade total de comprimidos da caixa de ${candidato.medicamento_nome}.`);
+        return;
+      }
+      // 👇 compra-base diferente da mais antiga só com a confirmação explícita
+      const pendentes = candidato.eventos_pendentes || [];
+      const indiceEscolhido = pendentes.findIndex(e => Number(e.evento_externo_id) === Number(dados.eventoSelecionado));
+      if (indiceEscolhido > 0 && !dados.confirmarAnteriores) {
+        toast.error(`Confirme que o paciente já utilizou as compras anteriores de ${candidato.medicamento_nome} antes de iniciar pela #${dados.eventoSelecionado}.`);
         return;
       }
       const tipoPosologia = dados.padraoPosologia?.tipo_posologia || 'diaria';
@@ -142,7 +170,8 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
         data_telemonitoramento: dados.dataTelemonitoramento,
         qtd_capsula_manual: dados.qtdCapsulaManual ? Number(dados.qtdCapsulaManual) : null,
         qtd_caixas: Number(dados.qtdCaixas) || 1,
-        evento_externo_id: candidato.evento_externo_id
+        evento_externo_id: dados.eventoSelecionado || candidato.evento_externo_id,
+        confirmar_consumo_eventos_anteriores: dados.confirmarAnteriores === true
       });
     }
 
@@ -203,6 +232,13 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
               <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>{candidato.medicamento_nome}</p>
               {marcado && (
                 <>
+                  <SeletorCompraBase
+                    eventos={candidato.eventos_pendentes || []}
+                    value={dados.eventoSelecionado}
+                    onChange={(evento) => selecionarCompraBase(candidato.medicamento_id, evento)}
+                    confirmado={dados.confirmarAnteriores}
+                    onChangeConfirmado={(v) => atualizarCampo(candidato.medicamento_id, 'confirmarAnteriores', v)}
+                  />
                   <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '10px' }}>
                     <FormGroup style={{ flex: '1 1 140px' }}>
                       <label>Comprimidos ao dia</label>

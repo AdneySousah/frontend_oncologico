@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
@@ -412,6 +412,43 @@ export default function Telemonitoramento() {
     setPacienteParaIniciarTratamento(grupo.paciente);
     setCandidatosParaIniciarTratamento(candidatosPorPaciente[grupo.key] || []);
     setIsIniciarTratamentoModalOpen(true);
+  };
+
+  // 👇 LINHA DE TRATAMENTO: depois de registrar um contato, a reposição do
+  // medicamento atual já foi tratada (ela tem prioridade na etapa). Se o
+  // paciente recebeu compra de um medicamento NOVO (linha sem acompanhamento),
+  // oferece iniciar o acompanhamento dele agora, em conjunto com o atual.
+  // A promessa só resolve quando o "Iniciar Tratamento" é fechado — assim o
+  // modal de contato espera por ele antes de mostrar o NPS (o NPS é o último
+  // passo de todo o telemonitoramento, nunca em cima de outra tela).
+  const continuacaoAposNovasLinhasRef = useRef(null);
+  const aoConcluirContato = (paciente) => new Promise((resolve) => {
+    (async () => {
+      await fetchMonitoramentos();
+      if (!paciente?.id) { resolve(); return; }
+      try {
+        const resposta = await api.get(`/monitoramento-medicamentos/paciente/${paciente.id}/novas-linhas`);
+        const candidatos = resposta.data?.candidatos || [];
+        if (candidatos.length > 0) {
+          setPacienteParaIniciarTratamento(paciente);
+          setCandidatosParaIniciarTratamento(candidatos);
+          continuacaoAposNovasLinhasRef.current = resolve;
+          setIsIniciarTratamentoModalOpen(true);
+          toast.info(`${paciente.nome} recebeu compra de ${candidatos.length > 1 ? 'medicamentos novos' : 'um medicamento novo'} — confira se deve iniciar o acompanhamento.`, { autoClose: 8000 });
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao verificar medicamentos novos do paciente:', error);
+      }
+      resolve();
+    })();
+  });
+
+  const fecharIniciarTratamento = () => {
+    setIsIniciarTratamentoModalOpen(false);
+    const continuar = continuacaoAposNovasLinhasRef.current;
+    continuacaoAposNovasLinhasRef.current = null;
+    if (continuar) continuar();
   };
 
 
@@ -1280,7 +1317,7 @@ return (
       onClose={() => setIsModalOpen(false)}
       monitoramento={selectedMonitoramento}
       monitoramentoAnterior={monitoramentoAnterior}
-      onSucesso={fetchMonitoramentos}
+      onSucesso={() => aoConcluirContato(selectedMonitoramento?.paciente)}
     />
 
     <TelemonitoramentoModalConjunto
@@ -1288,7 +1325,7 @@ return (
       onClose={() => setIsConjuntoModalOpen(false)}
       monitoramentos={monitoramentosConjuntoSelecionados}
       monitoramentosAnteriores={monitoramentosAnterioresConjunto}
-      onSucesso={fetchMonitoramentos}
+      onSucesso={() => aoConcluirContato(monitoramentosConjuntoSelecionados?.[0]?.paciente)}
     />
 
     <EditTelemonitoramentoModal
@@ -1303,7 +1340,7 @@ return (
 
      <IniciarTratamentoModal
         isOpen={isIniciarTratamentoModalOpen}
-        onClose={() => setIsIniciarTratamentoModalOpen(false)}
+        onClose={fecharIniciarTratamento}
         paciente={pacienteParaIniciarTratamento}
         candidatos={candidatosParaIniciarTratamento}
         onSucesso={fetchMonitoramentos}

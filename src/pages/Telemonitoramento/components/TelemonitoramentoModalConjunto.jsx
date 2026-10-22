@@ -14,7 +14,7 @@ import HistoricoAberturas from './HistoricoAberturas';
 import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
 import NpsModal from './NpsModal';
-import { limparDadosNovaCompraParaEnvio } from '../../../utils/novaCompraHelpers';
+import { limparDadosNovaCompraParaEnvio, montarCamposPadraoNovaCaixa } from '../../../utils/novaCompraHelpers';
 
 const DIAS_POR_NIVEL = { COMPLETAMENTE: 30, PARCIALMENTE: 15, NAO_ADERE: 7 };
 const LABEL_NIVEL = {
@@ -302,6 +302,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           dados_nova_compra: d.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(d.dadosNovaCompra) : null,
           data_inicio_nova_caixa: d.aplicarNovaCompra ? d.dataRealInicioNovaCaixa : null,
           posologia_nova_caixa: d.aplicarNovaCompra ? Number(d.posologiaNovaCaixa) : null,
+          ...(d.aplicarNovaCompra ? montarCamposPadraoNovaCaixa(d.padraoNovaCaixa, d.dadosNovaCompra?.mudou_medicamento) : {}), // 👈 PADRÃO DA NOVA CAIXA
           modo_novo_medicamento: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento) ? d.modoNovoMedicamento : null,
           // 👇 LINHA DE TRATAMENTO: qual medicamento do grupo o novo substitui (o back redireciona a compra pra etapa dele)
           substitui_monitoramento_id: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento && d.modoNovoMedicamento === 'SUBSTITUICAO') ? (d.substituiMonitoramentoId || null) : null,
@@ -313,8 +314,10 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
         }))
       });
       toast.success(`Contato registrado para os ${dadosLista.length} medicamentos com sucesso!`);
-      onSucesso();
       window.dispatchEvent(new Event('updateAlerts'));
+      // 👇 o NPS só depois de TODO o telemonitoramento (inclusive o "Iniciar
+      // Tratamento" do medicamento novo, que o onSucesso abre e espera fechar)
+      await onSucesso();
       setShowNpsPrompt(true);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');

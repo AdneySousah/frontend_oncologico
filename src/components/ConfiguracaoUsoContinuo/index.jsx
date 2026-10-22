@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { LuUsers } from 'react-icons/lu';
 import api from '../../services/api';
 import SeletorPosologia from '../SeletorPosologia';
+import SeletorCompraBase from '../SeletorCompraBase'; // 👈 escolha de qual compra é a atual
 // Importando os estilos proprietários do componente
 import {
   Container, Title, Subtitle, Card, MedName, Label, RadioGroup,
@@ -86,7 +87,10 @@ export default function ConfiguracaoUsoContinuo({
           data_entrega: defaultEntrega,
           data_telemonitoramento: calculateTelemonitoramentoDate(defaultEntrega),
           qtd_capsula_manual: '',
-          qtd_caixas: medicamento.qtd_caixas || paciente.qtd_caixas || 1
+          qtd_caixas: medicamento.qtd_caixas || paciente.qtd_caixas || 1,
+          // 👇 compra-base: vem a mais antiga pendente (medicamentos-ativos); trocar exige confirmar o consumo das anteriores
+          evento_externo_id: medicamento.evento_externo_id || null,
+          confirmar_anteriores: false
         };
       });
 
@@ -145,6 +149,16 @@ export default function ConfiguracaoUsoContinuo({
       }
       return { ...prev, [medId]: updatedMed };
     });
+  };
+
+  // 👇 trocar a compra-base atualiza entrega e caixas (e a data do telemonitoramento, pela regra já existente)
+  const selecionarCompraBase = (medId, evento) => {
+    const dataEntrega = evento.data_entrega ? String(evento.data_entrega).split('T')[0] : '';
+    handleMonitoramentoChange(medId, 'data_entrega', dataEntrega);
+    setMedicamentoState(prev => ({
+      ...prev,
+      [medId]: { ...prev[medId], evento_externo_id: evento.evento_externo_id, confirmar_anteriores: false, qtd_caixas: evento.qtd_caixas || 1 }
+    }));
   };
 
   const handleDataTelemonitoramentoConjuntaChange = (novaData) => {
@@ -215,9 +229,25 @@ export default function ConfiguracaoUsoContinuo({
         data_entrega: data.data_entrega,
         data_telemonitoramento: data.data_telemonitoramento,
         qtd_caixas: data.qtd_caixas ? Number(data.qtd_caixas) : 1,
-        qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null
+        qtd_capsula_manual: data.qtd_capsula_manual ? Number(data.qtd_capsula_manual) : null,
+        evento_externo_id: data.evento_externo_id || null,
+        confirmar_consumo_eventos_anteriores: data.confirmar_anteriores === true
       }))
       .filter(item => item.usa === true);
+
+    // 👇 compra-base diferente da mais antiga só com a confirmação explícita
+    const semConfirmacao = confirmados.find(item => {
+      const med = medicamentosList.find(m => m.id === item.medicamento_id);
+      const pendentes = med?.eventos_pendentes || [];
+      const indice = pendentes.findIndex(e => Number(e.evento_externo_id) === Number(item.evento_externo_id));
+      return indice > 0 && !item.confirmar_consumo_eventos_anteriores;
+    });
+    if (semConfirmacao) {
+      const med = medicamentosList.find(m => m.id === semConfirmacao.medicamento_id);
+      toast.error(`Confirme que o paciente já utilizou as compras anteriores de ${med?.nome || 'este medicamento'} antes de continuar.`);
+      setLoadingMonitoramento(false);
+      return;
+    }
 
     if (confirmados.length === 0) {
       setLoadingMonitoramento(false);
@@ -328,6 +358,13 @@ export default function ConfiguracaoUsoContinuo({
       {medicamentosParaExibir.map((medicamento) => (
         <Card key={medicamento.id}>
           <MedName>{medicamento.nome}</MedName>
+          <SeletorCompraBase
+            eventos={medicamento.eventos_pendentes || []}
+            value={medicamentoState[medicamento.id]?.evento_externo_id}
+            onChange={(evento) => selecionarCompraBase(medicamento.id, evento)}
+            confirmado={medicamentoState[medicamento.id]?.confirmar_anteriores}
+            onChangeConfirmado={(v) => handleMonitoramentoChange(medicamento.id, 'confirmar_anteriores', v)}
+          />
 
           {showUsoToggle && (
             <>

@@ -12,7 +12,8 @@ import {
 import { getCustomSelectStyles } from '../../../utils/selectStyles';
 import ComparativoNovaCompra from './ComparativoNovaCompra';
 import {
-  MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra, montarCamposDecisaoNovaCompra
+  MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra, montarCamposDecisaoNovaCompra,
+  padraoDoCiclo, validarPadraoPosologia // 👈 PADRÃO DA NOVA CAIXA
 } from '../../../utils/novaCompraHelpers';
 import ConfirmacaoRestante from './ConfirmacaoRestante';
 import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao } from '../../../utils/restanteHelpers';
@@ -48,6 +49,7 @@ export default function PassoRegistroMedicamento({
   const [aplicarNovaCompra, setAplicarNovaCompra] = useState(false);
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
+  const [padraoNovaCaixa, setPadraoNovaCaixa] = useState({ tipo_posologia: 'diaria' }); // 👈 PADRÃO DA NOVA CAIXA
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
   // 👇 LINHA DE TRATAMENTO: qual medicamento do grupo o medicamento novo substitui (padrão: o desta etapa)
   const [substituiMonitoramentoId, setSubstituiMonitoramentoId] = useState(monitoramento?.id || null);
@@ -112,6 +114,7 @@ export default function PassoRegistroMedicamento({
           setConfirmouConsumoAnteriores(false);
           setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO);
           setPosologiaNovaCaixa(monitoramento.posologia_diaria || '');
+          setPadraoNovaCaixa(res.data.detalhes.mudou_medicamento ? { tipo_posologia: 'diaria' } : padraoDoCiclo(monitoramento)); // 👈 PADRÃO DA NOVA CAIXA
           if (res.data.detalhes.data_novo_inicio) {
             setDataRealInicioNovaCaixa(res.data.detalhes.data_novo_inicio.split('T')[0]);
           }
@@ -273,6 +276,8 @@ export default function PassoRegistroMedicamento({
       return;
     }
     if (!descontinuarMedicamento && aplicarNovaCompra) {
+      const erroPadrao = validarPadraoPosologia(padraoNovaCaixa);
+      if (erroPadrao) { toast.error(erroPadrao); return; }
       if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
         toast.error(`Data de início e posologia da nova caixa de ${monitoramento.medicamento?.nome} são obrigatórias.`);
         return;
@@ -326,6 +331,7 @@ export default function PassoRegistroMedicamento({
       dadosNovaCompra,
       dataRealInicioNovaCaixa,
       posologiaNovaCaixa,
+      padraoNovaCaixa, // 👈 PADRÃO DA NOVA CAIXA
       modoNovoMedicamento,
       // 👇 LINHA DE TRATAMENTO: ciclo substituído (quando o medicamento novo substitui outro do grupo)
       substituiMonitoramentoId: modoNovoMedicamento === 'SUBSTITUICAO' ? (substituiMonitoramentoId || monitoramento.id) : null,
@@ -362,6 +368,8 @@ export default function PassoRegistroMedicamento({
           posologiaAtual={posologia}
           posologiaNovaCaixa={posologiaNovaCaixa}
           onChangePosologiaNova={setPosologiaNovaCaixa}
+          padraoNovaCaixa={padraoNovaCaixa}
+          onChangePadraoNovaCaixa={setPadraoNovaCaixa}
           estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
           dataInicioAtual={dataUsoReferencia}
           isAntesDoInicio={isAntesDoInicio}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { LuTriangleAlert, LuArrowRight, LuPackageCheck, LuCalendarClock, LuUsers } from 'react-icons/lu';
 import { FormGroup, Input } from './styles';
+import SeletorPosologia from '../../../components/SeletorPosologia';
 import { MOTIVOS_NAO_APLICAR_COMPRA } from '../../../utils/novaCompraHelpers';
 
 const BannerContainer = styled.div`
@@ -113,6 +114,9 @@ export default function ComparativoNovaCompra({
   posologiaAtual,
   posologiaNovaCaixa,
   onChangePosologiaNova,
+  // 👇 PADRÃO DA NOVA CAIXA: diário/cíclico/intervalo/personalizado do ciclo novo
+  padraoNovaCaixa,
+  onChangePadraoNovaCaixa,
   estoqueHoje,
   dataInicioAtual,
   isAntesDoInicio,
@@ -180,7 +184,7 @@ export default function ComparativoNovaCompra({
     dias_desde_previsao, // 👈 NOVO: evento_antigo (previsão de uso há mais de 90 dias) é lido antes do return condicional, lá em cima
     evento_externo_id,
     mudou_apresentacao, // 👈 LINHA DE TRATAMENTO: mesmo princípio ativo, outro cadastro (dose/marca/caixa)
-    outras_linhas_novas = [], // 👈 LINHA DE TRATAMENTO: outros medicamentos novos recebidos, além do oferecido
+    novas_linhas_pendentes = [], // 👈 LINHA DE TRATAMENTO: medicamentos novos recebidos que não estão sendo oferecidos nesta etapa
     selecionado_pelo_operador,
     eventos_anteriores = [], // 👈 NOVO: compras anteriores do mesmo medicamento que ficam puladas se esta for aplicada
     eventos_pendentes = [],  // 👈 NOVO: todas as compras pendentes, pra trocar a seleção sem nova consulta
@@ -308,11 +312,13 @@ export default function ComparativoNovaCompra({
           </span>
         </AlertMessage>
       )}
-      {outras_linhas_novas.length > 0 && (
+      {/* 👇 PRIORIDADE: a reposição do medicamento atual vem primeiro; o medicamento
+          novo é oferecido logo depois de registrar este contato (Iniciar Tratamento). */}
+      {novas_linhas_pendentes.length > 0 && (
         <AlertMessage style={{ borderLeftColor: '#8e44ad', backgroundColor: '#f5eef8', color: '#6c3483' }}>
           <LuTriangleAlert size={22} color="#8e44ad" style={{ flexShrink: 0, marginTop: '2px' }} />
           <span style={{ lineHeight: '1.4' }}>
-            Também chegou outro medicamento novo: {outras_linhas_novas.map(o => `${o.medicamento_nome} (#${o.evento_externo_id}, entrega ${formatarDataLocal(o.data_entrega)})`).join('; ')}. Ele será oferecido no próximo contato.
+            <strong>Também chegou medicamento novo</strong> para este paciente: {novas_linhas_pendentes.map(o => `${o.medicamento_nome} (#${o.evento_externo_id}, entrega ${formatarDataLocal(o.data_entrega)})`).join('; ')}. Primeiro resolva a compra do medicamento atual acima; ao registrar este contato o sistema vai oferecer iniciar o acompanhamento do novo medicamento em conjunto.
           </span>
         </AlertMessage>
       )}
@@ -622,6 +628,21 @@ export default function ComparativoNovaCompra({
               required
             />
           </FormGroup>
+          {/* 👇 PADRÃO DA NOVA CAIXA: antes só dava pra informar comprimidos/dia;
+              um ciclo "a cada 17 dias" ou cíclico voltava pro padrão diário na reposição. */}
+          {onChangePadraoNovaCaixa && (
+            <div style={{ gridColumn: '1 / -1', marginTop: '6px' }}>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>Padrão de posologia {modoConjunto ? 'do medicamento adicional' : 'do novo ciclo'}</label>
+              <span style={{ fontSize: '0.8rem', color: '#666', marginBottom: '8px', display: 'block' }}>
+                {modoConjunto ? 'Padrão diário por padrão — ajuste se for cíclico, a cada X dias ou em datas específicas.' : 'Vem igual ao do ciclo atual — ajuste se a nova caixa seguir outro ritmo.'}
+              </span>
+              <SeletorPosologia
+                dataInicio={dataInicioManual}
+                value={padraoNovaCaixa || { tipo_posologia: 'diaria' }}
+                onChange={onChangePadraoNovaCaixa}
+              />
+            </div>
+          )}
         </div>
       )}
     </BannerContainer>

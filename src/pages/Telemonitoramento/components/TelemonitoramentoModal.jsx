@@ -26,7 +26,8 @@ import { calcularEstoqueProjetado } from '../../../utils/estoqueProjetado';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
 import {
   MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra,
-  montarCamposDecisaoNovaCompra, limparDadosNovaCompraParaEnvio
+  montarCamposDecisaoNovaCompra, limparDadosNovaCompraParaEnvio,
+  padraoDoCiclo, montarCamposPadraoNovaCaixa, validarPadraoPosologia // 👈 PADRÃO DA NOVA CAIXA
 } from '../../../utils/novaCompraHelpers';
 import ConfirmacaoRestante from './ConfirmacaoRestante';
 import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposRestantePausa, montarCamposDescontinuacao } from '../../../utils/restanteHelpers';
@@ -90,6 +91,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [aplicarNovaCompra, setAplicarNovaCompra] = useState(false);
   const [dataRealInicioNovaCaixa, setDataRealInicioNovaCaixa] = useState('');
   const [posologiaNovaCaixa, setPosologiaNovaCaixa] = useState('');
+  const [padraoNovaCaixa, setPadraoNovaCaixa] = useState({ tipo_posologia: 'diaria' }); // 👈 PADRÃO DA NOVA CAIXA
   const [modoNovoMedicamento, setModoNovoMedicamento] = useState(null);
   // 👇 NOVO (rastreio de compras): confirmação de que as compras anteriores
   // puladas foram usadas, e motivo quando o operador não aplica a oferecida.
@@ -167,6 +169,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         setConfirmouConsumoAnteriores(false);
         setMotivoNaoAplicar(MOTIVO_NAO_APLICAR_VAZIO);
         setPosologiaNovaCaixa(monit.posologia_diaria || '');
+        // medicamento novo começa no padrão diário; mesma linha herda o padrão do ciclo atual
+        setPadraoNovaCaixa(response.data.detalhes.mudou_medicamento ? { tipo_posologia: 'diaria' } : padraoDoCiclo(monit));
         if (response.data.detalhes.data_novo_inicio) {
           const dataDoBackend = response.data.detalhes.data_novo_inicio.split('T')[0];
           setDataRealInicioNovaCaixa(dataDoBackend);
@@ -627,6 +631,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       return;
     }
     if (aplicarNovaCompra) {
+      const erroPadrao = validarPadraoPosologia(padraoNovaCaixa);
+      if (erroPadrao) { toast.error(erroPadrao); return; }
       if (!dataRealInicioNovaCaixa || !posologiaNovaCaixa) {
         toast.error('Data de início e posologia da nova caixa são obrigatórias.');
         return;
@@ -711,6 +717,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         dados_nova_compra: aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dadosNovaCompra) : null,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
+        ...(aplicarNovaCompra ? montarCamposPadraoNovaCaixa(padraoNovaCaixa, dadosNovaCompra?.mudou_medicamento) : {}), // 👈 PADRÃO DA NOVA CAIXA
         mudou_posologia: mudouPosologia,
         nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
         data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null,
@@ -772,7 +779,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
           setCarregandoAdicional(false);
         }
       } else {
-        onSucesso();
+        // 👇 o NPS só aparece quando TODO o telemonitoramento foi processado —
+        // inclusive o "Iniciar Tratamento" do medicamento novo, que o onSucesso
+        // (index.jsx) abre e só resolve quando é fechado.
+        await onSucesso();
         setShowNpsPrompt(true);
       }
     } catch (error) {
@@ -1148,6 +1158,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 posologiaAtual={posologia}
                 posologiaNovaCaixa={posologiaNovaCaixa}
                 onChangePosologiaNova={setPosologiaNovaCaixa}
+                padraoNovaCaixa={padraoNovaCaixa}
+                onChangePadraoNovaCaixa={setPadraoNovaCaixa}
                 estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
                 dataInicioAtual={dataUsoReferencia}
                 isAntesDoInicio={isAntesDoInicio}

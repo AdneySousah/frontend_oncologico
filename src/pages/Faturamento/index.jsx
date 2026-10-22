@@ -7,7 +7,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 export default function ListaFaturamento() {
   const [faturamentoData, setFaturamentoData] = useState([]);
-  const [resumo, setResumo] = useState({ total_faturado: 0, total_comissao: 0, qtd_atendimentos: 0 });
+  const [resumo, setResumo] = useState({ total_faturado: 0, total_comissao: 0, qtd_atendimentos: 0, total_sem_acompanhamento: 0, total_comissao_sem_acompanhamento: 0, qtd_sem_acompanhamento: 0, total_geral: 0, total_comissao_geral: 0 });
   const [loading, setLoading] = useState(false);
 
   // Novo estado para armazenar as operadoras para o filtro
@@ -18,7 +18,9 @@ export default function ListaFaturamento() {
     data_fim: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     search: '',
     operadora_id: '',
-    comissao_percentual: 10
+    comissao_percentual: 10,
+    // 👇 ORIGEM: todos | monitorados (ciclos, como sempre) | sem_acompanhamento (compras processadas sem monitoramento)
+    origem: 'todos'
   });
 
   // Função para buscar as operadoras disponíveis
@@ -85,6 +87,13 @@ export default function ListaFaturamento() {
       { header: 'Preço Un.', key: 'preco_unitario', width: 20 },
       { header: 'Preço Total', key: 'preco_total', width: 20 },
       { header: 'Comissão', key: 'comissao', width: 20 },
+      // 👇 origem da linha: ciclo monitorado ou compra processada sem acompanhamento
+      { header: 'Origem', key: 'origem_texto', width: 26 },
+      { header: 'Compra (evento)', key: 'evento_externo_id', width: 16 },
+      { header: 'Processado em', key: 'processado_em_texto', width: 18 },
+      { header: 'Processado por', key: 'processado_por', width: 22 },
+      { header: 'Ciclo base', key: 'ciclo_base_id', width: 12 },
+      { header: 'Observação', key: 'observacao_processamento', width: 60 },
     ];
 
     const exportData = faturamentoData.map(item => ({
@@ -92,7 +101,13 @@ export default function ListaFaturamento() {
       data_administracao: formatDate(item.data_administracao),
       preco_unitario: formatCurrency(item.preco_unitario),
       preco_total: formatCurrency(item.preco_total),
-      comissao: formatCurrency(item.comissao)
+      comissao: formatCurrency(item.comissao),
+      origem_texto: item.origem === 'SEM_ACOMPANHAMENTO' ? 'Processado sem acompanhamento' : 'Monitorado',
+      evento_externo_id: item.evento_externo_id || '',
+      processado_em_texto: item.processado_em ? new Date(item.processado_em).toLocaleString('pt-BR') : '',
+      processado_por: item.processado_por || '',
+      ciclo_base_id: item.ciclo_base_id || '',
+      observacao_processamento: item.observacao_processamento || ''
     }));
 
     const reportTitle = `Faturamento - ${formatDate(filters.data_inicio)} a ${formatDate(filters.data_fim)} (Comissão: ${filters.comissao_percentual}%)`;
@@ -167,6 +182,19 @@ export default function ListaFaturamento() {
           />
         </S.InputGroup>
 
+        <S.InputGroup>
+          <label>Origem</label>
+          <select
+            name="origem"
+            value={filters.origem}
+            onChange={handleChange}
+            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+          >
+            <option value="todos">Todos</option>
+            <option value="monitorados">Só monitorados (ciclos)</option>
+            <option value="sem_acompanhamento">Só processados sem acompanhamento</option>
+          </select>
+        </S.InputGroup>
         <S.InputGroup style={{ maxWidth: '120px' }}>
           <label>% Comissão</label>
           <input
@@ -203,6 +231,20 @@ export default function ListaFaturamento() {
           <p>Qtd. Atendimentos</p>
           <h2>{resumo.qtd_atendimentos}</h2>
         </S.SummaryCard>
+        {/* 👇 compras processadas sem acompanhamento: somadas à parte, pra não mexer no número já emitido */}
+        <S.SummaryCard cor="#8e44ad">
+          <p>Sem acompanhamento ({resumo.qtd_sem_acompanhamento || 0} compra{(resumo.qtd_sem_acompanhamento || 0) === 1 ? '' : 's'})</p>
+          <h2>{formatCurrency(resumo.total_sem_acompanhamento || 0)}</h2>
+          <small style={{ color: '#8e44ad' }}>Comissão: {formatCurrency(resumo.total_comissao_sem_acompanhamento || 0)}</small>
+        </S.SummaryCard>
+        <S.SummaryCard cor="#2c3e50">
+          <p>Total Geral (monitorados + sem acompanhamento)</p>
+          <h2>{formatCurrency(resumo.total_geral ?? resumo.total_faturado)}</h2>
+        </S.SummaryCard>
+        <S.SummaryCard cor="#2c3e50">
+          <p>Comissão Geral (monitorados + sem acompanhamento)</p>
+          <h2>{formatCurrency(resumo.total_comissao_geral ?? resumo.total_comissao)}</h2>
+        </S.SummaryCard>
       </S.CountersContainer>
 
       <S.Table>
@@ -219,14 +261,15 @@ export default function ListaFaturamento() {
             <th>Preço Un.</th>
             <th>Total Faturado</th>
             <th>Comissão</th>
+            <th>Origem</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
-            <tr><td colSpan="10" style={{ textAlign: 'center' }}>Carregando...</td></tr>
+            <tr><td colSpan="12" style={{ textAlign: 'center' }}>Carregando...</td></tr>
           ) : faturamentoData.length > 0 ? (
             faturamentoData.map((item, idx) => (
-              <tr key={idx}>
+              <tr key={idx} style={item.origem === 'SEM_ACOMPANHAMENTO' ? { background: '#f5eef8' } : undefined}>
                 <td><strong>{item.paciente}</strong></td>
                 <td>{item.matricula}</td>
                 <td>{item.operadora}</td>
@@ -238,11 +281,26 @@ export default function ListaFaturamento() {
                 <td>{formatCurrency(item.preco_unitario)}</td>
                 <td style={{ color: '#1890ff', fontWeight: 'bold' }}>{formatCurrency(item.preco_total)}</td>
                 <td style={{ color: '#52c41a', fontWeight: 'bold' }}>{formatCurrency(item.comissao)}</td>
+                <td>
+                  {item.origem === 'SEM_ACOMPANHAMENTO' ? (
+                    <div
+                      style={{ fontSize: '0.8rem', color: '#6c3483' }}
+                      title={`Compra #${item.evento_externo_id} confirmada como utilizada sem ciclo de monitoramento.${item.processado_em ? ` Processado em ${new Date(item.processado_em).toLocaleString('pt-BR')}` : ''}${item.processado_por ? ` por ${item.processado_por}` : ''}.${item.ciclo_base_id ? ` Ao iniciar o ciclo #${item.ciclo_base_id}${item.ciclo_base_evento ? ` (compra #${item.ciclo_base_evento})` : ''}.` : ''}${item.observacao_processamento ? ` ${item.observacao_processamento}` : ''}`}
+                    >
+                      <strong>Sem acompanhamento</strong><br />
+                      compra #{item.evento_externo_id}
+                      {item.processado_em && <><br />{new Date(item.processado_em).toLocaleDateString('pt-BR')}{item.processado_por ? ` · ${item.processado_por}` : ''}</>}
+                      {item.ciclo_base_id && <><br />ao iniciar o ciclo #{item.ciclo_base_id}</>}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.8rem', color: '#1890ff' }}>Monitorado</span>
+                  )}
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="10" style={{ textAlign: 'center', padding: '30px', color: '#888' }}>
+              <td colSpan="12" style={{ textAlign: 'center', padding: '30px', color: '#888' }}>
                 Nenhum faturamento encontrado neste período.
               </td>
             </tr>
