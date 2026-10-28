@@ -616,6 +616,22 @@ const abrirContatoAposReembolso = async (novoRegistro) => {
 // PENDENTE), não só o "contatoAtual" do grupo — usado pra decidir se
 // mostra o botão de "Criar Evento Reembolso" naquela linha específica.
 // 👇 CORREÇÃO: mesma conta do modal e do cabeçalho (utils/estoqueProjetado.js)
+// 👇 DATA DE ADMINISTRAÇÃO VIGENTE DA CADEIA: o "Corrigir" grava a data só no
+// ciclo clicado, então ciclos do mesmo evento podem ter datas diferentes
+// (ex.: 10/09 no primeiro, 23/09 nos seguintes). A tela mostra, em todas as
+// linhas de um evento, a data do ciclo mais recente dele — que é a correção
+// válida — e mantém a entrega no título da célula.
+const dataAdministracaoVigente = (hist, historicoDoPaciente = []) => {
+  const daCadeia = historicoDoPaciente
+    .filter(h => h.evento_externo_id && h.evento_externo_id === hist.evento_externo_id && h.medicamento_id === hist.medicamento_id && h.data_administracao)
+    .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+  const vigente = daCadeia[0]?.data_administracao || hist.data_administracao || hist.data_entrega;
+  // datas distintas na cadeia além da vigente = alguém usou o "Corrigir"
+  const distintas = [...new Set(daCadeia.map(h => String(h.data_administracao).split('T')[0]))];
+  const anteriores = distintas.filter(d => d !== String(vigente).split('T')[0]);
+  return { data: vigente, alterada: anteriores.length > 0, anteriores };
+};
+
 const calcularEstoqueProjetadoLinha = (hist) => (
   hist && hist.status === 'PENDENTE' ? calcularEstoqueProjetado(hist) : null
 );
@@ -1140,7 +1156,7 @@ return (
                               <SubTable>
                                 <thead>
                                   <tr>
-                                    <th>Data Prev. Adm.</th>
+                                    <th>Data Adm.</th>
                                     <th>Data Prog. Contato</th>
                                     <th>Medicamento</th>
                                     <th>Fim da Caixa</th>
@@ -1169,7 +1185,21 @@ return (
 
                                     return (
                                       <tr key={hist.id} style={{ backgroundColor: isDescontinuado ? 'rgba(231, 76, 60, 0.08)' : zebraBg }}>
-                                        <td style={{ whiteSpace: 'nowrap' }}>{formatarData(hist.data_entrega)}</td>
+                                        {/* 👇 data de administração vigente da cadeia do evento (a mesma do modal); entrega no título */}
+                                        {(() => {
+                                          const adm = dataAdministracaoVigente(hist, grupo.historico);
+                                          return (
+                                            <td style={{ whiteSpace: 'nowrap' }} title={hist.data_entrega ? `Entrega: ${formatarData(hist.data_entrega)} · evento #${hist.evento_externo_id || '-'}` : undefined}>
+                                              {formatarData(adm.data)}
+                                              {adm.alterada && (
+                                                <span
+                                                  title={`Data de administração alterada pelo usuário (Corrigir). Antes: ${adm.anteriores.map(formatarData).join(', ')}. Vale a data exibida para todos os ciclos deste evento.`}
+                                                  style={{ display: 'inline-block', marginLeft: '6px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', background: '#f39c12', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'help' }}
+                                                >!</span>
+                                              )}
+                                            </td>
+                                          );
+                                        })()}
                                         <td style={{ whiteSpace: 'nowrap' }}><strong>{formatarData(hist.data_proximo_contato)}</strong></td>
 
                                         <td style={{ fontWeight: '500', color: 'var(--text-color)' }}>
