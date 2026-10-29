@@ -271,19 +271,33 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
     }
   };
   const enviarRegistroConjunto = async (dadosLista, modo) => {
-    const ativos = dadosLista.filter(d => !d.descontinuarMedicamento);
+    const ativos = dadosLista.filter(d => !d.descontinuarMedicamento && !d.pausaExclusiva); // 👈 pausados (sem compra) não entram na média
     let dataProximoContato = null;
     if (ativos.length > 0) {
       const niveis = ativos.map(a => a.nivelAdesao);
       dataProximoContato = formatarDataISO(calcularDataPorModo(modo, niveis));
     }
+    // 👇 PAUSA NO CONJUNTO: pausa SEM compra não entra no contato (o ciclo
+    // atual é pausado direto); pausa COM compra entra, e o ciclo novo criado
+    // pelo contato é pausado em seguida — igual ao modal individual.
+    const pausasExclusivas = dadosLista.filter(d => d.pausaExclusiva);
+    const registrosParaContato = dadosLista.filter(d => !d.pausaExclusiva);
+    const pausarCiclo = async (id, camposPausa, nome) => {
+      try {
+        await api.patch(`/monitoramento-medicamentos/${id}/pausar`, camposPausa);
+      } catch (errPausa) {
+        toast.error(errPausa.response?.data?.error || `Não foi possível pausar ${nome}. Pause pela lista.`);
+      }
+    };
     try {
       setEnviando(true);
-      await api.put('/monitoramento-medicamentos/conjunto/registrar', {
+      let registrosCriados = [];
+      if (registrosParaContato.length > 0) {
+      const respostaContato = await api.put('/monitoramento-medicamentos/conjunto/registrar', {
         grupo_medicamentos_id: listaAtual[0].grupo_medicamentos_id,
         contato_efetivo: true,
         data_proximo_contato: dataProximoContato,
-        registros: dadosLista.map(d => ({
+        registros: registrosParaContato.map(d => ({
           monitoramento_id: d.monitoramentoId,
           qtd_informada_caixa: Number(d.qtdInformada),
           nivel_adesao: d.nivelAdesao,
@@ -313,7 +327,19 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           ...(d.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra confirmada, quando descontinuou
         }))
       });
-      toast.success(`Contato registrado para os ${dadosLista.length} medicamentos com sucesso!`);
+      registrosCriados = respostaContato.data?.registros || [];
+      }
+      // pausa com compra: pausa o ciclo novo que o contato acabou de criar
+      for (const d of registrosParaContato.filter(x => x.pausarMedicamento && x.camposPausa)) {
+        const novo = registrosCriados.find(r => Number(r.origem_monitoramento_id) === Number(d.monitoramentoId));
+        if (novo?.id) await pausarCiclo(novo.id, d.camposPausa, d.medicamentoNome);
+        else toast.warning(`O contato de ${d.medicamentoNome} foi salvo, mas o novo ciclo não foi identificado para pausar. Pause pela lista.`);
+      }
+      // pausa sem compra: pausa o ciclo atual
+      for (const d of pausasExclusivas) await pausarCiclo(d.monitoramentoId, d.camposPausa, d.medicamentoNome);
+      toast.success(registrosParaContato.length > 0
+        ? `Contato registrado para ${registrosParaContato.length} medicamento(s)${pausasExclusivas.length ? ` e ${pausasExclusivas.length} pausado(s)` : ''} com sucesso!`
+        : `${pausasExclusivas.length} medicamento(s) pausado(s) com sucesso.`);
       window.dispatchEvent(new Event('updateAlerts'));
       // 👇 o NPS só depois de TODO o telemonitoramento (inclusive o "Iniciar
       // Tratamento" do medicamento novo, que o onSucesso abre e espera fechar)
@@ -332,7 +358,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
   // 👇 GENERALIZADO: pra tela de divergência, lista TODOS os medicamentos
   // ativos (não só dois fixos) e calcula a data sugerida pela média de
   // TODOS os níveis de adesão — com 2, dá o mesmo resultado de sempre.
-  const dadosAtivosParaDivergencia = dadosPorMedicamento.filter(d => !d.descontinuarMedicamento);
+  const dadosAtivosParaDivergencia = dadosPorMedicamento.filter(d => !d.descontinuarMedicamento && !d.pausaExclusiva); // 👈 pausados não entram na média
   const niveisParaSugestao = dadosAtivosParaDivergencia.map(d => d.nivelAdesao);
   const dataSugeridaISO = niveisParaSugestao.length > 0
     ? formatarDataISO(calcularDataSugerida(niveisParaSugestao))

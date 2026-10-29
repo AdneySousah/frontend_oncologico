@@ -16,7 +16,8 @@ import {
   padraoDoCiclo, validarPadraoPosologia // 👈 PADRÃO DA NOVA CAIXA
 } from '../../../utils/novaCompraHelpers';
 import ConfirmacaoRestante from './ConfirmacaoRestante';
-import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao } from '../../../utils/restanteHelpers';
+import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao, montarCamposRestantePausa } from '../../../utils/restanteHelpers';
+import { capitalizar } from '../../../utils/texto'; // 👈 padrão de exibição (Primeira Letra Maiúscula)
 
 // Componente de UMA etapa do wizard de "uso em conjunto": coleta os dados de
 // UM medicamento por vez (estoque, reação adversa, mudança de posologia, nova
@@ -79,6 +80,14 @@ export default function PassoRegistroMedicamento({
   const [motivoEncerramentoSelecionado, setMotivoEncerramentoSelecionado] = useState(null);
   // 👇 NOVO: "parou de tomar em" + comprimidos restantes confirmados, na descontinuação
   const [restanteDescontinuacao, setRestanteDescontinuacao] = useState(ESTADO_RESTANTE_VAZIO);
+  // 👇 PAUSA NO CONJUNTO: mesma semântica do modal individual — sem compra, o
+  // ciclo atual é pausado e este medicamento não entra no contato; com compra
+  // marcada, o contato é salvo, o ciclo novo nasce e é pausado em seguida.
+  const [pausarMedicamento, setPausarMedicamento] = useState(false);
+  const [motivoPausaSelecionado, setMotivoPausaSelecionado] = useState(null);
+  const [dataFimPrevistaPausa, setDataFimPrevistaPausa] = useState('');
+  const [observacaoPausa, setObservacaoPausa] = useState('');
+  const [restantePausa, setRestantePausa] = useState(ESTADO_RESTANTE_VAZIO);
   const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
 
@@ -255,8 +264,20 @@ export default function PassoRegistroMedicamento({
 
   const opcoesReacoes = listaReacoes.map(r => ({ value: r.id, label: r.name }));
 
+  const pausaExclusiva = pausarMedicamento && !aplicarNovaCompra;
+
   const handleAvancar = () => {
-    if (!qtdInformada) {
+    if (pausarMedicamento && descontinuarMedicamento) {
+      toast.error(`Escolha entre pausar e descontinuar ${monitoramento.medicamento?.nome} — não os dois.`);
+      return;
+    }
+    if (pausarMedicamento) {
+      if (!motivoPausaSelecionado) { toast.error(`Informe o motivo da pausa de ${monitoramento.medicamento?.nome}.`); return; }
+      if (!dataFimPrevistaPausa) { toast.error(`Informe a data prevista de retomada de ${monitoramento.medicamento?.nome}.`); return; }
+      const erroRestantePausa = validarRestante(restantePausa, monitoramento.medicamento?.nome || 'o medicamento');
+      if (erroRestantePausa) { toast.error(erroRestantePausa); return; }
+    }
+    if (!pausaExclusiva && !qtdInformada) {
       toast.error(`Informe a quantidade de comprimidos restantes de ${monitoramento.medicamento?.nome}.`);
       return;
     }
@@ -341,7 +362,18 @@ export default function PassoRegistroMedicamento({
       // 👇 NOVO: confirmação do consumo das anteriores / compra oferecida e motivo
       camposDecisaoNovaCompra: montarCamposDecisaoNovaCompra({ dadosNovaCompra, aplicarNovaCompra, confirmouConsumoAnteriores, motivoNaoAplicar }),
       // 👇 NOVO: data em que parou + sobra confirmada, quando descontinuou
-      camposDescontinuacao: descontinuarMedicamento ? montarCamposDescontinuacao(restanteDescontinuacao) : {}
+      camposDescontinuacao: descontinuarMedicamento ? montarCamposDescontinuacao(restanteDescontinuacao) : {},
+      // 👇 PAUSA NO CONJUNTO
+      pausarMedicamento,
+      pausaExclusiva,
+      camposPausa: pausarMedicamento ? {
+        motivo_id: motivoPausaSelecionado?.value || null,
+        data_fim_prevista: dataFimPrevistaPausa,
+        observacao: observacaoPausa || null,
+        ...montarCamposRestantePausa(restantePausa),
+        // compra oferecida e não aplicada fica registrada como "não aplicada por pausa"
+        compra_oferecida_evento_id: (pausaExclusiva && dadosNovaCompra) ? dadosNovaCompra.evento_externo_id : null
+      } : null
     });
   };
 
@@ -370,6 +402,7 @@ export default function PassoRegistroMedicamento({
           onChangePosologiaNova={setPosologiaNovaCaixa}
           padraoNovaCaixa={padraoNovaCaixa}
           onChangePadraoNovaCaixa={setPadraoNovaCaixa}
+          pausando={pausaExclusiva}
           estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
           dataInicioAtual={dataUsoReferencia}
           isAntesDoInicio={isAntesDoInicio}
@@ -495,7 +528,7 @@ export default function PassoRegistroMedicamento({
               <div className="input-group" style={{ flex: 1 }}>
                 <label>Motivo do encerramento *</label>
                 <Select
-                  options={listaMotivosEncerramento.map(m => ({ value: m.id, label: m.descricao }))}
+                  options={listaMotivosEncerramento.map(m => ({ value: m.id, label: capitalizar(m.descricao) }))}
                   value={motivoEncerramentoSelecionado}
                   onChange={setMotivoEncerramentoSelecionado}
                   styles={getCustomSelectStyles(theme)}
@@ -521,6 +554,74 @@ export default function PassoRegistroMedicamento({
       )}
 
 
+      {/* 👇 PAUSA NO CONJUNTO: antes só existia no modal individual e no botão da lista */}
+      {!descontinuarMedicamento && (
+        <HighlightedSection>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={pausarMedicamento}
+              onChange={(e) => setPausarMedicamento(e.target.checked)}
+            />
+            <strong>Pausar temporariamente {monitoramento.medicamento?.nome} (não descontinuar)</strong>
+          </label>
+          {pausarMedicamento && dadosNovaCompra && (
+            <p style={{ margin: '8px 0 0 0', fontSize: '0.85em', color: '#2980b9', lineHeight: '1.4' }}>
+              {aplicarNovaCompra
+                ? `Como a compra #${dadosNovaCompra.evento_externo_id} está marcada para aplicar, o contato deste medicamento será registrado, o novo ciclo será criado e pausado em seguida.`
+                : `A compra #${dadosNovaCompra.evento_externo_id} não será aplicada agora: fica pendente e volta a ser oferecida quando a pausa for destravada. Este medicamento não entra no contato de hoje.`}
+            </p>
+          )}
+          {pausarMedicamento && (
+            <div className="inputs-row">
+              <ConfirmacaoRestante
+                monitoramentoId={monitoramento.id}
+                base={(aplicarNovaCompra && dadosNovaCompra) ? {
+                  data_inicio: dataRealInicioNovaCaixa || null,
+                  qtd_total: dadosNovaCompra.total_capsulas_novas,
+                  posologia: Number(posologiaNovaCaixa) || monitoramento.posologia_diaria,
+                  tipo_posologia: 'diaria'
+                } : null}
+                valor={restantePausa}
+                onChange={setRestantePausa}
+                nome={`restante-pausa-${monitoramento.id}`}
+              />
+              <div className="input-group">
+                <label>Motivo da pausa *</label>
+                <Select
+                  options={listaMotivosEncerramento.map(m => ({ value: m.id, label: capitalizar(m.descricao) }))}
+                  value={motivoPausaSelecionado}
+                  onChange={setMotivoPausaSelecionado}
+                  styles={getCustomSelectStyles(theme)}
+                  placeholder="Selecione o motivo..."
+                  noOptionsMessage={() => "Nenhum motivo cadastrado — cadastre em Tabelas Cadastrais"}
+                  menuPosition="fixed"
+                />
+              </div>
+              <div className="input-group">
+                <label>Retomar em (data prevista) *</label>
+                <Input
+                  type="date"
+                  value={dataFimPrevistaPausa}
+                  onChange={(e) => setDataFimPrevistaPausa(e.target.value)}
+                />
+              </div>
+              <div className="input-group">
+                <label>Observação adicional (opcional):</label>
+                <Input
+                  as="textarea"
+                  rows="2"
+                  value={observacaoPausa}
+                  onChange={(e) => setObservacaoPausa(e.target.value)}
+                  placeholder="Detalhes adicionais, se necessário..."
+                />
+              </div>
+            </div>
+          )}
+        </HighlightedSection>
+      )}
+
+      {!pausaExclusiva && (<>
       <FormGroup>
         <label>Quantos comprimidos de {monitoramento.medicamento?.nome} restam com o paciente?</label>
         <Input
@@ -586,6 +687,7 @@ export default function PassoRegistroMedicamento({
           style={{ resize: 'vertical', padding: '10px' }}
         />
       </FormGroup>
+      </>)}
 
       <ButtonGroup>
         <Button type="button" variant="secondary" onClick={onCancelar}>Cancelar</Button>
