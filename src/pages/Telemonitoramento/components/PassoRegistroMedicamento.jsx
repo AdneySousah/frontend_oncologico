@@ -379,7 +379,15 @@ export default function PassoRegistroMedicamento({
 
   return (
     <ModalContent style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
-      <h3>Medicamento {numeroEtapa} de {totalEtapas}: {monitoramento.medicamento?.nome}</h3>
+      <h3>
+        Medicamento {numeroEtapa} de {totalEtapas}: {monitoramento.medicamento?.nome}
+        {/* 👇 id do evento (compra) deste ciclo sempre visível, como no modal individual */}
+        {monitoramento.evento_externo_id && (
+          <span style={{ marginLeft: '10px', fontSize: '0.7em', fontWeight: 500, color: '#888', whiteSpace: 'nowrap' }}>
+            | evento #{monitoramento.evento_externo_id}
+          </span>
+        )}
+      </h3>
 
       {loadingCompra ? (
         <SkeletonLoader>
@@ -431,15 +439,17 @@ export default function PassoRegistroMedicamento({
         )}
         <ProjectedStockBox>
           <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
-            <strong>Data administração informada:</strong> {dataReferenciaFormatada}
-            {!aplicarNovaCompra && monitoramento?.data_administracao && onCorrigirData && (
+            {/* 👇 CORREÇÃO (mesma da rodada 18, agora no conjunto): sem data o rótulo
+                diz que está usando a entrega e o link vira "Informar" */}
+            <strong>{monitoramento?.data_administracao ? 'Data administração informada:' : 'Data administração não informada (usando a entrega):'}</strong> {dataReferenciaFormatada}
+            {!aplicarNovaCompra && onCorrigirData && (
               <button
                 type="button"
                 onClick={onCorrigirData}
                 disabled={corrigirDataDisabled}
                 style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85em', textDecoration: 'underline', padding: 0 }}
               >
-                Corrigir
+                {monitoramento?.data_administracao ? 'Corrigir' : 'Informar'}
               </button>
             )}
           </p>

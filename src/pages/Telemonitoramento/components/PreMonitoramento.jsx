@@ -53,9 +53,11 @@ export default function PreMonitoramento({ monitoramento, onClose, onSuccess }) 
           <PreMonitoramentoTitle>Pré-Monitoramento Inicial</PreMonitoramentoTitle>
 
           <InfoBox style={{ backgroundColor: 'rgba(243, 156, 18, 0.1)', borderColor: '#f39c12' }}>
-            <p><strong>Primeiro Contato Registrado</strong></p>
+            <p><strong>{monitoramento.data_administracao ? 'Corrigir data de administração' : 'Data de administração não informada'}</strong></p>
             <p className="sub-text">
-              Como este é o primeiro monitoramento para o medicamento <strong>{monitoramento.medicamento?.nome}</strong>, precisamos saber quando o paciente efetivamente iniciou o uso para calcular o estoque corretamente.
+              {monitoramento.data_administracao
+                ? <>Informe a data em que o paciente efetivamente iniciou a caixa de <strong>{monitoramento.medicamento?.nome}</strong> para recalcular o</>
+                : <>Para o medicamento <strong>{monitoramento.medicamento?.nome}</strong> ainda não há data de início de uso registrada neste ciclo (ela é zerada quando o medicamento do evento muda no sistema externo). Precisamos saber quando o paciente efetivamente iniciou o uso para calcular o</>} estoque corretamente.
             </p>
             <div style={{ marginTop: '10px', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '6px' }}>
               <p style={{ margin: 0, fontSize: '0.95em' }}>

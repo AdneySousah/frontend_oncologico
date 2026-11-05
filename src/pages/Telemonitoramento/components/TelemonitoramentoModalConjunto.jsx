@@ -176,7 +176,11 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       setTransicao(false);
     }, 220);
   };
-  const precisaPreTele = (monit, anterior) => !anterior && !monit?.data_administracao;
+  // 👇 CORREÇÃO (rodada 18 no individual, agora no conjunto): sem data de
+  // administração o pré-tele aparece SEMPRE, não só quando não há contato
+  // anterior — a data é zerada quando a sincronização troca o medicamento do
+  // evento, e com um contato anterior ninguém era mais perguntado.
+  const precisaPreTele = (monit) => !monit?.data_administracao;
 
   // 👇 GENERALIZADO: decide se o próximo medicamento (por índice) precisa
   // de pré-tele antes de mostrar o formulário completo — mesma regra de
@@ -184,9 +188,8 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
   // segunda.
   const irParaMedicamento = (indice) => {
     const monit = listaAtual[indice];
-    const anterior = monitoramentosAnteriores?.[monit.id];
     setIndiceAtual(indice);
-    avancarComEfeito(precisaPreTele(monit, anterior) ? 'PRE_TELE' : 'MEDICAMENTO');
+    avancarComEfeito(precisaPreTele(monit) ? 'PRE_TELE' : 'MEDICAMENTO');
   };
 
   if (etapa === 'CONTATO_EFETIVO') {

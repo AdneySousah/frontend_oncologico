@@ -533,7 +533,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             }
             return;
           }
-          const precisaPreTele = !monitoramentoAnterior && !localMonitoramento.data_administracao;
+          // 👇 CORREÇÃO: sem data de administração o pré-tele aparece SEMPRE, não
+          // só no primeiro contato. A data some quando a sincronização do evento
+          // atual troca o medicamento (zera pra o operador informar) — e com um
+          // contato anterior ninguém era mais perguntado: a tela mostrava a
+          // entrega no lugar e escondia o "Corrigir".
+          const precisaPreTele = !localMonitoramento.data_administracao;
           setEtapa(precisaPreTele ? 'PRE_TELE' : 'FORMULARIO');
         }}
       />
@@ -1202,15 +1207,15 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   </div>
                 )}
                 <p style={{ marginBottom: '6px', fontSize: '0.9em' }}>
-                  <strong>{aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' ? 'Início do Novo Ciclo:' : 'Data administração informada:'}</strong> {dataReferenciaFormatada}
-                  {!aplicarNovaCompra && localMonitoramento?.data_administracao && (
+                  <strong>{aplicarNovaCompra && modoNovoMedicamento !== 'CONJUNTO' ? 'Início do Novo Ciclo:' : (localMonitoramento?.data_administracao ? 'Data administração informada:' : 'Data administração não informada (usando a entrega):')}</strong> {dataReferenciaFormatada}
+                  {!aplicarNovaCompra && (
                     <button
                       type="button"
                       onClick={() => setReabrirPreTele(true)}
                       disabled={loading}
                       style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#8a2be2', cursor: 'pointer', fontSize: '0.85em', textDecoration: 'underline', padding: 0 }}
                     >
-                      Corrigir
+                      {localMonitoramento?.data_administracao ? 'Corrigir' : 'Informar'}
                     </button>
                   )}
                 </p>
