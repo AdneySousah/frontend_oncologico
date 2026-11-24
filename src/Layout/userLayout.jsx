@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import {
   Container,
@@ -6,17 +6,18 @@ import {
   ContainerOutlet,
   MobileHeader,
   MenuButton,
-  FloatingHelpContainer,
-  HelpTooltip,
-  HelpButton,
-  FloatingChatContainer,
-  ChatTooltip,
-  ChatButton,
-  NotificationBadge 
+  FloatingStack,
+  FabWrapper,
+  Fab,
+  NotificationBadge,
+  MailboxPanel,
+  MailboxItem,
 } from "./styles";
-import Sidebar from "../components/SideBar"; 
+import Sidebar from "../components/SideBar";
 import { LuMenu, LuMessageCircle, LuInbox, LuX } from "react-icons/lu";
 import api from "../services/api";
+import logo from "../assets/logo_branca.png";
+import CarregandoPagina from "../components/CarregandoPagina";
 
 export function UserLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -65,8 +66,14 @@ export function UserLayout() {
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 10000);
-    return () => clearInterval(interval);
+    // 👇 F34: não consulta com a aba oculta; ao voltar, atualiza uma vez
+    const interval = setInterval(() => { if (!document.hidden) fetchUnread(); }, 10000);
+    const aoVoltarParaAba = () => { if (!document.hidden) fetchUnread(); };
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
   }, [perfilFresco]);
 
   // Monitora a Caixa de Correio globalmente
@@ -86,54 +93,82 @@ export function UserLayout() {
   // NOVO EFEITO: Monitora os NPS em 2º plano globalmente
   // =========================================================
   useEffect(() => {
+    const lerLista = (chave) => {
+      try {
+        const lista = JSON.parse(localStorage.getItem(chave) || '[]');
+        return Array.isArray(lista) ? lista : [];
+      } catch {
+        return [];
+      }
+    };
+    const chaveNps = (item) => `${item.pacienteId}_${item.monitoramentoId}`;
+
+    // Evita duas checagens ao mesmo tempo (uma rodada lenta + o próximo tick de 10s).
+    let emAndamento = false;
+
     const pollWaitingNps = async () => {
-      const waitingNps = JSON.parse(localStorage.getItem('oncologico:nps_waiting') || '[]');
+      if (emAndamento) return;
+      const waitingNps = lerLista('oncologico:nps_waiting');
       if (waitingNps.length === 0) return;
 
-      let updatedWaiting = false;
-      let updatedMailbox = false;
-      const newWaitingNps = [...waitingNps];
+      emAndamento = true;
+      try {
+        const respondidos = new Set();
+        let updatedMailbox = false;
 
-      for (let i = newWaitingNps.length - 1; i >= 0; i--) {
-        const item = newWaitingNps[i];
-        try {
-          const res = await api.get(`/nps/paciente/${item.pacienteId}/atendimento/${item.monitoramentoId}/status`);
-          if (res.data && res.data.respondido) {
-            
-            const mailbox = JSON.parse(localStorage.getItem('oncologico:mailbox') || '[]');
-            
-            // Adiciona na mailbox se já não estiver lá (id único para não conflitar com termos)
-            if (!mailbox.find(m => m.id === `nps_${item.monitoramentoId}`)) {
-              mailbox.push({
-                id: `nps_${item.monitoramentoId}`,
-                type: 'nps', // Adicionado tipo para controle no front
-                pacienteId: item.pacienteId,
-                nome: item.nome,
-                nota: res.data.nota
-              });
-              localStorage.setItem('oncologico:mailbox', JSON.stringify(mailbox));
-              updatedMailbox = true;
+        for (const item of waitingNps) {
+          try {
+            const res = await api.get(`/nps/paciente/${item.pacienteId}/atendimento/${item.monitoramentoId}/status`);
+            if (res.data && res.data.respondido) {
+
+              const mailbox = lerLista('oncologico:mailbox');
+
+              // Adiciona na mailbox se já não estiver lá (id único para não conflitar com termos)
+              if (!mailbox.find(m => m.id === `nps_${item.monitoramentoId}`)) {
+                mailbox.push({
+                  id: `nps_${item.monitoramentoId}`,
+                  type: 'nps', // Adicionado tipo para controle no front
+                  pacienteId: item.pacienteId,
+                  nome: item.nome,
+                  nota: res.data.nota
+                });
+                localStorage.setItem('oncologico:mailbox', JSON.stringify(mailbox));
+                updatedMailbox = true;
+              }
+
+              respondidos.add(chaveNps(item));
             }
-
-            // Remove da lista de espera de verificação
-            newWaitingNps.splice(i, 1);
-            updatedWaiting = true;
+          } catch (error) {
+            console.error("Erro ao checar NPS em background:", error);
           }
-        } catch (error) {
-          console.error("Erro ao checar NPS em background:", error);
         }
-      }
 
-      if (updatedWaiting) {
-        localStorage.setItem('oncologico:nps_waiting', JSON.stringify(newWaitingNps));
-      }
-      if (updatedMailbox) {
-        window.dispatchEvent(new Event('updateMailbox'));
+        if (respondidos.size > 0) {
+          // Relê o storage na hora de gravar: um NPS adicionado (ex.: pelo
+          // Telemonitoramento) enquanto as requisições rodavam não pode se perder.
+          const atual = lerLista('oncologico:nps_waiting');
+          localStorage.setItem(
+            'oncologico:nps_waiting',
+            JSON.stringify(atual.filter(item => !respondidos.has(chaveNps(item))))
+          );
+          window.dispatchEvent(new Event('updateNpsWaiting')); // telas abertas relêem a fila
+        }
+        if (updatedMailbox) {
+          window.dispatchEvent(new Event('updateMailbox'));
+        }
+      } finally {
+        emAndamento = false;
       }
     };
 
-    const intervalId = setInterval(pollWaitingNps, 10000); // Checa a cada 10s
-    return () => clearInterval(intervalId);
+    // Checa a cada 10s — só com a aba visível (F34); ao voltar, checa uma vez
+    const intervalId = setInterval(() => { if (!document.hidden) pollWaitingNps(); }, 10000);
+    const aoVoltarParaAba = () => { if (!document.hidden) pollWaitingNps(); };
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
   }, []);
 
   const handleOpenChat = () => {
@@ -169,129 +204,89 @@ export function UserLayout() {
 
       <MainContent>
         <MobileHeader>
-          <MenuButton onClick={() => setIsMobileMenuOpen(true)}>
-            <LuMenu size={28} />
+          <MenuButton
+            type="button"
+            aria-label="Abrir menu"
+            aria-expanded={isMobileMenuOpen}
+            onClick={() => setIsMobileMenuOpen(true)}
+          >
+            <LuMenu size={26} />
           </MenuButton>
-          <h3>Onco Navegação</h3>
-          <div style={{ width: 28 }}></div>
+          <img src={logo} alt="CIC Farma" />
+          <h1>Onco Navegação</h1>
         </MobileHeader>
 
-        <ContainerOutlet>
-          <Outlet />
+        <ContainerOutlet className="app-main">
+          <Suspense fallback={<CarregandoPagina />}>
+            <Outlet />
+          </Suspense>
         </ContainerOutlet>
       </MainContent>
 
-      {/* ================================================== */}
-      {/* CAIXA DE CORREIO: TERMOS E NPS (2º PLANO)          */}
-      {/* ================================================== */}
-      {mailboxItems.length > 0 && (
-        <div style={{ position: 'fixed', bottom: hasChatPermission ? '100px' : '30px', right: '30px', zIndex: 9999 }}>
-          
-          <div 
-            style={{
-              backgroundColor: '#8a2be2',
-              color: 'white',
-              borderRadius: '50%',
-              width: '56px',
-              height: '56px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              cursor: 'pointer',
-              position: 'relative',
-              transition: 'transform 0.2s',
-              transform: isMailboxOpen ? 'scale(0.95)' : 'scale(1)'
-            }}
-            title="Caixa de Notificações"
-            onClick={() => setIsMailboxOpen(!isMailboxOpen)}
-          >
-            <LuInbox size={28} />
-            <div style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ff4d4f', color: '#fff', fontSize: '12px', fontWeight: 'bold', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
-              {mailboxItems.length}
-            </div>
-          </div>
-
-          {/* Painel Dropdown da Caixa de Correio */}
-          {isMailboxOpen && (
-            <div style={{
-              position: 'absolute',
-              bottom: '70px',
-              right: '0',
-              width: '320px',
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              border: '1px solid #eee'
-            }}>
-              <div style={{ padding: '15px', backgroundColor: '#8a2be2', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <LuInbox size={20}/> Notificações
-                </h4>
-                <LuX size={20} style={{ cursor: 'pointer' }} onClick={() => setIsMailboxOpen(false)} />
-              </div>
-              
-              <div style={{ maxHeight: '350px', overflowY: 'auto', padding: '10px' }}>
-                {mailboxItems.map(item => {
-                  const isNps = item.type === 'nps';
-
-                  return (
-                    <div key={item.id} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fafafa', borderRadius: '8px', marginBottom: '8px' }}>
-                      <strong style={{ display: 'block', fontSize: '14px', color: '#333' }}>{item.nome}</strong>
-                      
-                      {/* LÓGICA DE TEXTO COM BASE NO TIPO */}
-                      {isNps ? (
-                        <p style={{ margin: '4px 0 10px 0', fontSize: '13px', color: '#0056b3', fontWeight: '500' }}>
-                          Paciente respondeu o nps a nota foi {item.nota}
-                        </p>
-                      ) : (
-                        <p style={{ margin: '4px 0 10px 0', fontSize: '12px', color: '#666' }}>
-                          Aceitou o termo e aguarda contato.
-                        </p>
-                      )}
-
-                      <button 
-                        onClick={() => isNps ? handleDismissNps(item.id) : handleStartQuestionnaire(item.id)}
-                        style={{ 
-                          width: '100%', 
-                          padding: '10px', 
-                          backgroundColor: isNps ? '#1890ff' : '#52c41a', 
-                          color: '#fff', 
-                          border: 'none', 
-                          borderRadius: '6px', 
-                          cursor: 'pointer', 
-                          fontWeight: 'bold', 
-                          display: 'flex', 
-                          justifyContent: 'center', 
-                          gap: '5px', 
-                          alignItems: 'center' 
-                        }}
-                      >
-                        {isNps ? 'Ciente (Remover Notificação)' : 'Fazer Questionário Agora'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+      {(mailboxItems.length > 0 || hasChatPermission) && (
+        <FloatingStack>
+          {/* CAIXA DE NOTIFICAÇÕES: termos aceitos e NPS respondidos */}
+          {mailboxItems.length > 0 && (
+            <FabWrapper>
+              <span className="tooltip">Notificações</span>
+              <Fab
+                type="button"
+                $variant="mail"
+                aria-label={`Notificações (${mailboxItems.length})`}
+                aria-expanded={isMailboxOpen}
+                onClick={() => setIsMailboxOpen(!isMailboxOpen)}
+              >
+                <LuInbox size={26} />
+                <NotificationBadge>{mailboxItems.length}</NotificationBadge>
+              </Fab>
+            </FabWrapper>
           )}
-        </div>
+
+          {hasChatPermission && (
+            <FabWrapper>
+              <span className="tooltip">Abrir chat de pacientes</span>
+              <Fab type="button" aria-label="Abrir chat de pacientes" onClick={handleOpenChat}>
+                <LuMessageCircle size={28} />
+                {totalUnread > 0 && (
+                  <NotificationBadge>{totalUnread > 99 ? '99+' : totalUnread}</NotificationBadge>
+                )}
+              </Fab>
+            </FabWrapper>
+          )}
+        </FloatingStack>
       )}
 
-      {/* Botão do CHAT */}
-      {hasChatPermission && (
-        <FloatingChatContainer>
-          <ChatTooltip className="tooltip">Abrir Chat de Pacientes</ChatTooltip>
-          <ChatButton title="Abrir Chat" onClick={handleOpenChat} style={{ position: 'relative' }}>
-            <LuMessageCircle size={32} />
-            {totalUnread > 0 && (
-              <NotificationBadge>{totalUnread > 99 ? '99+' : totalUnread}</NotificationBadge>
-            )}
-          </ChatButton>
-        </FloatingChatContainer>
+      {isMailboxOpen && mailboxItems.length > 0 && (
+        <MailboxPanel role="dialog" aria-label="Notificações">
+          <header>
+            <h2><LuInbox size={20} /> Notificações</h2>
+            <button type="button" aria-label="Fechar notificações" onClick={() => setIsMailboxOpen(false)}>
+              <LuX size={20} />
+            </button>
+          </header>
+
+          <ul>
+            {mailboxItems.map(item => {
+              const isNps = item.type === 'nps';
+              return (
+                <MailboxItem key={item.id} $nps={isNps}>
+                  <strong>{item.nome}</strong>
+                  <p>
+                    {isNps
+                      ? `Respondeu a pesquisa de satisfação. Nota: ${item.nota}`
+                      : 'Aceitou o termo e aguarda contato.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => isNps ? handleDismissNps(item.id) : handleStartQuestionnaire(item.id)}
+                  >
+                    {isNps ? 'Ciente, remover' : 'Fazer questionário agora'}
+                  </button>
+                </MailboxItem>
+              );
+            })}
+          </ul>
+        </MailboxPanel>
       )}
     </Container>
   );

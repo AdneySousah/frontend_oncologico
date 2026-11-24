@@ -62,29 +62,38 @@ const EventItem = styled.div`
 `;
 
 export default function HistoricoAberturas({ monitoramento }) {
-  const [historico, setHistorico] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 👇 CORREÇÃO (F23): sem controle de desmontagem, a resposta do paciente
+  // anterior podia chegar depois e sobrescrever a do atual (ou setar estado num
+  // componente já fechado). O resultado guarda de qual monitoramento veio; o
+  // "carregando" é derivado disso (sem setState síncrono dentro do effect).
+  const [resultado, setResultado] = useState({ id: null, itens: [] });
+  const historico = resultado.itens;
+  const loading = !!monitoramento?.id && resultado.id !== monitoramento.id;
 
   useEffect(() => {
-    if (!monitoramento?.id) return;
+    if (!monitoramento?.id) return undefined;
+    const id = monitoramento.id;
+    let ativo = true;
 
-    api.get(`/monitoramento-medicamentos/${monitoramento.id}/historico-aberturas`)
+    api.get(`/monitoramento-medicamentos/${id}/historico-aberturas`)
       .then(response => {
+        if (!ativo) return;
         // Lógica para filtrar apenas 1 item por evento_externo_id
         const historicoUnico = response.data.filter((item, index, self) =>
           item.evento_externo_id && index === self.findIndex((t) => (
             t.evento_externo_id === item.evento_externo_id
           ))
         );
-        
-        setHistorico(historicoUnico);
+
+        setResultado({ id, itens: historicoUnico });
       })
       .catch(err => {
+        if (!ativo) return;
         console.error("Erro ao carregar histórico de aberturas", err);
-      })
-      .finally(() => {
-        setLoading(false);
+        setResultado({ id, itens: [] });
       });
+
+    return () => { ativo = false; };
   }, [monitoramento]);
 
   const formatarData = (dataStr) => {

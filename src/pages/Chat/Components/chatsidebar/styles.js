@@ -1,8 +1,9 @@
 import styled, { keyframes } from "styled-components";
+import { overlaySeguro } from '../../../../themes/modal';
 
 
 const pulseGlow = keyframes`
-  0% { box-shadow: 0 0 0 0 ${({ theme }) => theme.colors?.info || 'rgba(24, 144, 255, 0.6)'}; }
+  0% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.6); }
   70% { box-shadow: 0 0 0 8px rgba(24, 144, 255, 0); }
   100% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0); }
 `;
@@ -17,8 +18,11 @@ export const SidebarContainer = styled.div`
   z-index: 100;
   flex-shrink: 0;
 
-  @media (max-width: 768px) {
-    width: 100%; /* No mobile ocupa a tela toda (depois podemos fazer a lógica de esconder ao abrir um chat) */
+  @media (max-width: 767px) {
+    width: 100%;
+    height: 100dvh;
+    /* celular: lista e conversa alternam; com conversa aberta a lista some */
+    display: ${({ $hasActive }) => ($hasActive ? "none" : "flex")};
   }
 `;
 
@@ -111,7 +115,7 @@ export const ConversationItem = styled.div`
   border-bottom: 1px solid ${({ theme }) => theme.colors?.border || '#eee'};
   cursor: pointer;
   transition: background 0.2s;
-  background-color: ${({ isActive, theme }) => isActive ? (theme.colors?.inputBg || '#e6f7ff') : 'transparent'};
+  background-color: ${({ $isActive, theme }) => $isActive ? (theme.colors?.inputBg || '#e6f7ff') : 'transparent'};
 
   &:hover {
     background-color: ${({ theme }) => theme.colors?.inputBg || '#f5f5f5'};
@@ -291,7 +295,7 @@ export const SearchInput = styled.div`
 `;
 
 export const UnreadBadge = styled.div`
-  background-color: ${({ theme }) => theme.colors?.success || '#25D366'};
+  background-color: ${({ theme }) => theme.colors?.whatsapp || '#25D366'};
   color: #fff;
   font-size: 0.7rem;
   font-weight: bold;
@@ -368,6 +372,7 @@ export const ModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(2px);
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`

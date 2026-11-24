@@ -74,7 +74,7 @@ export const MessageBubble = styled.div`
     const isDark = theme.colors?.text === '#fff' || theme.colors?.text?.toLowerCase() === '#ffffff';
     
     if ($isMine) {
-      return isDark ? '#005c4b' : (theme.colors?.primaryLight || '#dcf8c6'); // Verde Escuro WhatsApp / Verde Claro
+      return isDark ? '#005c4b' : '#dcf8c6'; // Verde Escuro WhatsApp / Verde Claro
     }
     return isDark ? '#202c33' : (theme.colors?.surface || '#fff'); // Cinza Escuro WhatsApp / Branco
   }};
@@ -183,7 +183,7 @@ export const BlockedArea = styled.div`
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: ${({ theme }) => theme.colors?.success || '#25D366'};
+    background-color: ${({ theme }) => theme.colors?.whatsapp || '#25D366'};
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -193,7 +193,7 @@ export const BlockedArea = styled.div`
     transition: background 0.2s;
 
     &:hover {
-      background-color: ${({ theme }) => theme.colors?.successHover || '#1DA851'};
+      background-color: ${({ theme }) => theme.colors?.whatsappHover || '#1DA851'};
     }
 
     &:disabled {

@@ -28,7 +28,7 @@ export default function ImportarReacoesAdversas({ onSuccess }) {
         const response = await api.post('/reacao-adversa/validate', formData);
         setReport(response.data);
         setStep(3);
-      } catch (err) {
+      } catch {
         toast.error("Erro ao validar planilha.");
         setStep(1);
         setFile(null);
@@ -46,7 +46,7 @@ export default function ImportarReacoesAdversas({ onSuccess }) {
       toast.success(`Sucesso! ${res.data.inseridos} novas reações importadas.`);
       setStep(5);
       if (onSuccess) onSuccess();
-    } catch (err) {
+    } catch {
       toast.error("Erro na importação final.");
       setStep(3);
     }

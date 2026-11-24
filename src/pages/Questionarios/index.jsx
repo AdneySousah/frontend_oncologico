@@ -7,7 +7,7 @@ import {
     QuestionItem, WarningMessage
 } from './styles';
 
-import { LuChevronDown, LuChevronUp, LuTriangleAlert, LuPower, LuEye, LuPencil, LuInfo } from "react-icons/lu";
+import { LuChevronUp, LuTriangleAlert, LuPower, LuEye, LuPencil, LuInfo } from "react-icons/lu";
 import { colors } from '../../themes/theme';
 import TemplateModal from './components/TemplateModal';
 
@@ -26,7 +26,7 @@ const QuestionariosPage = () => {
             const sorted = response.data.sort((a, b) => Number(b.is_active) - Number(a.is_active));
             setTemplates(sorted);
             setLoading(false);
-        } catch (err) {
+        } catch {
             toast.error('Erro ao carregar questionários.');
             setLoading(false);
         }
@@ -44,7 +44,7 @@ const QuestionariosPage = () => {
                 await api.patch(`/evaluations/templates/${id}/status`);
                 toast.success(`Questionário ${action === 'ativar' ? 'ativado' : 'desativado'}!`);
                 loadTemplates();
-            } catch (err) {
+            } catch {
                 toast.error("Erro ao alterar status.");
             }
         }
@@ -99,14 +99,14 @@ const QuestionariosPage = () => {
                     return (
                         <TemplateCard
                             key={template.id}
-                            isActive={template.is_active}
-                            isExpanded={expandedId === template.id}
+                            $isActive={template.is_active}
+                            $isExpanded={expandedId === template.id}
                         >
                             <CardHeader>
                                 <div className="info">
                                     <h3>
                                         {template.title}
-                                        <StatusBadge isActive={template.is_active}>
+                                        <StatusBadge $isActive={template.is_active}>
                                             {template.is_active ? 'Ativo' : 'Inativo'}
                                         </StatusBadge>
 

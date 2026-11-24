@@ -1,4 +1,5 @@
 import styled, { keyframes } from 'styled-components';
+import { overlaySeguro } from '../../../themes/modal';
 
 const pulse = keyframes`
   0% { opacity: 1; }
@@ -16,6 +17,7 @@ export const Overlay = styled.div`
   align-items: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
+  ${overlaySeguro}
 `;
 
 export const ModalContainer = styled.div`

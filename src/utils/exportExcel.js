@@ -6,7 +6,6 @@ export const exportToXLSX = async (data, columns, filename, reportTitle) => {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Relatório");
 
-  const THEME_TEAL = "FF1A968D"; 
   const THEME_RED = "FFE83B3E";  
   const THEME_DARK = "FF333333"; 
 
@@ -40,7 +39,7 @@ export const exportToXLSX = async (data, columns, filename, reportTitle) => {
   titleCell.alignment = { vertical: "middle", horizontal: "center" };
   titleCell.font = TITLE_FONT;
   
-  // <-- ALTERAÇÃO AQUI: Trocando THEME_TEAL por THEME_DARK
+  // Cabeçalho usa THEME_DARK
   titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: THEME_DARK } };
   titleCell.border = THIN_BORDER;
 

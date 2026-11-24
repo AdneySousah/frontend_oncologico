@@ -1,7 +1,9 @@
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 30px;
+  padding: 4px 0;
+  ${media.md} { padding: 30px; }
   background-color: ${({ theme }) => theme.colors.background || '#000000'};
   min-height: 100vh;
 `;
@@ -108,7 +110,7 @@ export const SummaryCard = styled.div`
   h2 {
     margin: 5px 0 0 0;
     color: ${({ cor }) => cor || '#1890ff'};
-    font-size: ${({ isNumero }) => (isNumero ? '28px' : '22px')};
+    font-size: ${({ $isNumero }) => ($isNumero ? '28px' : '22px')};
   }
 `;
 

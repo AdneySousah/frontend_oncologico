@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { overlaySeguro } from '../../../themes/modal';
 
 export const Overlay = styled.div`
   position: fixed;
@@ -12,6 +13,7 @@ export const Overlay = styled.div`
   align-items: center;
   z-index: 1000;
   backdrop-filter: blur(3px);
+  ${overlaySeguro}
 `;
 
 export const ModalContainer = styled.div`
@@ -141,20 +143,3 @@ export const Select = styled.select`
   }
 `;
 
-export const ProfessionalSection = styled.div`
-  background-color: ${({ theme }) => theme.colors.inputBg}; /* Ajustado para se mesclar melhor no dark mode */
-  padding: 1rem;
-  border-radius: 6px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  
-  h4 {
-    color: ${({ theme }) => theme.colors.primary}; /* Trocado de primaryDark */
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-  }
-`;

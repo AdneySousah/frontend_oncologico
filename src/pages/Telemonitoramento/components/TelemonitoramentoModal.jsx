@@ -21,9 +21,12 @@ import useReservaEdicaoPaciente from '../../../hooks/useReservaEdicaoPaciente';
 import TentativaContatoModal from './TentativaContatoModal';
 import PassoRegistroMedicamento from './PassoRegistroMedicamento'; // 👈 NOVO
 import SeletorPosologia from '../../../components/SeletorPosologia';
-import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
+import { formatarPadraoPosologia, contarComprimidosConsumidos, calcularDataFimCaixaLocal } from '../../../utils/posologiaHelpers';
 import { calcularEstoqueProjetado } from '../../../utils/estoqueProjetado';
 import EventoReembolsoModal from './EventoReembolsoModal'; // 👈 NOVO
+import AcumuloSobras from './AcumuloSobras'; // 👈 ACUMULAR SOBRAS
+import { sugerirSobraAnterior, sobraValida } from '../../../utils/sobraAnterior';
+import ResumoAcumulo from './ResumoAcumulo';
 import {
   MOTIVO_NAO_APLICAR_VAZIO, selecionarEventoNovaCompra, validarDecisaoNovaCompra,
   montarCamposDecisaoNovaCompra, limparDadosNovaCompraParaEnvio,
@@ -73,6 +76,72 @@ function formatarDataISOConjunto(date) {
   return `${y}-${m}-${d}`;
 }
 const formatarDataBRConjunto = (isoStr) => isoStr.split('-').reverse().join('/');
+
+// 👇 Payload do PUT de contato a partir dos dados do PassoRegistroMedicamento
+// (medicamento adicional em conjunto e ciclo de reembolso). Antes eram duas
+// cópias sem o padrão da nova caixa (F7): reposição cíclica/"a cada X dias"
+// era gravada como diária.
+function montarPayloadContatoPasso(dados, dataProximoContato) {
+  const reacoesIds = dados.isReacao ? dados.reacoesSelecionadas.map(r => r.value) : [];
+  const padraoNova = dados.mudouPosologia ? dados.padraoPosologiaNova : null;
+  return {
+    contato_efetivo: true,
+    nivel_adesao: dados.nivelAdesao,
+    qtd_informada_caixa: Number(dados.qtdInformada),
+    data_abertura_nova_caixa: dataProximoContato,
+    descontinuar_medicamento: dados.descontinuarMedicamento,
+    motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
+    motivo_encerramento_id: dados.descontinuarMedicamento ? (dados.motivoEncerramentoId || null) : null,
+    is_reacao: dados.isReacao,
+    reacoes_adversas: reacoesIds,
+    observacao: dados.observacao || null,
+    aplicar_nova_compra: dados.aplicarNovaCompra,
+    dados_nova_compra: dados.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dados.dadosNovaCompra) : null,
+    data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
+    posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
+    ...(dados.aplicarNovaCompra ? montarCamposPadraoNovaCaixa(dados.padraoNovaCaixa, dados.dadosNovaCompra?.mudou_medicamento) : {}), // 👈 PADRÃO DA NOVA CAIXA
+    qtd_sobra_anterior: dados.aplicarNovaCompra ? (dados.qtdSobraAnterior ?? null) : null, // 👈 ACUMULAR SOBRAS
+    mudou_posologia: dados.mudouPosologia,
+    nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
+    data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
+    tipo_posologia_nova: padraoNova ? padraoNova.tipo_posologia : null,
+    posologia_ciclo_dias_toma_nova: padraoNova ? padraoNova.posologia_ciclo_dias_toma : null,
+    posologia_ciclo_dias_pausa_nova: padraoNova ? padraoNova.posologia_ciclo_dias_pausa : null,
+    posologia_intervalo_dias_nova: padraoNova ? padraoNova.posologia_intervalo_dias : null,
+    posologia_datas_personalizadas_nova: padraoNova ? padraoNova.posologia_datas_personalizadas : null,
+    motivo_falha_contato_id: null,
+    modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
+    ...(dados.camposDecisaoNovaCompra || {}), // 👈 vem do PassoRegistroMedicamento
+    ...(dados.camposDescontinuacao || {}) // 👈 data em que parou + sobra, quando descontinuou
+  };
+}
+
+// 👇 CORREÇÃO (F6): a pausa marcada no PassoRegistroMedicamento era ignorada
+// nesses dois fluxos. Mesma regra do formulário principal e do conjunto: pausa
+// SEM compra pausa o ciclo atual (não registra contato — antes ia
+// qtd_informada_caixa = 0); pausa COM compra registra o contato e pausa o ciclo
+// novo criado por ele. Devolve uma mensagem de sucesso.
+async function registrarContatoPasso(dados, dataProximoContato) {
+  if (dados.pausaExclusiva) {
+    await api.patch(`/monitoramento-medicamentos/${dados.monitoramentoId}/pausar`, dados.camposPausa);
+    return `${dados.medicamentoNome || 'Medicamento'} pausado com sucesso.`;
+  }
+  const response = await api.put(`/monitoramento-medicamentos/${dados.monitoramentoId}`, montarPayloadContatoPasso(dados, dataProximoContato));
+  if (dados.pausarMedicamento && dados.aplicarNovaCompra && dados.camposPausa) {
+    const idNovoCiclo = response.data?.proximo_ciclo_atual_id;
+    if (idNovoCiclo) {
+      try {
+        await api.patch(`/monitoramento-medicamentos/${idNovoCiclo}/pausar`, dados.camposPausa);
+        toast.success('Novo ciclo criado e pausado.');
+      } catch (errPausa) {
+        toast.error(errPausa.response?.data?.error || 'O contato foi salvo, mas não foi possível pausar o novo ciclo. Pause pela lista.');
+      }
+    } else {
+      toast.warning('O contato foi salvo, mas o novo ciclo não foi identificado para pausar. Pause pela lista.');
+    }
+  }
+  return null;
+}
 
 export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento, monitoramentoAnterior, onSucesso }) {
   const theme = useTheme();
@@ -140,11 +209,21 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const [mostrarReembolso, setMostrarReembolso] = useState(false);
   const [monitoramentoReembolso, setMonitoramentoReembolso] = useState(null);
   const [carregandoReembolso, setCarregandoReembolso] = useState(false);
+  // 👇 ACUMULAR SOBRAS: marcação do medicamento + sobra digitada (null = usa a sugestão)
+  const [acumulaSobras, setAcumulaSobras] = useState(false);
+  const [acumuloPendente, setAcumuloPendente] = useState(false); // confirmação de "Acumular sobras" aberta
+  const [qtdSobraEditada, setQtdSobraEditada] = useState(null);
   useEffect(() => {
     if (monitoramento) {
       setLocalMonitoramento(monitoramento);
     }
   }, [monitoramento]);
+  useEffect(() => {
+    setAcumulaSobras(!!localMonitoramento?.acumula_sobras);
+  }, [localMonitoramento?.id, localMonitoramento?.acumula_sobras]);
+  useEffect(() => {
+    setQtdSobraEditada(null); // outra compra selecionada: volta para a sugestão
+  }, [dadosNovaCompra?.evento_externo_id]);
   const setupDates = (monit) => {
     if (monit.data_calculada_fim_caixa) {
       const [ano, mes, dia] = monit.data_calculada_fim_caixa.split('T')[0].split('-');
@@ -229,6 +308,17 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       setMonitoramentoReembolso(null); // 👈 NOVO
       setCarregandoReembolso(false); // 👈 NOVO
       setMotivoEncerramentoSelecionado(null);
+      // 👇 CORREÇÃO (F5): pausa, padrões e data da nova caixa também voltam ao
+      // padrão — antes o paciente B abria com a pausa marcada no paciente A.
+      setPausarMedicamento(false);
+      setMotivoPausaSelecionado(null);
+      setDataFimPrevistaPausa('');
+      setObservacaoPausa('');
+      setEnviandoPausa(false);
+      setPadraoNovaCaixa({ tipo_posologia: 'diaria' });
+      setPadraoPosologiaNova({ tipo_posologia: 'diaria' });
+      setDataRealInicioNovaCaixa('');
+      setLoading(false);
       setupDates(localMonitoramento);
       api.get('/reacao-adversa')
         .then(response => { if (isMounted) setListaReacoes(response.data); })
@@ -286,8 +376,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   let margemMin = 0;
   let margemMax = 0;
   let dataReferenciaFormatada = '-';
+  let dataInicioOriginalFormatada = '-';
   let dataFimCicloAtualFormatada = '-';
   let isAntesDoInicio = false;
+  let estoqueCalculavel = false;
   const qtdCaixas = Number(localMonitoramento?.qtd_caixas || 1);
   const qtdTotalCaixa = Number(
     localMonitoramento?.qtd_total_capsulas || (localMonitoramento?.medicamento?.qtd_capsula * qtdCaixas) || 0
@@ -315,6 +407,12 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   if (localMonitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
     dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`;
+  }
+  // 👇 CORREÇÃO (F9): o estoque projetado só era calculado quando havia
+  // data_calculada_fim_caixa — sem ela ficava 0: tudo virava "baixa adesão" e
+  // aparecia o botão de reembolso. A conta só precisa do início e do total.
+  if (dataInicioObj && qtdTotalCaixa > 0) {
+    estoqueCalculavel = true;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     if (isAntesDoInicio) {
@@ -340,32 +438,45 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
       if (idealRemainingAntigo > qtdTotalCaixa) idealRemainingAntigo = qtdTotalCaixa;
     }
   }
+  // 👇 ACUMULAR SOBRAS: na reposição do mesmo medicamento, a sobra entra no total da caixa nova
+  const somaSobraAtiva = !!(acumulaSobras && aplicarNovaCompra && dadosNovaCompra && !dadosNovaCompra.mudou_medicamento);
+  const sugestaoSobra = somaSobraAtiva ? sugerirSobraAnterior({
+    monitoramentoAtual: localMonitoramento,
+    dataInicioNovaCaixa: dataRealInicioNovaCaixa
+  }) : '';
+  const valorCampoSobra = qtdSobraEditada ?? sugestaoSobra;
+  const sobraSomada = somaSobraAtiva ? sobraValida(valorCampoSobra) : 0;
+  // posologia usada pra converter a diferença (informado x projetado) em adesão
+  let posologiaAdesao = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
   if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa && modoNovoMedicamento !== 'CONJUNTO') {
     const posologiaNova = Number(posologiaNovaCaixa || posologia);
+    posologiaAdesao = posologiaNova;
     const [anoNovo, mesNovo, diaNovo] = dataRealInicioNovaCaixa.split('-');
     const dataInicioNovaObj = new Date(anoNovo, mesNovo - 1, diaNovo);
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    dataInicioOriginalFormatada = dataReferenciaFormatada; // guarda o início do ciclo atual antes de trocar pelo novo
     dataReferenciaFormatada = `${diaNovo}/${mesNovo}/${anoNovo} (Início Novo Ciclo)`;
-    if (hoje < dataInicioNovaObj) {
-      idealRemaining = dadosNovaCompra.total_capsulas_novas;
-    } else {
-      const diasUsoNovaCaixa = Math.floor((hoje - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
-      const consumoDesdeOInicio = diasUsoNovaCaixa * posologiaNova;
-      idealRemaining = dadosNovaCompra.total_capsulas_novas - consumoDesdeOInicio;
-    }
-    if (idealRemaining < 0) idealRemaining = 0;
-    const diasRestantesTotais = posologiaNova > 0 ? Math.floor(idealRemaining / posologiaNova) : 0;
-    const fimNovaCaixaObj = new Date(hoje);
-    fimNovaCaixaObj.setDate(fimNovaCaixaObj.getDate() + diasRestantesTotais);
-    dataFimCicloAtualFormatada = `${String(fimNovaCaixaObj.getDate()).padStart(2, '0')}/${String(fimNovaCaixaObj.getMonth() + 1).padStart(2, '0')}/${fimNovaCaixaObj.getFullYear()}`;
+    // 👇 CORREÇÃO (F8): antes era dias × posologia, como se a nova caixa fosse
+    // sempre diária ("9 a cada 7 dias" projetava 0 → adesão NAO_ADERE). Agora
+    // usa o padrão escolhido para a nova caixa (utils/estoqueProjetado.js).
+    const totalNovo = (Number(dadosNovaCompra.total_capsulas_novas) || 0) + sobraSomada; // 👈 ACUMULAR SOBRAS
+    estoqueCalculavel = totalNovo > 0;
+    idealRemaining = calcularEstoqueProjetado({
+      ...padraoNovaCaixa,
+      qtd_total_capsulas: totalNovo,
+      posologia_diaria: posologiaNova,
+      data_administracao: dataRealInicioNovaCaixa
+    }) ?? 0;
+    // mesmo cálculo de fim de caixa que o backend grava no ciclo novo
+    const fimNovaCaixaObj = calcularDataFimCaixaLocal(dataInicioNovaObj, totalNovo, posologiaNova, padraoNovaCaixa);
+    dataFimCicloAtualFormatada = fimNovaCaixaObj
+      ? `${String(fimNovaCaixaObj.getDate()).padStart(2, '0')}/${String(fimNovaCaixaObj.getMonth() + 1).padStart(2, '0')}/${fimNovaCaixaObj.getFullYear()}`
+      : '-';
     margemMin = Math.max(0, idealRemaining - posologiaNova);
     margemMax = idealRemaining + posologiaNova;
   } else {
     idealRemaining = idealRemainingAntigo;
-    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
-    margemMin = Math.max(0, idealRemaining - posologiaVigente);
-    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaVigente);
+    margemMin = Math.max(0, idealRemaining - posologiaAdesao);
+    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaAdesao);
     if (mudouPosologia && novaPosologia > 0 && idealRemaining > 0) {
       const diasRestantesProjetados = Math.floor(idealRemaining / Number(novaPosologia));
       const projetadoObj = new Date();
@@ -374,11 +485,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     }
   }
   useEffect(() => {
-    if (qtdInformada === '' || !localMonitoramento) return;
-    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
+    // sem estoque projetado não há com o que comparar: o operador escolhe (select liberado)
+    if (qtdInformada === '' || !localMonitoramento || !estoqueCalculavel) return;
     const qtdInformadaNum = Number(qtdInformada);
     const diferencaComprimidos = Math.abs(idealRemaining - qtdInformadaNum);
-    const diferencaEmDias = diferencaComprimidos / posologiaVigente;
+    const diferencaEmDias = diferencaComprimidos / (posologiaAdesao || 1);
     if (diferencaEmDias <= 2) {
       setNivelAdesao('COMPLETAMENTE');
     } else if (diferencaEmDias <= 6) {
@@ -386,7 +497,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     } else {
       setNivelAdesao('NAO_ADERE');
     }
-  }, [qtdInformada, localMonitoramento, idealRemaining, posologia, mudouPosologia, novaPosologia]);
+  }, [qtdInformada, localMonitoramento, idealRemaining, posologiaAdesao, estoqueCalculavel]);
   useEffect(() => {
     if (qtdInformada !== '') {
       let daysToAdd = 30;
@@ -617,6 +728,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (acumuloPendente) {
+      toast.warn('Confirme ou cancele "Acumular sobras" antes de salvar o contato.');
+      document.getElementById('acumulo-sobras')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const hojeDate = new Date();
     const dataHojeFormat = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth() + 1).padStart(2, '0')}-${String(hojeDate.getDate()).padStart(2, '0')}`;
     if (!qtdInformada || (!descontinuarMedicamento && !dataAbertura)) {
@@ -723,6 +839,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         data_inicio_nova_caixa: aplicarNovaCompra ? dataRealInicioNovaCaixa : null,
         posologia_nova_caixa: aplicarNovaCompra ? Number(posologiaNovaCaixa) : null,
         ...(aplicarNovaCompra ? montarCamposPadraoNovaCaixa(padraoNovaCaixa, dadosNovaCompra?.mudou_medicamento) : {}), // 👈 PADRÃO DA NOVA CAIXA
+        qtd_sobra_anterior: somaSobraAtiva ? sobraSomada : null, // 👈 ACUMULAR SOBRAS
         mudou_posologia: mudouPosologia,
         nova_posologia: mudouPosologia ? Number(novaPosologia) : null,
         data_mudanca_posologia: mudouPosologia ? dataMudancaPosologia : null,
@@ -823,7 +940,8 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // TelemonitoramentoModalConjunto.jsx faz quando os dois medicamentos já
   // estão pendentes ao mesmo tempo.
   const handleAvancarMedicamentoAdicional = (dados) => {
-    if (dados.descontinuarMedicamento || dados.nivelAdesao === nivelAdesao) {
+    // pausado sem compra não entra no contato de hoje: não há data a alinhar
+    if (dados.pausaExclusiva || dados.descontinuarMedicamento || dados.nivelAdesao === nivelAdesao) {
       enviarContatoAdicionalConjunto(dados, 'MEDIA');
     } else {
       setDadosAdicionalPendente(dados);
@@ -839,39 +957,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const enviarContatoAdicionalConjunto = async (dados, modo) => {
     try {
       setCarregandoAdicional(true);
-      const reacoesIds = dados.isReacao ? dados.reacoesSelecionadas.map(r => r.value) : [];
-      const dataEscolhidaISO = dados.descontinuarMedicamento
+      const dataEscolhidaISO = (dados.descontinuarMedicamento || dados.pausaExclusiva)
         ? null
         : formatarDataISOConjunto(calcularDataPorModoConjunto(modo, nivelAdesao, dados.nivelAdesao));
 
-      await api.put(`/monitoramento-medicamentos/${dados.monitoramentoId}`, {
-        contato_efetivo: true,
-        nivel_adesao: dados.nivelAdesao,
-        qtd_informada_caixa: Number(dados.qtdInformada),
-        data_abertura_nova_caixa: dataEscolhidaISO,
-        descontinuar_medicamento: dados.descontinuarMedicamento,
-        motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
-        motivo_encerramento_id: dados.descontinuarMedicamento ? (dados.motivoEncerramentoId || null) : null,
-        is_reacao: dados.isReacao,
-        reacoes_adversas: reacoesIds,
-        observacao: dados.observacao || null,
-        aplicar_nova_compra: dados.aplicarNovaCompra,
-        dados_nova_compra: dados.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dados.dadosNovaCompra) : null,
-        data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
-        posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
-        mudou_posologia: dados.mudouPosologia,
-        nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
-        data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
-        tipo_posologia_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.tipo_posologia : null,
-        posologia_ciclo_dias_toma_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_toma : null,
-        posologia_ciclo_dias_pausa_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_pausa : null,
-        posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
-        posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
-        motivo_falha_contato_id: null,
-        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
-        ...(dados.camposDecisaoNovaCompra || {}), // 👈 NOVO: vem do PassoRegistroMedicamento
-        ...(dados.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra, quando descontinuou
-      });
+      const mensagemPausa = await registrarContatoPasso(dados, dataEscolhidaISO);
 
       if (dataEscolhidaISO && proximoCicloAtualId) {
         try {
@@ -884,9 +974,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
         }
       }
 
-      toast.success('Contato do medicamento adicional registrado com sucesso!');
-      onSucesso();
+      toast.success(mensagemPausa || 'Contato do medicamento adicional registrado com sucesso!');
       window.dispatchEvent(new Event('updateAlerts'));
+      // 👇 CORREÇÃO (F17): espera o onSucesso (que pode abrir o "Iniciar
+      // Tratamento") antes do NPS — antes o NPS abria por cima dele.
+      await onSucesso();
       setShowNpsPrompt(true);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato do medicamento adicional.');
@@ -901,38 +993,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   const handleFinalizarReembolso = async (dados) => {
     try {
       setCarregandoReembolso(true);
-      const reacoesIds = dados.isReacao ? dados.reacoesSelecionadas.map(r => r.value) : [];
-      await api.put(`/monitoramento-medicamentos/${dados.monitoramentoId}`, {
-        contato_efetivo: true,
-        nivel_adesao: dados.nivelAdesao,
-        qtd_informada_caixa: Number(dados.qtdInformada),
-        data_abertura_nova_caixa: dados.descontinuarMedicamento ? null : calcularProximaDataPorAdesao(dados.nivelAdesao),
-        descontinuar_medicamento: dados.descontinuarMedicamento,
-        motivo_encerramento: dados.descontinuarMedicamento ? (dados.motivoEncerramento || null) : null,
-        motivo_encerramento_id: dados.descontinuarMedicamento ? (dados.motivoEncerramentoId || null) : null,
-        is_reacao: dados.isReacao,
-        reacoes_adversas: reacoesIds,
-        observacao: dados.observacao || null,
-        aplicar_nova_compra: dados.aplicarNovaCompra,
-        dados_nova_compra: dados.aplicarNovaCompra ? limparDadosNovaCompraParaEnvio(dados.dadosNovaCompra) : null,
-        data_inicio_nova_caixa: dados.aplicarNovaCompra ? dados.dataRealInicioNovaCaixa : null,
-        posologia_nova_caixa: dados.aplicarNovaCompra ? Number(dados.posologiaNovaCaixa) : null,
-        mudou_posologia: dados.mudouPosologia,
-        nova_posologia: dados.mudouPosologia ? Number(dados.novaPosologia) : null,
-        data_mudanca_posologia: dados.mudouPosologia ? dados.dataMudancaPosologia : null,
-        tipo_posologia_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.tipo_posologia : null,
-        posologia_ciclo_dias_toma_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_toma : null,
-        posologia_ciclo_dias_pausa_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_ciclo_dias_pausa : null,
-        posologia_intervalo_dias_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_intervalo_dias : null,
-        posologia_datas_personalizadas_nova: (dados.mudouPosologia && dados.padraoPosologiaNova) ? dados.padraoPosologiaNova.posologia_datas_personalizadas : null,
-        motivo_falha_contato_id: null,
-        modo_novo_medicamento: (dados.aplicarNovaCompra && dados.dadosNovaCompra?.mudou_medicamento) ? dados.modoNovoMedicamento : null,
-        ...(dados.camposDecisaoNovaCompra || {}), // 👈 NOVO: vem do PassoRegistroMedicamento
-        ...(dados.camposDescontinuacao || {}) // 👈 NOVO: data em que parou + sobra, quando descontinuou
-      });
-      toast.success('Contato registrado com sucesso!');
-      onSucesso();
+      const dataProximo = (dados.descontinuarMedicamento || dados.pausaExclusiva) ? null : calcularProximaDataPorAdesao(dados.nivelAdesao);
+      const mensagemPausa = await registrarContatoPasso(dados, dataProximo);
+      toast.success(mensagemPausa || 'Contato registrado com sucesso!');
       window.dispatchEvent(new Event('updateAlerts'));
+      await onSucesso(); // 👈 F17: NPS só depois do "Iniciar Tratamento", se houver
       setShowNpsPrompt(true);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Erro ao registrar contato.');
@@ -970,7 +1035,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // medicamento adicional, reaproveitando o mesmo componente já usado no
   // wizard TelemonitoramentoModalConjunto.
   if (etapa === 'MEDICAMENTO_ADICIONAL_CONJUNTO') {
-    if (carregandoAdicional || !monitoramentoAdicionalConjunto) {
+    // 👇 CORREÇÃO (F16): a tela de "carregando" só aparece enquanto o registro
+    // ainda não chegou — durante o envio o formulário continua montado (só os
+    // botões travam), então um erro 400 não apaga o que foi digitado.
+    if (!monitoramentoAdicionalConjunto) {
       return (
         <ModalOverlay>
           <ModalContent style={{ maxWidth: '500px', margin: 'auto', textAlign: 'center' }}>
@@ -999,8 +1067,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               monitoramentoAnterior={null}
               numeroEtapa={2}
               totalEtapas={2}
-              onCancelar={onClose}
+              // 👇 CORREÇÃO (F18): o contato do medicamento atual já foi salvo —
+              // ao cancelar aqui a lista precisa recarregar.
+              onCancelar={() => onClose(true)}
               onAvancar={handleAvancarMedicamentoAdicional}
+              enviando={carregandoAdicional}
             />
           </div>
           <div className="right-column">
@@ -1020,7 +1091,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
     const dataSugeridaISO = formatarDataISOConjunto(calcularDataSugeridaConjunto(nivelAtual, nivelAdicional));
     return (
       <ModalOverlay>
-        <ModalContent style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <ModalContent style={{ maxWidth: '600px', margin: 'auto' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e67e22' }}>
             ⚠️ Divergência de Adesão Identificada
           </h3>
@@ -1067,7 +1138,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
   // mas com handleFinalizarReembolso próprio: aqui é sempre um único
   // medicamento (sem par), então não há divergência de adesão a checar.
   if (etapa === 'MEDICAMENTO_REEMBOLSO') {
-    if (carregandoReembolso || !monitoramentoReembolso) {
+    if (!monitoramentoReembolso) { // 👈 F16: mesmo motivo do medicamento adicional
       return (
         <ModalOverlay>
           <ModalContent style={{ maxWidth: '500px', margin: 'auto', textAlign: 'center' }}>
@@ -1096,8 +1167,9 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               monitoramentoAnterior={null}
               numeroEtapa={1}
               totalEtapas={1}
-              onCancelar={onClose}
+              onCancelar={() => onClose(true)} // 👈 F18: o ciclo de reembolso já foi criado
               onAvancar={handleFinalizarReembolso}
+              enviando={carregandoReembolso}
             />
           </div>
           <div className="right-column">
@@ -1167,7 +1239,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 onChangePadraoNovaCaixa={setPadraoNovaCaixa}
                 estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
                 dataInicioAtual={dataUsoReferencia}
-                isAntesDoInicio={isAntesDoInicio}
+                padraoAtual={localMonitoramento}
                 modoNovoMedicamento={modoNovoMedicamento}
                 onChangeModoNovoMedicamento={setModoNovoMedicamento}
                 onSelecionarEvento={handleSelecionarEvento}
@@ -1176,6 +1248,10 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 motivoNaoAplicar={motivoNaoAplicar}
                 onChangeMotivoNaoAplicar={setMotivoNaoAplicar}
                 pausando={pausaExclusiva}
+                acumulaSobras={acumulaSobras}
+                qtdSobraAnterior={valorCampoSobra}
+                onChangeQtdSobraAnterior={setQtdSobraEditada}
+                dataSobraReferencia={dataRealInicioNovaCaixa}
               />
             )}
             <InfoBox>
@@ -1187,6 +1263,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               )}
               <p className="sub-text">
                 Quantidade total inicial: {qtdTotalCaixaReal} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+                {localMonitoramento?.qtd_sobra_anterior > 0 && ` + ${localMonitoramento.qtd_sobra_anterior} de sobra da caixa anterior = ${qtdTotalCaixa} comprimidos`}
                 {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
               </p>
               {localMonitoramento?.tipo_posologia && localMonitoramento.tipo_posologia !== 'diaria' && (
@@ -1199,7 +1276,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                   <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed rgba(0,0,0,0.1)', opacity: 0.7 }}>
                     <p style={{ fontSize: '0.85em', textTransform: 'uppercase', fontWeight: 'bold' }}>Ciclo Anterior</p>
                     <p style={{ marginBottom: '4px', fontSize: '0.85em', textDecoration: 'line-through' }}>
-                      Início original: {dataReferenciaFormatada.replace(' (Início Novo Ciclo)', '')}
+                      Início original: {dataInicioOriginalFormatada}
                     </p>
                     <p style={{ marginBottom: '0', fontSize: '0.85em', textDecoration: 'line-through' }}>
                       Fim previsto original: {localMonitoramento?.data_calculada_fim_caixa ? localMonitoramento.data_calculada_fim_caixa.split('T')[0].split('-').reverse().join('/') : '-'}
@@ -1222,12 +1299,23 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                 <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
                   <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
                 </p>
-                <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
-                  Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
-                </p>
-                <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
-                  (Margem aceitável calculada: {margemMin} a {margemMax})
-                </p>
+                {estoqueCalculavel ? (
+                  <>
+                    <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
+                      Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
+                    </p>
+                    {somaSobraAtiva && (
+                      <ResumoAcumulo caixaNova={dadosNovaCompra.total_capsulas_novas} total={idealRemaining} />
+                    )}
+                    <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
+                      (Margem aceitável calculada: {margemMin} a {margemMax})
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ marginBottom: '5px', fontSize: '0.95em' }}>
+                    Estoque Projetado para Hoje: <strong>não calculado</strong> — falta a data de início ou a quantidade da caixa.
+                  </p>
+                )}
                 {mudouPosologia && !escondeCamposMedicamentoAtual && (
                   <PosologiaChangeAlert>
                     <strong>Matemática Reajustada:</strong>
@@ -1247,7 +1335,7 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
             {/* 👇 NOVO: paciente comprou o medicamento por conta própria e foi
                 reembolsado pela operadora — permite criar o ciclo de reembolso
                 sem sair desta tela, quando o estoque projetado já zerou. */}
-            {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && idealRemaining <= 0 && (
+            {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && estoqueCalculavel && idealRemaining <= 0 && (
               <div style={{ margin: '0 0 20px 0', textAlign: 'right' }}>
                 <button
                   type="button"
@@ -1263,6 +1351,20 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               </div>
             )}
             <form onSubmit={handleSubmit}>
+              {/* 👇 ACUMULAR SOBRAS: marcação do medicamento (salva na hora, com histórico).
+                  Aparece também com a compra marcada (é quando a sobra é somada); some só
+                  ao descontinuar ou quando a compra troca por outro medicamento. */}
+              {!descontinuarMedicamento && !(aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) && (
+                <AcumuloSobras
+                  monitoramentoId={localMonitoramento.id}
+                  ativo={acumulaSobras}
+                  onPendenteChange={setAcumuloPendente}
+                  onChange={(valor) => {
+                    setAcumulaSobras(valor);
+                    setLocalMonitoramento(prev => (prev ? { ...prev, acumula_sobras: valor } : prev));
+                  }}
+                />
+              )}
               {!escondeCamposMedicamentoAtual && !descontinuarMedicamento && (
                 <HighlightedSection>
                   <label className="checkbox-label">
@@ -1406,9 +1508,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
                         monitoramentoId={localMonitoramento.id}
                         base={(aplicarNovaCompra && dadosNovaCompra) ? {
                           data_inicio: dataRealInicioNovaCaixa || null,
-                          qtd_total: dadosNovaCompra.total_capsulas_novas,
+                          qtd_total: (Number(dadosNovaCompra.total_capsulas_novas) || 0) + sobraSomada, // 👈 ACUMULAR SOBRAS
                           posologia: Number(posologiaNovaCaixa) || localMonitoramento.posologia_diaria,
-                          tipo_posologia: 'diaria'
+                          // 👇 CORREÇÃO (F19): projeta no padrão da nova caixa, não 'diaria' fixo
+                          tipo_posologia: padraoNovaCaixa?.tipo_posologia || 'diaria',
+                          parametros: padraoDoCiclo(padraoNovaCaixa)
                         } : null}
                         valor={restantePausa}
                         onChange={setRestantePausa}
@@ -1464,8 +1568,11 @@ export default function TelemonitoramentoModal({ isOpen, onClose, monitoramento,
               )}
               {!pausaExclusiva && (
               <FormGroup>
-                <label>O quanto ele adere? (Calculado automaticamente)</label>
-                <Input as="select" value={nivelAdesao} disabled required>
+                <label>
+                  O quanto ele adere?{' '}
+                  {estoqueCalculavel ? '(Calculado automaticamente)' : '(sem estoque projetado — escolha conforme o relato do paciente)'}
+                </label>
+                <Input as="select" value={nivelAdesao} disabled={estoqueCalculavel} onChange={(e) => setNivelAdesao(e.target.value)} required>
                   <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
                   <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
                   <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>

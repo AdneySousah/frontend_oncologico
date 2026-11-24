@@ -4,6 +4,7 @@ import { LuUsers } from 'react-icons/lu';
 import api from '../../services/api';
 import SeletorPosologia from '../SeletorPosologia';
 import SeletorCompraBase from '../SeletorCompraBase'; // 👈 escolha de qual compra é a atual
+import { dataLocalISO, hojeISO } from '../../utils/datas'; // 👈 data local (F30)
 // Importando os estilos proprietários do componente
 import {
   Container, Title, Subtitle, Card, MedName, Label, RadioGroup,
@@ -45,7 +46,7 @@ export default function ConfiguracaoUsoContinuo({
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 6) date.setDate(date.getDate() + 2);
     else if (dayOfWeek === 0) date.setDate(date.getDate() + 1);
-    return date.toISOString().split('T')[0];
+    return dataLocalISO(date);
   };
 
   const getDayOfWeek = (dateString) => {
@@ -78,7 +79,7 @@ export default function ConfiguracaoUsoContinuo({
           ? medicamento.data_entrega_medicamento.split('T')[0]
           : (paciente.data_entrega_medicamento
             ? paciente.data_entrega_medicamento.split('T')[0]
-            : new Date().toISOString().split('T')[0]);
+            : hojeISO());
 
         estadoInicial[medicamento.id] = {
           usa: true,
@@ -392,7 +393,12 @@ export default function ConfiguracaoUsoContinuo({
             <>
               <InputRow>
                 <InputGroup flex="1 1 150px">
-                  <Label>Comprimidos ao dia?</Label>
+                  {/* M7: fora do padrão diário o número vale para cada dia de dose */}
+                  <Label>
+                    {(medicamentoState[medicamento.id]?.padrao_posologia?.tipo_posologia || 'diaria') === 'diaria'
+                      ? 'Comprimidos ao dia?'
+                      : 'Comprimidos por dose (em cada dia que toma)?'}
+                  </Label>
                   <Input
                     type="number"
                     min="1"

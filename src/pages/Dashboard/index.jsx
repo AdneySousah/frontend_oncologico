@@ -25,7 +25,6 @@ export default function Dashboard() {
   // 👇 NOVO: status do fechamento do mês anterior + ação de fechar agora
   const [statusMesAnterior, setStatusMesAnterior] = useState(null);
   const [fechandoMes, setFechandoMes] = useState(false);
-  const [podeFecharMes, setPodeFecharMes] = useState(false);
 
   const carregarStatusMesAnterior = async () => {
     try {
@@ -68,7 +67,7 @@ export default function Dashboard() {
         }
       });
       setData(response.data);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao carregar indicadores.');
     } finally {
       setLoading(false);
@@ -84,7 +83,6 @@ export default function Dashboard() {
     api.get('/users/me')
       .then(response => {
         const temPermissao = response.data?.perfil?.permissoes?.fechar_mes_dashboard?.acessar === true;
-        setPodeFecharMes(temPermissao);
         if (temPermissao) carregarStatusMesAnterior();
       })
       .catch(err => console.error('Erro ao verificar permissões do usuário', err));

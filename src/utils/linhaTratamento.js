@@ -41,10 +41,3 @@ export function extrairConcentracao(nome) {
   return `${valor}${simples[2]}${simples[3] || ''}`;
 }
 
-export function mesmaLinha(medA, medB) {
-  if (!medA || !medB) return false;
-  if (medA.id !== undefined && medA.id === medB.id) return true;
-  const chaveA = chaveLinhaTratamento(medA);
-  const chaveB = chaveLinhaTratamento(medB);
-  return !!chaveA && chaveA === chaveB;
-}

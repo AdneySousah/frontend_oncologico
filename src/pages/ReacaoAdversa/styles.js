@@ -1,7 +1,9 @@
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 2rem;
+  padding: 4px 0;
+  ${media.md} { padding: 2rem; }
   background-color: ${({ theme }) => theme.colors?.background || '#f4f6f8'};
   min-height: 100vh;
 `;
@@ -86,28 +88,3 @@ export const Table = styled.table`
 `;
 
 // AQUI ESTÁ O BOTÃO QUE ESTAVA FALTANDO!
-export const ActionButton = styled.button`
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.4rem;
-  margin-left: 0.5rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-
-  &.edit {
-    color: ${({ theme }) => theme.colors?.primary || '#1890ff'};
-    border-color: ${({ theme }) => theme.colors?.primary || '#1890ff'};
-    &:hover { background-color: ${({ theme }) => theme.colors?.primary || '#1890ff'}1A; }
-  }
-
-  &.delete {
-    /* As cores de Ativar/Desativar são injetadas inline, mas este é o fallback */
-    color: #ff4d4f;
-    border-color: #ff4d4f;
-    &:hover { background-color: #ff4d4f1A; }
-  }
-`;

@@ -1,7 +1,9 @@
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 2rem;
+  padding: 4px 0;
+  ${media.md} { padding: 2rem; }
   background-color: ${({ theme }) => theme.colors.background || '#f4f6f8'};
   min-height: 100vh;
 `;
@@ -14,7 +16,7 @@ export const Title = styled.h1`
 
 export const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr));
   gap: 2rem;
 `;
 

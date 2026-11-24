@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import TelemonitoramentoModal from './components/TelemonitoramentoModal';
@@ -10,11 +10,12 @@ import EventoReembolsoModal from './components/EventoReembolsoModal'; // 👈 NO
 import { LuPhoneCall, LuChevronDown, LuChevronUp, LuInfo, LuPencil, LuUsers } from "react-icons/lu";
 import { useSearchParams } from 'react-router-dom';
 import {
-  Container, SectionWrapper, Title, TableWrapper, Table,
+  Container, SectionWrapper, Title, TableWrapper, Table, MobileSort,
   SubTableWrapper, SubTable, StatusBadge, ActionButton,
   HeaderFlex, InfoButton, ModalOverlay, ModalContent, Button,
   AdherenceBadge, LegendList,
-  ControlsContainer, PaginationContainer, PageButton, PaginationInfo, TooltipContainer, TruncatedText
+  ControlsContainer, PaginationContainer, PageButton, PaginationInfo, TooltipContainer, TruncatedText,
+  NotaOrdenacao
 } from './styles';
 
 
@@ -26,6 +27,7 @@ import PausarMedicamentoModal from './components/PausarMedicamentoModal';
 import { getAdherenceClassification } from '../../utils/adherenceClassification';
 import { chaveLinhaTratamento } from '../../utils/linhaTratamento';
 import { calcularEstoqueProjetado } from '../../utils/estoqueProjetado';
+import { hojeISO, dataLocalISO } from '../../utils/datas'; // 👈 data LOCAL (F31)
 
 const percentualAdesao = (nivel) => {
   if (nivel === 'COMPLETAMENTE') return 100;
@@ -80,6 +82,29 @@ const construirLinhasSubtabela = (grupo) => {
   return linhas;
 };
 
+// 👇 Ordena os pacientes JÁ CARREGADOS (a página atual). O backend pagina pela
+// data do próximo contato e não conhece score — por isso a ordem por score/data
+// vale só dentro da página (F21). Fica fora da busca: trocar a ordem não
+// precisa ir ao servidor de novo.
+const ordenarGrupos = (grupos, sortConfig) => [...grupos].sort((a, b) => {
+  if (sortConfig.key === 'data') {
+    const timeA = a.proximoContatoData ? new Date(a.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
+    const timeB = b.proximoContatoData ? new Date(b.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
+    return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
+  }
+  const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
+  const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
+  if (scoreA !== scoreB) {
+    return sortConfig.direction === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+  }
+  const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
+  const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
+  if (mediaA !== mediaB) return mediaA - mediaB;
+  if (!a.proximoContatoData) return 1;
+  if (!b.proximoContatoData) return -1;
+  return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
+});
+
 export default function Telemonitoramento() {
   const [monitoramentosAgrupados, setMonitoramentosAgrupados] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +112,6 @@ export default function Telemonitoramento() {
   const [linhasConjuntoExpandidas, setLinhasConjuntoExpandidas] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().substring(0, 7));
   const [incluirDescontinuados, setIncluirDescontinuados] = useState(false);
   const [mostrarPausados, setMostrarPausados] = useState(false);
   const [listaPausados, setListaPausados] = useState([]);
@@ -165,9 +189,6 @@ export default function Telemonitoramento() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterMonth, incluirDescontinuados]);
 
   useEffect(() => {
     if (highlightKey && monitoramentosAgrupados.length > 0) {
@@ -182,9 +203,17 @@ export default function Telemonitoramento() {
   }, [highlightKey, monitoramentosAgrupados]);
 
 
+  // 👇 CORREÇÃO (F20): a ordenação não dispara mais busca (é feita em memória,
+  // ver ordenarGrupos) e a volta pra página 1 ao mudar filtro acontece no próprio
+  // onChange — antes eram 2 buscas (página atual + página 1).
   useEffect(() => {
     fetchMonitoramentos();
-  }, [currentPage, debouncedSearch, filterMonth, sortConfig, incluirDescontinuados]);
+  }, [currentPage, debouncedSearch, incluirDescontinuados]);
+
+  const monitoramentosOrdenados = useMemo(
+    () => ordenarGrupos(monitoramentosAgrupados, sortConfig),
+    [monitoramentosAgrupados, sortConfig]
+  );
 
   const fetchPausados = async () => {
     try {
@@ -202,7 +231,12 @@ export default function Telemonitoramento() {
     fetchPausados(); // carrega já na montagem, pra ter a contagem no botão da aba
   }, []);
 
+  // 👇 CORREÇÃO (F20): cada busca recebe um número; só a mais recente pode
+  // gravar o resultado. Antes uma resposta lenta (ex.: busca "Ma") chegava
+  // depois da nova ("Maria") e sobrescrevia a lista.
+  const ultimaBuscaRef = useRef(0);
   async function fetchMonitoramentos() {
+    const buscaId = ++ultimaBuscaRef.current;
     try {
       setLoading(true);
       setCandidatosPorPaciente({}); // evita badge vazado de página/filtro anterior
@@ -211,10 +245,10 @@ export default function Telemonitoramento() {
           page: currentPage,
           limit: limit,
           search: debouncedSearch,
-          mes: filterMonth,
           incluir_descontinuados: incluirDescontinuados
         }
       });
+      if (buscaId !== ultimaBuscaRef.current) return; // chegou uma busca mais nova
 
       const { data, total, totalPages: fetchedTotalPages, resumoGlobal } = response.data;
       setTotalPages(fetchedTotalPages || 1);
@@ -342,30 +376,6 @@ export default function Telemonitoramento() {
         return grupo;
       });
 
-
-      agrupadosArray.sort((a, b) => {
-
-
-        if (sortConfig.key === 'data') {
-          const timeA = a.proximoContatoData ? new Date(a.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
-          const timeB = b.proximoContatoData ? new Date(b.proximoContatoData).getTime() : (sortConfig.direction === 'asc' ? Infinity : -Infinity);
-          return sortConfig.direction === 'asc' ? timeA - timeB : timeB - timeA;
-        } else {
-          const scoreA = a.avaliacao?.total_score != null ? a.avaliacao.total_score : -1;
-          const scoreB = b.avaliacao?.total_score != null ? b.avaliacao.total_score : -1;
-
-          if (scoreA !== scoreB) {
-            return sortConfig.direction === 'desc' ? scoreB - scoreA : scoreA - scoreB;
-          }
-          const mediaA = a.mediaAdesao != null ? a.mediaAdesao : 999;
-          const mediaB = b.mediaAdesao != null ? b.mediaAdesao : 999;
-          if (mediaA !== mediaB) return mediaA - mediaB;
-          if (!a.proximoContatoData) return 1;
-          if (!b.proximoContatoData) return -1;
-          return new Date(a.proximoContatoData).getTime() - new Date(b.proximoContatoData).getTime();
-        }
-      });
-
       setMonitoramentosAgrupados(agrupadosArray);
 
       if (incluirDescontinuados && agrupadosArray.length > 0) {
@@ -378,9 +388,9 @@ export default function Telemonitoramento() {
         if (idsComEncerrado.length > 0) buscarCandidatosRetomada(idsComEncerrado);
       }
     } catch {
-      toast.error('Erro ao carregar lista de monitoramentos.');
+      if (buscaId === ultimaBuscaRef.current) toast.error('Erro ao carregar lista de monitoramentos.');
     } finally {
-      setLoading(false);
+      if (buscaId === ultimaBuscaRef.current) setLoading(false);
     }
   }
 
@@ -424,6 +434,7 @@ export default function Telemonitoramento() {
   const continuacaoAposNovasLinhasRef = useRef(null);
   const aoConcluirContato = (paciente) => new Promise((resolve) => {
     (async () => {
+      fetchPausados(); // o contato pode ter pausado um ciclo (contador da aba "pausados")
       await fetchMonitoramentos();
       if (!paciente?.id) { resolve(); return; }
       try {
@@ -509,6 +520,11 @@ const handleDestravarPausa = async () => {
 const handleEstenderPausa = async () => {
   if (!monitoramentoParaEstender || !novaDataFimPrevista) {
     toast.error('Informe a nova data prevista de retomada.');
+    return;
+  }
+  // 👇 F31: estender para uma data já passada não faz sentido (use "Destravar")
+  if (novaDataFimPrevista < hojeISO()) {
+    toast.error('A nova data prevista de retomada não pode ser no passado.');
     return;
   }
   try {
@@ -837,25 +853,23 @@ return (
 
       <ControlsContainer>
         <p style={{ margin: 0, color: 'var(--text-color)', opacity: 0.8, fontSize: '0.95rem' }}>
-          Gerencie o uso contínuo de medicamentos. A lista está ordenada priorizando pacientes com maior risco de baixa adesão.
+          Gerencie o uso contínuo de medicamentos. As páginas seguem a data do próximo contato; dentro de cada página, a ordem padrão prioriza maior risco de baixa adesão.
         </p>
 
 
         <FiltrosTelemonitoramento
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
-          filterMonth={filterMonth}
-          setFilterMonth={setFilterMonth}
         />
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#666', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'inherit', opacity: 0.8, cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={incluirDescontinuados}
-            onChange={(e) => setIncluirDescontinuados(e.target.checked)}
+            onChange={(e) => { setIncluirDescontinuados(e.target.checked); setCurrentPage(1); }}
           />
           Mostrar apenas pacientes com acompanhamento encerrado (todos os medicamentos)
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#8e44ad', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: mostrarPausados ? 700 : 400 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#8e44ad', cursor: 'pointer', fontWeight: mostrarPausados ? 700 : 400 }}>
           <input
             type="checkbox"
             checked={mostrarPausados}
@@ -943,8 +957,29 @@ return (
         </div>
       ) : (
         <>
+          {/* 👇 F21: o servidor pagina pela data do próximo contato; a ordem
+              escolhida aqui reorganiza só os pacientes desta página. */}
+          <NotaOrdenacao>
+            A ordenação (score ou data) vale para os pacientes desta página. As páginas seguem a data do próximo contato.
+          </NotaOrdenacao>
+          {/* Só no celular (no desktop a ordenação fica no cabeçalho da tabela) */}
+          <MobileSort>
+            Ordenar por
+            <select
+              value={`${sortConfig.key}-${sortConfig.direction}`}
+              onChange={(e) => {
+                const [key, direction] = e.target.value.split('-');
+                setSortConfig({ key, direction });
+              }}
+            >
+              <option value="score-desc">Maior risco de baixa adesão</option>
+              <option value="score-asc">Menor risco de baixa adesão</option>
+              <option value="data-asc">Próximo contato mais antigo</option>
+              <option value="data-desc">Próximo contato mais recente</option>
+            </select>
+          </MobileSort>
           <TableWrapper>
-            <Table>
+            <Table className="tabela-cards">
               <thead>
                 <tr>
                   <th
@@ -975,7 +1010,7 @@ return (
                 </tr>
               </thead>
               <tbody>
-                {monitoramentosAgrupados.map(grupo => {
+                {monitoramentosOrdenados.map(grupo => {
                   const adInfo = getAdherenceClassification(grupo.avaliacao?.total_score);
                   const tempoProximoContato = calcularStatusTempo(grupo.proximoContatoData);
                   const isHighlighted = highlightKey === String(grupo.key);
@@ -995,7 +1030,7 @@ return (
                               : {}
                         }
                       >
-                        <td>
+                        <td className="celula-paciente">
                           <strong><span style={{ opacity: 0.6, fontWeight: 500 }}>#{grupo.paciente?.id}</span> {grupo.paciente?.nome} {grupo.paciente?.sobrenome}</strong>
                           <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span>Score: <strong>{grupo.avaliacao?.total_score != null ? `${grupo.avaliacao?.total_score} pts` : '-'}</strong></span>
@@ -1032,7 +1067,7 @@ return (
                             </div>
                           )}
                         </td>
-                        <td>
+                        <td data-label="Cuidador">
                           {grupo.paciente?.possui_cuidador ? (
                             <div style={{ lineHeight: '1.4' }}>
                               <strong>{grupo.paciente?.nome_cuidador || 'Não informado'}</strong><br />
@@ -1044,8 +1079,8 @@ return (
                             </StatusBadge>
                           )}
                         </td>
-                        <td>{grupo.paciente?.operadoras?.nome}</td>
-                        <td>
+                        <td data-label="Operadora">{grupo.paciente?.operadoras?.nome}</td>
+                        <td data-label="Medicamento atual">
                           {usoConjuntoAtivo ? (
                             <>
                               <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8a2be2', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1072,7 +1107,7 @@ return (
                             <div style={{ color: '#888', fontStyle: 'italic' }}>Não encontrado</div>
                           )}
                         </td>
-                        <td onClick={(e) => incluirDescontinuados && e.stopPropagation()}>
+                        <td data-label="Próximo contato" onClick={(e) => incluirDescontinuados && e.stopPropagation()}>
                             {incluirDescontinuados ? (
                               <div>
                                 <span style={{ color: '#c0392b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
@@ -1135,7 +1170,7 @@ return (
                             </>
                           )}
                         </td>
-                        <td>
+                        <td data-label="Status geral">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#2ecc71' }}>
                               ✓ {grupo.qtdConcluido} Concluído(s)
@@ -1145,7 +1180,7 @@ return (
                             </span>
                           </div>
                         </td>
-                        <td style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
+                        <td className="celula-seta" aria-label={expandedRows[grupo.key] ? "Recolher detalhes" : "Ver detalhes"} style={{ textAlign: 'right', color: 'var(--primary-color)' }}>
                           {expandedRows[grupo.key] ? <LuChevronUp size={22} /> : <LuChevronDown size={22} />}
                         </td>
                       </tr>
@@ -1343,8 +1378,20 @@ return (
     </SectionWrapper>
 
     <TelemonitoramentoModal
+      // 👇 CORREÇÃO (F15/F5): cada abertura monta o modal do zero — antes o
+      // primeiro render mostrava o paciente anterior (e reservava/verificava
+      // compra dele) e estados como "Pausar" vazavam de um paciente pro outro.
+      key={isModalOpen ? `aberto-${selectedMonitoramento?.id}` : 'fechado'}
       isOpen={isModalOpen}
-      onClose={() => setIsModalOpen(false)}
+      // 👇 CORREÇÃO (F13/F18): onClose(true) = algo foi gravado (pausa, contato do
+      // 1º medicamento, ciclo de reembolso) — recarrega a lista e os pausados.
+      onClose={(recarregar) => {
+        setIsModalOpen(false);
+        if (recarregar === true) {
+          fetchMonitoramentos();
+          fetchPausados();
+        }
+      }}
       monitoramento={selectedMonitoramento}
       monitoramentoAnterior={monitoramentoAnterior}
       onSucesso={() => aoConcluirContato(selectedMonitoramento?.paciente)}
@@ -1424,7 +1471,9 @@ return (
               type="date"
               value={dataRetomadaReal}
               onChange={(e) => setDataRetomadaReal(e.target.value)}
-              max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
+              max={hojeISO()}
+              // 👇 F31: não antes do início da pausa (mesma regra do backend)
+              min={monitoramentoParaDestravar.data_pausa_inicio ? dataLocalISO(monitoramentoParaDestravar.data_pausa_inicio) : undefined}
               style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
             />
             <p style={{ fontSize: '0.78rem', opacity: 0.65, margin: '6px 0 0' }}>
@@ -1461,6 +1510,7 @@ return (
             <input
               type="date"
               value={novaDataFimPrevista}
+              min={hojeISO()}
               onChange={(e) => setNovaDataFimPrevista(e.target.value)}
               style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}
             />

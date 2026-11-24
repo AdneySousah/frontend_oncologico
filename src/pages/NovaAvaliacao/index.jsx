@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
@@ -39,6 +39,9 @@ export default function NovaAvaliacao() {
   const [scoreFinal, setScoreFinal] = useState(0);
   const [evaluationId, setEvaluationId] = useState(null);
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
+  // Envio em andamento do "Enviar Avaliação" (evita avaliação/score duplicados).
+  const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     if (paciente_id) {
@@ -69,7 +72,7 @@ export default function NovaAvaliacao() {
       if (templatesRes.data.length > 0) {
         setSelectedTemplateId(templatesRes.data[0].id);
       }
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar dados. Verifique a conexão.");
     } finally {
       setLoading(false);
@@ -81,7 +84,7 @@ export default function NovaAvaliacao() {
     try {
       const res = await api.get(`/evaluations/paciente/${paciente_id}/history`);
       setHistoryData(res.data);
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar histórico.");
     } finally {
       setLoadingHistory(false);
@@ -203,6 +206,11 @@ export default function NovaAvaliacao() {
       observacoes: null
     };
 
+    // Trava contra duplo clique: a ref é síncrona (o estado só vale no próximo render).
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    setEnviando(true);
+
     try {
       const res = await api.post('/evaluations/responses', payload);
       const newScore = res.data.evaluation.total_score;
@@ -249,6 +257,9 @@ export default function NovaAvaliacao() {
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Erro ao enviar avaliação.';
       toast.error(errorMsg);
+    } finally {
+      enviandoRef.current = false;
+      setEnviando(false);
     }
   };
 
@@ -396,8 +407,8 @@ export default function NovaAvaliacao() {
               Etapa {currentCategoryIndex + 1} de {groupedCategories.length}: <span>{currentCategory.name}</span>
             </CategoryTitle>
 
-            {currentCategory.questions.map((q, index) => (
-              <QuestionCard key={q.id} isOrientacao={q.tipo === 'orientacao'}>
+            {currentCategory.questions.map((q) => (
+              <QuestionCard key={q.id} $isOrientacao={q.tipo === 'orientacao'}>
                 {q.tipo === 'orientacao' ? (
                   <OrientacaoText>
                     <LuInfo size={24} />
@@ -453,8 +464,15 @@ export default function NovaAvaliacao() {
                     Próxima Etapa <LuChevronRight size={20} />
                   </Button>
                 ) : (
-                  <Button type="button" className="btn-success" onClick={handleSubmit}>
-                    <LuCheck size={20} /> Enviar Avaliação
+                  <Button
+                    type="button"
+                    className="btn-success"
+                    onClick={handleSubmit}
+                    disabled={enviando}
+                    aria-busy={enviando}
+                    style={enviando ? { opacity: 0.6, cursor: 'wait' } : undefined}
+                  >
+                    <LuCheck size={20} /> {enviando ? 'Enviando...' : 'Enviar Avaliação'}
                   </Button>
                 )}
               </div>
@@ -469,7 +487,6 @@ export default function NovaAvaliacao() {
           pacienteData={pacienteData}
           pacienteId={paciente_id}
           evaluationId={evaluationId}
-          pendingTemplatesCount={pendingTemplates.length}
           requireMedicationSetup={needsMedicationSetup} 
         />
 

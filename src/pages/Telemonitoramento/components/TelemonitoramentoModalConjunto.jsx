@@ -24,8 +24,8 @@ const LABEL_NIVEL = {
 };
 const StepTransitionWrapper = styled.div`
   transition: opacity 0.2s ease, transform 0.2s ease;
-  opacity: ${props => (props.leaving ? 0 : 1)};
-  transform: translateX(${props => (props.leaving ? '-16px' : '0')});
+  opacity: ${props => (props.$leaving ? 0 : 1)};
+  transform: translateX(${props => (props.$leaving ? '-16px' : '0')});
 `;
 function ajustarFimDeSemana(date) {
   const dia = date.getDay();
@@ -264,10 +264,12 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
       irParaMedicamento(indiceAtual + 1);
       return;
     }
-    const algumDescontinuado = novaLista.some(d => d.descontinuarMedicamento);
-    const niveisAtivos = novaLista.filter(d => !d.descontinuarMedicamento).map(d => d.nivelAdesao);
+    // 👇 CORREÇÃO (F27): um descontinuado não dispensa mais a tela de
+    // divergência — só os ATIVOS (nem descontinuados nem pausados sem compra,
+    // mesma regra de enviarRegistroConjunto) são comparados entre si.
+    const niveisAtivos = novaLista.filter(d => !d.descontinuarMedicamento && !d.pausaExclusiva).map(d => d.nivelAdesao);
     const todosIguais = niveisAtivos.length <= 1 || niveisAtivos.every(n => n === niveisAtivos[0]);
-    if (algumDescontinuado || todosIguais) {
+    if (todosIguais) {
       enviarRegistroConjunto(novaLista, 'MEDIA');
     } else {
       avancarComEfeito('DIVERGENCIA');
@@ -320,6 +322,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
           data_inicio_nova_caixa: d.aplicarNovaCompra ? d.dataRealInicioNovaCaixa : null,
           posologia_nova_caixa: d.aplicarNovaCompra ? Number(d.posologiaNovaCaixa) : null,
           ...(d.aplicarNovaCompra ? montarCamposPadraoNovaCaixa(d.padraoNovaCaixa, d.dadosNovaCompra?.mudou_medicamento) : {}), // 👈 PADRÃO DA NOVA CAIXA
+          qtd_sobra_anterior: d.aplicarNovaCompra ? (d.qtdSobraAnterior ?? null) : null, // 👈 ACUMULAR SOBRAS
           modo_novo_medicamento: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento) ? d.modoNovoMedicamento : null,
           // 👇 LINHA DE TRATAMENTO: qual medicamento do grupo o novo substitui (o back redireciona a compra pra etapa dele)
           substitui_monitoramento_id: (d.aplicarNovaCompra && d.dadosNovaCompra?.mudou_medicamento && d.modoNovoMedicamento === 'SUBSTITUICAO') ? (d.substituiMonitoramentoId || null) : null,
@@ -378,7 +381,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
             <HistoricoComprasPaciente monitoramento={monitoramentoDaEtapa} />
           </div>
           <div className="center-column">
-            <StepTransitionWrapper leaving={transicao}>
+            <StepTransitionWrapper $leaving={transicao}>
               <PassoRegistroMedicamento
                 key={monitoramentoDaEtapa.id}
                 monitoramento={monitoramentoDaEtapa}
@@ -400,7 +403,7 @@ export default function TelemonitoramentoModalConjunto({ isOpen, onClose, monito
         </ModalLayoutWrapper>
       )}
       {etapa === 'DIVERGENCIA' && (
-        <ModalContent style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <ModalContent style={{ maxWidth: '600px', margin: 'auto' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e67e22' }}>
             <LuTriangleAlert size={22} /> Divergência de Adesão Identificada
           </h3>

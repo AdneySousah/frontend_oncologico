@@ -22,7 +22,6 @@ const modulosSistema = [
     { key: 'falhascontatos', label: 'Falhas de Contato' },
     { key: 'pausa_tratamento', label: 'Motivos de Pausa/Descontinuação' },
     { key: 'recalculo', label: 'Recálculo (Atendimento)' },
-    { key: 'base_conhecimento', label: 'Base de Conhecimento' },
     { key: 'fechar_mes_dashboard', label: 'Fechar Mês (Dashboard)' },
 ];
 

@@ -170,7 +170,7 @@ export const Spinner = styled.div`
 
 export const SummaryGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 `;

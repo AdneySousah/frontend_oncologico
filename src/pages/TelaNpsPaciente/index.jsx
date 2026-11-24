@@ -17,7 +17,6 @@ export default function TelaNpsPaciente() {
   const { id, paciente_id, monitoramento_id } = useParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [paciente, setPaciente] = useState(null);
   const [jaRespondeu, setJaRespondeu] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [erro, setErro] = useState('');
@@ -27,7 +26,6 @@ export default function TelaNpsPaciente() {
     async function fetchPaciente() {
       try {
         const response = await api.get(`/nps/paciente/${paciente_id}/atendimento/${monitoramento_id}`);
-        setPaciente(response.data.paciente);
         setJaRespondeu(response.data.ja_respondeu);
       } catch (error) {
         console.error(error);
@@ -48,6 +46,11 @@ export default function TelaNpsPaciente() {
       setSucesso(true);
     } catch (error) {
       console.error(error);
+      // 409 = esta pesquisa já foi respondida (o backend aceita uma resposta só)
+      if (error.response?.status === 409) {
+        setJaRespondeu(true);
+        return;
+      }
       alert('Ocorreu um erro ao enviar sua nota. Por favor, tente novamente.');
       setSubmitting(false);
     }
@@ -106,7 +109,7 @@ export default function TelaNpsPaciente() {
         </Header>
         
         <Subtitle>
-          Olá, <strong>{paciente?.nome}</strong>!<br />
+          Olá!<br />
           Em uma escala de 0 a 10, como você avalia o nosso atendimento hoje?
         </Subtitle>
 

@@ -17,7 +17,7 @@ const OperadorasPage = () => {
       const response = await api.get('/operadoras');
       setOperadoras(response.data);
       setLoading(false);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao carregar operadoras.');
       setLoading(false);
     }
@@ -46,7 +46,7 @@ const OperadorasPage = () => {
         await api.patch(`/operadoras/${operadora.id}/status`);
         toast.success(`Operadora ${inativo ? 'reativada' : 'desativada'} com sucesso.`);
         loadOperadoras();
-      } catch (err) {
+      } catch {
         toast.error(`Erro ao ${acao} operadora.`);
       }
     }

@@ -1,30 +1,19 @@
-import { createContext, useState, useEffect, useContext } from "react";
+import { createContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+import api, { lerUsuarioSalvo, limparDadosSessao } from "../services/api";
 import { toast } from "react-toastify";
 
 export const AuthContext = createContext({});
 
-export function useAuth() {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-    }
-    return context;
-}
-
 function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
+    // Lê o usuário salvo já no primeiro render. lerUsuarioSalvo não quebra se o
+    // storage estiver corrompido (devolve null). O token vai em cada requisição
+    // pelo interceptor de services/api.js.
+    const [user, setUser] = useState(() => {
+        const userData = lerUsuarioSalvo();
+        return userData?.token ? userData : null;
+    });
     const navigate = useNavigate();
-
-    useEffect(() => {
-        const storedUser = localStorage.getItem('oncologico:UserData');
-        if (storedUser) {
-            const userData = JSON.parse(storedUser);
-            api.defaults.headers.common['Authorization'] = `Bearer ${userData.token}`;
-            setUser(userData);
-        }
-    }, []);
 
     async function Login(email, password) {
         try {
@@ -43,25 +32,26 @@ function AuthProvider({ children }) {
             localStorage.setItem('oncologico:UserData', JSON.stringify(data));
             setUser(data);
             api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-            
+
             // VERIFICAÇÃO DE PRIMEIRO ACESSO
             if (data.user.is_new_user) {
                 navigate('/primeiro-acesso');
             } else {
-                navigate('/'); 
+                navigate('/');
             }
-            
+
         } catch (error) {
             console.error('Erro de autenticação:', error);
             // Lança o erro novamente para o LoginPage capturar e exibir a mensagem na tela
-            throw error; 
+            throw error;
         }
     }
 
     const logout = () => {
-        localStorage.removeItem('oncologico:UserData');
+        // Limpa o usuário e também mailbox / NPS em espera / termos em 2º plano
+        // (têm nomes de pacientes e notas) — o próximo usuário do PC não pode ver.
+        limparDadosSessao();
         setUser(null);
-        api.defaults.headers.common['Authorization'] = undefined;
         navigate('/login');
     };
 

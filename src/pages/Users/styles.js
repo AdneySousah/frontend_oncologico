@@ -1,8 +1,10 @@
 // src/.../styles.js (ou o caminho correto do seu arquivo)
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 2rem;
+  padding: 4px 0;
+  ${media.md} { padding: 2rem; }
   background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
   min-height: 100vh;
 `;
@@ -63,7 +65,8 @@ export const Table = styled.table`
       border-bottom: 1px solid ${({ theme }) => theme.colors.border};
       transition: background 0.1s;
 
-      /* A prop 'isActive' é passada pelo componente React */
+      /* Lê props da tabela (não da linha): na prática fica sempre 1. O
+         <tr isActive> antigo só gerava aviso do React e foi removido (F35). */
       opacity: ${({ isActive }) => (isActive === false ? 0.55 : 1)};
 
       &:hover {
@@ -127,17 +130,6 @@ export const UserEmail = styled.small`
   color: ${({ theme }) => theme.colors.textLight};
 `;
 
-export const AdminBadge = styled.span`
-  margin-left: 5px;
-  color: ${({ theme }) => theme.colors.danger};
-  font-size: 0.7rem;
-  font-weight: bold;
-`;
-
-export const ProfissionalYes = styled.b`
-  color: #13c2c2;
-`;
-
 export const AdminMatrixBadge = styled.span`
   background-color: #e6f7ff;
   border: 1px solid #91d5ff;
@@ -175,7 +167,7 @@ export const NoOperadoraText = styled.span`
 `;
 
 export const StatusBadge = styled.span`
-  color: ${({ isActive }) => (isActive ? '#52c41a' : '#f5222d')};
+  color: ${({ $isActive }) => ($isActive ? '#52c41a' : '#f5222d')};
   font-weight: bold;
   font-size: 0.85rem;
 `;

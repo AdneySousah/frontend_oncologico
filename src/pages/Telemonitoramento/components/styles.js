@@ -1,8 +1,10 @@
 import styled from 'styled-components';
+import { overlaySeguro } from '../../../themes/modal';
 
 export const ModalOverlay = styled.div`
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 999;
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`
@@ -122,29 +124,6 @@ export const ProjectedStockBox = styled.div`
   }
 `;
 
-export const CheckboxGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 180px;
-  overflow-y: auto;
-  border: 1px solid ${props => props.theme.colors.border};
-  padding: 15px;
-  border-radius: 6px;
-  background-color: ${props => props.theme.colors.inputBg};
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: normal;
-    cursor: pointer;
-    margin: 0;
-    color: ${props => props.theme.colors.text};
-    font-size: 0.95rem;
-  }
-`;
-
 export const NpsContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -228,14 +207,22 @@ export const ModalLayoutWrapper = styled.div`
   display: flex;
   gap: 20px;
   max-width: 1450px;
-  width: 95%;
-  margin: 20px auto;
+  width: 100%;
+  /* margin auto (e não "0 auto"/"20px auto"): o fundo centraliza na vertical, e
+     só com auto o conteúdo mais alto que a tela começa no topo em vez de ter o
+     cabeçalho empurrado para fora da área de rolagem. */
+  margin: auto;
+  @media (min-width: 768px) { width: 95%; }
   align-items: flex-start;
   justify-content: center;
 
   @media (max-width: 1150px) {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    gap: 12px;
+    /* empilhado: formulário primeiro, históricos depois */
+    .center-column { order: -1; margin: 0 auto; }
+    .left-column, .right-column { margin: 0 auto; }
   }
 
   .left-column, .right-column {
@@ -262,6 +249,30 @@ export const ModalLayoutWrapper = styled.div`
     width: 100%;
     max-width: 800px;
     min-width: 0; /* permite o flex encolher sem estourar a grade interna */
+  }
+
+  /* 👇 LAYOUT: uma rolagem só por área. Antes o modal central rolava por dentro
+     (90vh) e o fundo também rolava (as laterais são mais altas que a tela) —
+     ao rolar o fundo o cabeçalho do modal subia e ficava cortado. */
+  .center-column ${ModalContent} {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* Tela larga (3 colunas): o conjunto ocupa a altura da tela e cada coluna
+     rola sozinha; o fundo não rola, então o topo do modal fica sempre visível. */
+  @media (min-width: 1151px) {
+    height: calc(100dvh - 40px);
+    align-items: stretch;
+
+    .left-column, .right-column, .center-column {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+    .left-column, .right-column { padding-right: 4px; }
+    .center-column { border-radius: 12px; }
   }
 `;
 
@@ -314,7 +325,7 @@ export const HighlightedSection = styled.div`
      "full" (ex: a confirmação de comprimidos restantes) ocupa a linha toda. */
   .inputs-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
     gap: 16px 20px;
     margin-top: 20px;
     align-items: end; /* alinhamento pela base dos inputs */

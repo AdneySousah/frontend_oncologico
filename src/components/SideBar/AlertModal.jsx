@@ -36,7 +36,7 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
 
         <S.AlertControls style={{ justifyContent: 'space-between', display: 'flex', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '10px' }}>
           
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button 
               style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: filterType === 'TODOS' ? '#007BFF' : '#eee', color: filterType === 'TODOS' ? '#fff' : '#333', cursor: 'pointer' }}
               onClick={() => setFilterType('TODOS')}
@@ -54,6 +54,13 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
               onClick={() => setFilterType('Avaliação')}
             >
               Avaliações
+            </button>
+            {/* M5: alertas de retomada de pausa (type montado em SideBar/index.jsx) */}
+            <button 
+              style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', background: filterType === 'Pausa de Medicamento' ? '#007BFF' : '#eee', color: filterType === 'Pausa de Medicamento' ? '#fff' : '#333', cursor: 'pointer' }}
+              onClick={() => setFilterType('Pausa de Medicamento')}
+            >
+              Pausas
             </button>
           </div>
 
@@ -79,7 +86,7 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
               const pluralS = absDays === 1 ? '' : 's'; 
 
               return (
-                <S.AlertCard key={alert.id} diffDays={alert.diffDays} $alertType={alert.type}>
+                <S.AlertCard key={alert.id} $diffDays={alert.diffDays} $alertType={alert.type}>
                   <div className="alert-info">
                     
                     <div className="name-row">
@@ -90,7 +97,7 @@ export default function AlertModal({ isOpen, onClose, alertsList, onNavigate }) 
                         </span>
                       </h4>
                       {alert.score != null && (
-                        <S.ScoreBadge score={Number(alert.score)}>
+                        <S.ScoreBadge $score={Number(alert.score)}>
                           Score: {alert.score} pts
                         </S.ScoreBadge>
                       )}

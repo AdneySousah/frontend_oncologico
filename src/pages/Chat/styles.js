@@ -3,13 +3,19 @@ import styled from "styled-components";
 export const ChatLayoutContainer = styled.div`
   display: flex;
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   overflow: hidden;
   background-color: ${({ theme }) => theme.colors?.background || '#f0f2f5'};
 `;
 
 export const ChatWindowArea = styled.div`
   flex: 1;
+  min-width: 0;
+
+  @media (max-width: 767px) {
+    display: ${({ $hasActive }) => ($hasActive ? 'flex' : 'none')};
+  }
   display: flex;
   flex-direction: column;
   position: relative;
@@ -49,5 +55,26 @@ export const EmptyChat = styled.div`
     margin-top: 20px;
     font-weight: 300;
     color: ${({ theme }) => theme.colors?.textLight || '#555'};
+  }
+`;
+
+// Só no celular: volta da conversa para a lista
+export const BackToList = styled.button`
+  display: none;
+
+  @media (max-width: 767px) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: none;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    background: ${({ theme }) => theme.colors.surface};
+    color: ${({ theme }) => theme.colors.primary};
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 `;

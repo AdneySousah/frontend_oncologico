@@ -25,27 +25,40 @@ export default function SeletorPosologia({ dataInicio, value, onChange }) {
   };
 
   const buscarPreview = useCallback(async () => {
-    if (!dataInicio) return;
-    try {
-      setCarregandoPreview(true);
-      const res = await api.post('/monitoramento-medicamentos/preview-posologia', {
-        data_inicio: dataInicio,
-        tipo_posologia: tipo,
-        posologia_ciclo_dias_toma: value.posologia_ciclo_dias_toma,
-        posologia_ciclo_dias_pausa: value.posologia_ciclo_dias_pausa,
-        posologia_intervalo_dias: value.posologia_intervalo_dias,
-        posologia_datas_personalizadas: value.posologia_datas_personalizadas,
-        num_dias: 35
-      });
-      setPreview(res.data.dias);
-    } catch {
-      setPreview([]);
-    } finally {
-      setCarregandoPreview(false);
-    }
+    const res = await api.post('/monitoramento-medicamentos/preview-posologia', {
+      data_inicio: dataInicio,
+      tipo_posologia: tipo,
+      posologia_ciclo_dias_toma: value.posologia_ciclo_dias_toma,
+      posologia_ciclo_dias_pausa: value.posologia_ciclo_dias_pausa,
+      posologia_intervalo_dias: value.posologia_intervalo_dias,
+      posologia_datas_personalizadas: value.posologia_datas_personalizadas,
+      num_dias: 35
+    });
+    return res.data.dias;
   }, [dataInicio, tipo, value.posologia_ciclo_dias_toma, value.posologia_ciclo_dias_pausa, value.posologia_intervalo_dias, value.posologia_datas_personalizadas]);
 
-  useEffect(() => { buscarPreview(); }, [buscarPreview]);
+  // Debounce de 300 ms (não chama a API a cada tecla) + "cancelado": se os campos
+  // mudarem antes da resposta chegar, a resposta antiga é descartada (não
+  // sobrescreve a prévia mais nova).
+  useEffect(() => {
+    if (!dataInicio) return;
+    let cancelado = false;
+    const timer = setTimeout(async () => {
+      setCarregandoPreview(true);
+      try {
+        const dias = await buscarPreview();
+        if (!cancelado) setPreview(dias);
+      } catch {
+        if (!cancelado) setPreview([]);
+      } finally {
+        if (!cancelado) setCarregandoPreview(false);
+      }
+    }, 300);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [dataInicio, buscarPreview]);
 
   const toggleDataPersonalizada = (dataIso) => {
     const atuais = value.posologia_datas_personalizadas || [];

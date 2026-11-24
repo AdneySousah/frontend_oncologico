@@ -1,4 +1,6 @@
 import styled from 'styled-components';
+import { overlaySeguro } from '../../themes/modal';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
   display: flex;
@@ -6,7 +8,8 @@ export const Container = styled.div`
   align-items: center;
   min-height: 100vh;
   background-color: ${({ theme }) => theme.colors?.background || '#f4f6f8'};
-  padding: 20px;
+  padding: 4px 0;
+  ${media.md} { padding: 20px; }
   font-family: sans-serif;
 `;
 
@@ -128,6 +131,7 @@ export const ModalOverlay = styled.div`
   display: flex; align-items: center; justify-content: center;
   z-index: 1000;
   padding: 20px;
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`

@@ -26,7 +26,7 @@ export default function ReacoesAdversasPage() {
     try {
       const res = await api.get('/reacao-adversa');
       setReacoes(res.data);
-    } catch (err) {
+    } catch {
       toast.error("Erro ao carregar reações adversas");
     } finally {
       setLoading(false);
@@ -49,7 +49,7 @@ export default function ReacoesAdversasPage() {
         await api.delete(`/reacao-adversa/${reacao.id}`);
         toast.success(`Reação ${reacao.active ? 'desativada' : 'ativada'}!`);
         loadReacoes();
-      } catch (err) {
+      } catch {
         toast.error('Erro ao alterar status.');
       }
     }

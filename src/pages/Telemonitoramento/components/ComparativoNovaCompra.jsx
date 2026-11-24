@@ -4,10 +4,11 @@ import { LuTriangleAlert, LuArrowRight, LuPackageCheck, LuCalendarClock, LuUsers
 import { FormGroup, Input } from './styles';
 import SeletorPosologia from '../../../components/SeletorPosologia';
 import { MOTIVOS_NAO_APLICAR_COMPRA } from '../../../utils/novaCompraHelpers';
+import { calcularPrimeiroDiaSemCobertura } from '../../../utils/posologiaHelpers';
 
 const BannerContainer = styled.div`
-  background: ${props => props.isChange ? 'rgba(243, 156, 18, 0.12)' : 'rgba(39, 174, 96, 0.12)'};
-  border: 1px solid ${props => props.isChange ? '#f39c12' : '#27ae60'};
+  background: ${props => props.$isChange ? 'rgba(243, 156, 18, 0.12)' : 'rgba(39, 174, 96, 0.12)'};
+  border: 1px solid ${props => props.$isChange ? '#f39c12' : '#27ae60'};
   border-radius: 8px;
   padding: 15px;
   margin-bottom: 20px;
@@ -21,7 +22,7 @@ const Header = styled.div`
   font-weight: bold;
   font-size: 1.05rem;
   margin-bottom: 10px;
-  color: ${props => props.isChange ? '#e67e22' : '#27ae60'};
+  color: ${props => props.$isChange ? '#e67e22' : '#27ae60'};
 `;
 
 const GridInfo = styled.div`
@@ -44,12 +45,36 @@ const ItemBlock = styled.div`
 `;
 
 const DetalhamentoBox = styled.div`
-  background: ${props => props.hasGap ? 'rgba(241, 196, 15, 0.18)' : 'rgba(255, 255, 255, 0.6)'};
-  border: 1px solid ${props => props.hasGap ? '#f1c40f' : 'rgba(0, 0, 0, 0.06)'};
+  background: ${props => props.$hasGap ? 'rgba(241, 196, 15, 0.18)' : 'rgba(255, 255, 255, 0.6)'};
+  border: 1px solid ${props => props.$hasGap ? '#f1c40f' : 'rgba(0, 0, 0, 0.06)'};
   padding: 10px 15px;
   border-radius: 6px;
   margin-top: 5px;
   transition: all 0.2s ease-in-out;
+`;
+
+// 👇 ACUMULAR SOBRAS: campo da sobra somada à caixa nova
+const SobraBox = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: ${p => p.theme.space.sm};
+  margin-bottom: 6px;
+  padding: ${p => p.theme.space.sm} 0;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+
+  label { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; font-size: 0.95rem; cursor: pointer; }
+  label span { font-weight: 700; color: ${p => p.theme.colors.successHover}; }
+  label small { font-size: 0.8rem; color: ${p => p.theme.colors.textLight}; line-height: 1.35; }
+`;
+
+const SobraInput = styled(Input)`
+  width: 110px;
+  min-height: 40px;
+  text-align: right;
+  font-weight: 700;
 `;
 
 const AlertMessage = styled.div`
@@ -119,7 +144,9 @@ export default function ComparativoNovaCompra({
   onChangePadraoNovaCaixa,
   estoqueHoje,
   dataInicioAtual,
-  isAntesDoInicio,
+  // 👇 padrão de posologia (e pausas) do ciclo ATUAL — o estoque de hoje dura
+  // conforme esse padrão, não "um tanto por dia" (ver calcularPrimeiroDiaSemCobertura)
+  padraoAtual = null,
   modoNovoMedicamento,          // 👈 NOVO: 'CONJUNTO' | 'SUBSTITUICAO' | null
   onChangeModoNovoMedicamento,  // 👈 NOVO
   // 👇 NOVO (rastreio de compras): troca da compra selecionada entre as
@@ -137,7 +164,12 @@ export default function ComparativoNovaCompra({
   // substituir qualquer medicamento do grupo — lista pra escolher qual.
   opcoesSubstituicao = [],
   substituiMonitoramentoId = null,
-  onChangeSubstituiMonitoramentoId
+  onChangeSubstituiMonitoramentoId,
+  // 👇 ACUMULAR SOBRAS: medicamento marcado para somar a sobra à caixa nova
+  acumulaSobras = false,
+  qtdSobraAnterior = '',
+  onChangeQtdSobraAnterior,
+  dataSobraReferencia = null
 }) {
   // 👇 NOVO: quando o evento é antigo, a confirmação normal ("Aplicar
   // dados desta nova compra...") fica bloqueada até o operador confirmar
@@ -206,30 +238,29 @@ export default function ComparativoNovaCompra({
   const modoConjunto = mudou_medicamento && modoNovoMedicamento === 'CONJUNTO';
 
   let diasSemMedicacao = 0;
-  const totalEstoqueLive = data.total_capsulas_novas;
+  // 👇 ACUMULAR SOBRAS: só na reposição do mesmo medicamento (não em uso conjunto/troca)
+  const somaSobra = acumulaSobras && !mudou_medicamento && !!onChangeQtdSobraAnterior;
+  const sobraNum = somaSobra ? Math.max(0, Number(qtdSobraAnterior) || 0) : 0;
+  const totalEstoqueLive = (Number(data.total_capsulas_novas) || 0) + sobraNum;
   const estoqueValido = Number(estoqueHoje) || 0;
   const posAtualValida = Number(posologiaAtual) || 1;
 
+  // 👇 CORREÇÃO (F8): o fim do estoque atual respeitava só "comprimidos ÷ dose
+  // por dia"; com "9 a cada 7 dias" o paciente parecia ficar sem remédio logo.
+  // Agora é o primeiro dia de dose que o estoque de hoje não cobre, no padrão
+  // do ciclo atual. Serve para "dias sem medicação" e para "novo ciclo iniciado".
+  let fimCoberturaAtualObj = null;
+  if (!modoConjunto && dataInicioManual && dataInicioAtual) {
+    const [aA, mA, dA] = dataInicioAtual.split('T')[0].split('-');
+    const dataInicioAtualObj = new Date(Number(aA), Number(mA) - 1, Number(dA));
+    fimCoberturaAtualObj = calcularPrimeiroDiaSemCobertura(dataInicioAtualObj, estoqueValido, posAtualValida, padraoAtual);
+  }
+
   // O cálculo de "dias sem medicação" só faz sentido em substituição —
   // em uso conjunto o medicamento atual não para, então não há risco de pausa.
-  if (!modoConjunto && dataInicioManual && dataInicioAtual) {
+  if (fimCoberturaAtualObj) {
     const dataInicioNovoObj = new Date(dataInicioManual + 'T00:00:00');
-    const dataInicioAtualObj = new Date(dataInicioAtual.split('T')[0] + 'T00:00:00');
-    const dataHojeObj = new Date();
-    dataHojeObj.setHours(0, 0, 0, 0);
-
-    let dataFimEstimadaObj = new Date();
-    if (isAntesDoInicio) {
-      const diasAutonomia = estoqueValido / posAtualValida;
-      dataFimEstimadaObj = new Date(dataInicioAtualObj.getTime());
-      dataFimEstimadaObj.setDate(dataFimEstimadaObj.getDate() + Math.floor(diasAutonomia));
-    } else {
-      const diasAutonomia = estoqueValido / posAtualValida;
-      dataFimEstimadaObj = new Date(dataHojeObj.getTime());
-      dataFimEstimadaObj.setDate(dataFimEstimadaObj.getDate() + Math.floor(diasAutonomia));
-    }
-
-    const diffDays = (dataInicioNovoObj - dataFimEstimadaObj) / (1000 * 60 * 60 * 24);
+    const diffDays = (dataInicioNovoObj - fimCoberturaAtualObj) / (1000 * 60 * 60 * 24);
     if (diffDays > 0) {
       diasSemMedicacao = Math.floor(diffDays);
     }
@@ -241,8 +272,8 @@ export default function ComparativoNovaCompra({
   };
 
   return (
-    <BannerContainer isChange={mudou_medicamento}>
-      <Header isChange={mudou_medicamento}>
+    <BannerContainer $isChange={mudou_medicamento}>
+      <Header $isChange={mudou_medicamento}>
         {mudou_medicamento ? <LuTriangleAlert size={22} /> : <LuPackageCheck size={22} />}
         <span>
           <span style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.08)', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>
@@ -472,17 +503,38 @@ export default function ComparativoNovaCompra({
 
         <ItemBlock style={{ gridColumn: '1 / -1' }}>
           <p className="label">Detalhamento do Estoque Projetado</p>
-          <DetalhamentoBox hasGap={diasSemMedicacao > 0}>
+          <DetalhamentoBox $hasGap={diasSemMedicacao > 0}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem' }}>
               <span>Conteúdo das Novas Caixas ({qtd_caixas} un.)</span>
               <strong>{data.total_capsulas_novas} comp.</strong>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem', color: '#7f8c8d', fontStyle: 'italic' }}>
-              <span>Sobras do ciclo anterior</span>
-              <strong>Desconsideradas</strong>
-            </div>
+            {somaSobra ? (
+              <SobraBox>
+                <label htmlFor="qtd-sobra-anterior">
+                  <span>+ Sobra da caixa anterior <small>(acumular sobras ativado)</small></span>
+                  <small>
+                    Comprimidos da caixa anterior que o paciente terá
+                    {dataSobraReferencia ? ` em ${formatarDataLocal(dataSobraReferencia)} (início da caixa nova)` : ' no início da caixa nova'}, sem contar a caixa nova.
+                    O sistema sugere o estoque projetado do ciclo atual nessa data; confirme com o paciente e corrija se precisar.
+                  </small>
+                </label>
+                <SobraInput
+                  id="qtd-sobra-anterior"
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                  value={qtdSobraAnterior}
+                  onChange={(e) => onChangeQtdSobraAnterior(e.target.value)}
+                />
+              </SobraBox>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.95rem', color: '#7f8c8d', fontStyle: 'italic' }}>
+                <span>Sobras do ciclo anterior</span>
+                <strong>Desconsideradas</strong>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', marginTop: '4px', borderTop: '1px solid rgba(0,0,0,0.1)', color: '#27ae60', fontSize: '1.05rem' }}>
               <span><strong>Total do Novo Ciclo</strong></span>
@@ -491,17 +543,10 @@ export default function ComparativoNovaCompra({
 
             {(() => {
               if (modoConjunto) return null; // sem risco de pausa em uso conjunto
-              if (!dataInicioManual || !dataInicioAtual) return null;
+              if (!fimCoberturaAtualObj) return null;
 
               const dataNovoInicio = new Date(dataInicioManual + 'T00:00:00');
-              const estoqueOriginal = Number(estoqueHoje) || 0;
-              const posologiaOriginal = Number(posologiaAtual) || 1;
-              const dataHojeObj = new Date();
-              dataHojeObj.setHours(0, 0, 0, 0);
-
-              let dataFimAntigoObj = new Date(dataHojeObj.getTime());
-              dataFimAntigoObj.setDate(dataFimAntigoObj.getDate() + Math.floor(estoqueOriginal / posologiaOriginal));
-              const isRetroativo = dataNovoInicio < dataFimAntigoObj;
+              const isRetroativo = dataNovoInicio < fimCoberturaAtualObj;
               const isFuturoMuitoDistante = diasSemMedicacao > 0;
 
               if (isRetroativo) {
@@ -511,7 +556,7 @@ export default function ComparativoNovaCompra({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <strong style={{ color: '#2c3e50', fontSize: '0.95em' }}>Novo Ciclo Iniciado</strong>
                       <span style={{ lineHeight: '1.4' }}>
-                        A nova caixa foi iniciada antes do fim do ciclo anterior. A contagem de comprimidos será reiniciada a partir de <strong>{formatarDataLocal(dataInicioManual)}</strong> ignorando estoques antigos.
+                        A nova caixa foi iniciada antes do fim do ciclo anterior. A contagem de comprimidos será reiniciada a partir de <strong>{formatarDataLocal(dataInicioManual)}</strong>{somaSobra ? <> com a caixa nova <strong>+ {sobraNum} de sobra</strong> (acumular sobras).</> : ' ignorando estoques antigos.'}
                       </span>
                     </div>
                   </AlertMessage>

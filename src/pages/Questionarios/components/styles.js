@@ -1,10 +1,12 @@
 import styled, { css } from 'styled-components';
+import { overlaySeguro } from '../../../themes/modal';
 
 export const Overlay = styled.div`
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0, 0, 0, 0.6); z-index: 1000;
   display: flex; justify-content: center; align-items: center;
   backdrop-filter: blur(4px);
+  ${overlaySeguro}
 `;
 
 export const ModalContainer = styled.div`
@@ -122,8 +124,8 @@ export const Select = styled.select`
 // -- Card da Pergunta --
 export const QuestionCard = styled.div`
   position: relative; /* Mantém a lixeira posicionada relativa ao card */
-  background-color: ${({ theme, isOrientacao }) => 
-    isOrientacao ? (theme.colors.infoBg || '#f0f9fa') : theme.colors.surface
+  background-color: ${({ theme, $isOrientacao }) => 
+    $isOrientacao ? (theme.colors.infoBg || '#f0f9fa') : theme.colors.surface
   };
   padding: 0; 
   border-radius: 8px;
@@ -132,7 +134,7 @@ export const QuestionCard = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.border};
   
   /* Borda lateral azul se for orientação */
-  ${({ isOrientacao }) => isOrientacao && css`
+  ${({ $isOrientacao }) => $isOrientacao && css`
     border-left: 4px solid #17a2b8;
   `}
 

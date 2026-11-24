@@ -1,32 +1,10 @@
-import styled, { keyframes } from 'styled-components';
-
-const slideDown = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
-
-const pulseAnimation = keyframes`
-  0% {
-    box-shadow: 0 0 0 0 var(--pulse-color);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(0, 0, 0, 0); 
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
-  }
-`;
-
+import styled from 'styled-components';
+import { media } from '../../themes/theme';
 export const Container = styled.div`
   background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
   min-height: 100vh;
-  padding: 1rem;
+  padding: 4px 0;
+  ${media.md} { padding: 1rem; }
 `;
 
 export const Section = styled.section`

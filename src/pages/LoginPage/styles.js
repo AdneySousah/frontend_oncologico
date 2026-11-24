@@ -61,25 +61,6 @@ export const Logo = styled.img`
   object-fit: contain;
 `;
 
-/* Mantive o TopIconContainer caso você use em outro lugar, mas ele não será mais usado no login/senha */
-export const TopIconContainer = styled.div`
-  width: 56px;
-  height: 56px;
-  background: ${({ theme }) => theme.colors.modernIconBg};
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-
-  svg {
-    width: 28px;
-    height: 28px;
-    color: ${({ theme }) => theme.colors.modernIconColor};
-  }
-`;
-
 export const HeaderBrand = styled.div`
   text-align: center;
   color: ${({ theme }) => theme.colors.modernText};
@@ -147,22 +128,6 @@ export const Input = styled.input`
   &::placeholder {
     color: ${({ theme }) => theme.colors.modernTextLight};
     font-weight: 400;
-  }
-`;
-
-export const ForgotPassword = styled.div`
-  display: flex;
-  justify-content: flex-end;
-
-  a {
-    color: ${({ theme }) => theme.colors.modernText};
-    text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 500;
-
-    &:hover {
-      text-decoration: underline;
-    }
   }
 `;
 

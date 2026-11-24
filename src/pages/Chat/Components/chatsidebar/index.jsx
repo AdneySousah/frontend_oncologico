@@ -11,7 +11,6 @@ import {
 } from 'react-icons/lu';
 import { toast } from 'react-toastify';
 import api from '../../../../services/api'; 
-import { AuthContext } from '../../../../hooks/AuthConfig'; 
 import { ThemeContext } from '../../../../hooks/ThemeConfig'; 
 import logoBranca from '../../../../assets/logo_branca.png'; 
 
@@ -122,7 +121,7 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
   const totalNaoLidas = conversations.filter(c => unreadMap[c.id] > 0).length;
 
   return (
-    <S.SidebarContainer>
+    <S.SidebarContainer $hasActive={!!activeChatId}>
       <S.LogoArea>
         <img src={logoBranca} alt="Logo Onco" />
       </S.LogoArea>
@@ -194,7 +193,7 @@ export default function ChatSidebar({ activeChatId, setActiveChatId }) {
             return (
               <S.ConversationItem 
                 key={conv.id} 
-                isActive={activeChatId === conv.id}
+                $isActive={activeChatId === conv.id}
                 onClick={() => {
                   setActiveChatId(conv.id);
                   // Remove a bolinha verde imediatamente ao clicar (otimista)

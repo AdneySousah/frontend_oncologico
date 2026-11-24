@@ -6,7 +6,7 @@ import styled from "styled-components";
 export const MobileOverlay = styled.div`
   display: none;
   
-  @media (max-width: 768px) {
+  @media (max-width: 767px) {
     display: ${(props) => (props.$isOpen ? "block" : "none")};
     position: fixed;
     top: 0;
@@ -21,7 +21,7 @@ export const MobileOverlay = styled.div`
 
 export const Container = styled.div`
   background-color: ${({ theme }) => theme.colors.surface};
-  width: ${(props) => (props.isCollapsed ? "80px" : "280px")};
+  width: ${(props) => (props.$isCollapsed ? "80px" : "280px")};
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -34,7 +34,7 @@ export const Container = styled.div`
   z-index: 100;
 
   /* RESPONSIVIDADE MOBILE */
-  @media (max-width: 768px) {
+  @media (max-width: 767px) {
     position: fixed;
     top: 0;
     left: 0;
@@ -51,8 +51,8 @@ export const LogoArea = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  height: ${(props) => (props.isCollapsed ? "80px" : "100px")};
-  padding: ${(props) => (props.isCollapsed ? "15px" : "20px")};
+  height: ${(props) => (props.$isCollapsed ? "80px" : "100px")};
+  padding: ${(props) => (props.$isCollapsed ? "15px" : "20px")};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
@@ -60,8 +60,8 @@ export const LogoArea = styled.div`
   img {
     width: 100%;
     height: 100%;
-    max-width: ${(props) => (props.isCollapsed ? "40px" : "160px")};
-    max-height: ${(props) => (props.isCollapsed ? "40px" : "60px")};
+    max-width: ${(props) => (props.$isCollapsed ? "40px" : "160px")};
+    max-height: ${(props) => (props.$isCollapsed ? "40px" : "60px")};
     object-fit: contain; 
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -77,9 +77,9 @@ export const Header = styled.div`
   flex-shrink: 0;
 
   .user-info {
-    opacity: ${(props) => (props.isCollapsed ? 0 : 1)};
+    opacity: ${(props) => (props.$isCollapsed ? 0 : 1)};
     transition: opacity 0.2s;
-    pointer-events: ${(props) => (props.isCollapsed ? "none" : "all")};
+    pointer-events: ${(props) => (props.$isCollapsed ? "none" : "all")};
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -153,7 +153,7 @@ export const ToggleButton = styled.button`
   }
 
   /* Oculta no mobile, pois o overlay cuida do fechamento */
-  @media (max-width: 768px) {
+  @media (max-width: 767px) {
     display: none;
   }
 `;
@@ -184,38 +184,38 @@ export const MenuItem = styled.li`
     align-items: center;
     padding: 12px 15px;
     border-radius: 8px;
-    background-color: ${({ theme, isActive }) => isActive ? `${theme.colors.primary}1A` : "transparent"};
-    color: ${({ theme, isActive }) => isActive ? theme.colors.primary : theme.colors.text};
+    background-color: ${({ theme, $isActive: isActive }) => isActive ? `${theme.colors.primary}1A` : "transparent"};
+    color: ${({ theme, $isActive: isActive }) => isActive ? theme.colors.primary : theme.colors.text};
     text-decoration: none;
     border: none;
     cursor: pointer;
     font-size: 0.95rem;
-    font-weight: ${({ isActive }) => (isActive ? "600" : "400")};
+    font-weight: ${({ $isActive: isActive }) => (isActive ? "600" : "400")};
     transition: all 0.2s;
 
     &:hover {
-      background-color: ${({ theme, isActive }) => isActive ? `${theme.colors.primary}2A` : theme.colors.inputBg};
+      background-color: ${({ theme, $isActive: isActive }) => isActive ? `${theme.colors.primary}2A` : theme.colors.inputBg};
     }
 
     svg:first-child {
       min-width: 24px;
-      margin-right: ${(props) => (props.isCollapsed ? "0" : "15px")};
+      margin-right: ${(props) => (props.$isCollapsed ? "0" : "15px")};
     }
 
     .arrow-icon {
         margin-left: auto;
-        display: ${(props) => (props.isCollapsed ? "none" : "block")};
-        transform: ${({ isOpen }) => isOpen ? 'rotate(180deg)' : 'rotate(0)'};
+        display: ${(props) => (props.$isCollapsed ? "none" : "block")};
+        transform: ${({ $isOpen: isOpen }) => isOpen ? 'rotate(180deg)' : 'rotate(0)'};
         transition: transform 0.3s ease;
     }
 
     span {
-      display: ${(props) => (props.isCollapsed ? "none" : "block")};
+      display: ${(props) => (props.$isCollapsed ? "none" : "block")};
     }
   }
 
   &:hover::after {
-    content: "${(props) => (props.isCollapsed ? props.label : "")}";
+    content: "${(props) => (props.$isCollapsed ? props.label : "")}";
     position: absolute;
     left: 70px;
     top: 50%;
@@ -226,7 +226,7 @@ export const MenuItem = styled.li`
     border-radius: 6px;
     font-size: 0.85rem;
     white-space: nowrap;
-    opacity: ${(props) => (props.isCollapsed ? 1 : 0)};
+    opacity: ${(props) => (props.$isCollapsed ? 1 : 0)};
     pointer-events: none;
     z-index: 200;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -234,10 +234,10 @@ export const MenuItem = styled.li`
 `;
 
 export const SubMenuContent = styled.ul`
-  max-height: ${({ isOpen, isCollapsed }) => (isOpen && !isCollapsed ? "800px" : "0")};
+  max-height: ${({ $isOpen: isOpen, $isCollapsed: isCollapsed }) => (isOpen && !isCollapsed ? "800px" : "0")};
   overflow: hidden;
   transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  padding-left: ${(props) => (props.isCollapsed ? "0" : "20px")};
+  padding-left: ${(props) => (props.$isCollapsed ? "0" : "20px")};
   margin: 0;
   list-style: none;
   display: flex;
@@ -258,7 +258,7 @@ export const Footer = styled.div`
     width: 100%;
     display: flex;
     align-items: center;
-    justify-content: ${(props) => (props.isCollapsed ? "center" : "flex-start")};
+    justify-content: ${(props) => (props.$isCollapsed ? "center" : "flex-start")};
     background: none;
     border: none;
     color: ${({ theme }) => theme.colors.textLight};
@@ -279,11 +279,11 @@ export const Footer = styled.div`
     }
 
     svg {
-      margin-right: ${(props) => (props.isCollapsed ? "0" : "10px")};
+      margin-right: ${(props) => (props.$isCollapsed ? "0" : "10px")};
     }
 
     span {
-      display: ${(props) => (props.isCollapsed ? "none" : "block")};
+      display: ${(props) => (props.$isCollapsed ? "none" : "block")};
     }
   }
 `;
@@ -302,7 +302,7 @@ export const AlertOverlay = styled.div`
 
 export const AlertModalContent = styled.div`
   background: ${props => props.theme.colors.surface || '#fff'};
-  width: 450px;
+  width: min(450px, 100vw);
   height: 100%;
   box-shadow: -5px 0 25px rgba(0,0,0,0.1);
   display: flex;
@@ -368,22 +368,6 @@ export const AlertControls = styled.div`
   }
 `;
 
-export const FilterBtn = styled.button`
-  background: ${props => props.$active ? (props.theme.colors.primary || '#007D99') : 'transparent'};
-  color: ${props => props.$active ? '#fff' : (props.theme.colors.textLight || '#666')};
-  border: 1px solid ${props => props.$active ? (props.theme.colors.primary || '#007D99') : (props.theme.colors.border || '#ddd')};
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: ${props => props.$active ? (props.theme.colors.primary || '#007D99') : (props.theme.colors.inputBg || '#eee')};
-  }
-`;
-
 export const ScoreBadge = styled.span`
   display: inline-block;
   font-size: 0.70rem;
@@ -394,20 +378,20 @@ export const ScoreBadge = styled.span`
   white-space: nowrap;
 
   background-color: ${props => {
-    if (props.score <= 9) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
-    if (props.score <= 12) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; 
+    if (props.$score <= 9) return props.theme.colors.successLight || 'rgba(82, 196, 26, 0.15)'; 
+    if (props.$score <= 12) return props.theme.colors.warningLight || 'rgba(250, 173, 20, 0.15)'; 
     return props.theme.colors.dangerLight || 'rgba(255, 77, 79, 0.15)'; 
   }};
 
   color: ${props => {
-    if (props.score <= 9) return props.theme.colors.success || '#52c41a';
-    if (props.score <= 12) return props.theme.colors.warning || '#faad14';
+    if (props.$score <= 9) return props.theme.colors.success || '#52c41a';
+    if (props.$score <= 12) return props.theme.colors.warning || '#faad14';
     return props.theme.colors.danger || '#ff4d4f';
   }};
   
   border: 1px solid ${props => {
-    if (props.score <= 9) return props.theme.colors.success || '#52c41a';
-    if (props.score <= 12) return props.theme.colors.warning || '#faad14';
+    if (props.$score <= 9) return props.theme.colors.success || '#52c41a';
+    if (props.$score <= 12) return props.theme.colors.warning || '#faad14';
     return props.theme.colors.danger || '#ff4d4f';
   }};
 `;
@@ -420,8 +404,8 @@ export const AlertCard = styled.div`
   border-radius: 8px;
   background: ${props => props.theme.colors.inputBg || '#fafafa'};
   border-left: 5px solid ${props => 
-    props.diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : 
-    props.diffDays <= 3 ? (props.theme.colors.warning || '#faad14') : 
+    props.$diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : 
+    props.$diffDays <= 3 ? (props.theme.colors.warning || '#faad14') : 
     (props.theme.colors.success || '#52c41a')
   };
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
@@ -473,7 +457,7 @@ export const AlertCard = styled.div`
     .time { 
       font-size: 0.8rem; 
       font-weight: bold; 
-      color: ${props => props.diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : (props.theme.colors.textLight || '#888')}; 
+      color: ${props => props.$diffDays <= 1 ? (props.theme.colors.danger || '#ff4d4f') : (props.theme.colors.textLight || '#888')}; 
     }
   }
 
@@ -491,8 +475,8 @@ export const AlertCard = styled.div`
   }
 
   small {
-    color: ${props => props.diffDays < 0 ? `${props.theme.colors.text}` : (props.theme.colors.danger || '#ff4d4f')} !important;
-    font-weight: ${props => props.diffDays <= 0 ? 'bold' : 'normal'} !important;
+    color: ${props => props.$diffDays < 0 ? `${props.theme.colors.text}` : (props.theme.colors.danger || '#ff4d4f')} !important;
+    font-weight: ${props => props.$diffDays <= 0 ? 'bold' : 'normal'} !important;
   }
 `;
 
@@ -506,7 +490,7 @@ export const HealthStatus = styled.div`
   border-radius: 8px;
   transition: all 0.3s;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  justify-content: ${(props) => (props.isCollapsed ? "center" : "flex-start")};
+  justify-content: ${(props) => (props.$isCollapsed ? "center" : "flex-start")};
 
   .status-dot {
     width: 12px; /* Ponto levemente maior */
@@ -514,21 +498,21 @@ export const HealthStatus = styled.div`
     border-radius: 50%;
     flex-shrink: 0;
     background-color: ${(props) => {
-      if (props.quality === 'Green') return '#52c41a';
-      if (props.quality === 'Yellow') return '#faad14';
-      if (props.quality === 'Red') return '#ff4d4f';
+      if (props.$quality === 'Green') return '#52c41a';
+      if (props.$quality === 'Yellow') return '#faad14';
+      if (props.$quality === 'Red') return '#ff4d4f';
       return '#888';
     }};
     box-shadow: 0 0 10px ${(props) => {
-      if (props.quality === 'Green') return 'rgba(82, 196, 26, 0.4)';
-      if (props.quality === 'Yellow') return 'rgba(250, 173, 20, 0.4)';
-      if (props.quality === 'Red') return 'rgba(255, 77, 79, 0.4)';
+      if (props.$quality === 'Green') return 'rgba(82, 196, 26, 0.4)';
+      if (props.$quality === 'Yellow') return 'rgba(250, 173, 20, 0.4)';
+      if (props.$quality === 'Red') return 'rgba(255, 77, 79, 0.4)';
       return 'transparent';
     }};
   }
 
   .health-info {
-    display: ${(props) => (props.isCollapsed ? "none" : "flex")};
+    display: ${(props) => (props.$isCollapsed ? "none" : "flex")};
     flex-direction: column;
     gap: 4px; /* Espaço entre o título e a qualidade */
     overflow: hidden;

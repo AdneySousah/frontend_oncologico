@@ -1,5 +1,4 @@
 import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import api from "../../services/api";
 import { ThemeContext } from "../../hooks/ThemeConfig";
@@ -9,7 +8,6 @@ import * as S from "./styles";
 export default function FirstAccess() {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { logout } = useContext(AuthContext);
-  const navigate = useNavigate();
   
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

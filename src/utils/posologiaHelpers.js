@@ -63,6 +63,19 @@ function estaDentroDePausaLocal(dataObj, periodosPausa) {
   });
 }
 
+// Pausas do ciclo (histórico + a ativa agora) — espelho de obterPeriodosPausa no backend.
+function periodosPausaDe(monitoramento) {
+  return [
+    ...(Array.isArray(monitoramento?.pausas_historico) ? monitoramento.pausas_historico : []),
+    ...(monitoramento?.data_pausa_inicio ? [{ inicio: monitoramento.data_pausa_inicio, fim: null }] : [])
+  ];
+}
+
+const parseDataLocal = (valor) => {
+  const [a, m, d] = String(valor).split('T')[0].split('-');
+  return new Date(Number(a), Number(m) - 1, Number(d));
+};
+
 // 👇 CORREÇÃO DE BUG: o "Estoque Projetado para Hoje" sempre calculava
 // `diasPassados * posologia`, como se a posologia fosse sempre "X por
 // dia" — isso está certo pro padrão diário, mas é errado pra cíclica,
@@ -79,10 +92,7 @@ function estaDentroDePausaLocal(dataObj, periodosPausa) {
 export function contarComprimidosConsumidos(dataInicioObj, diasPassados, posologiaPorDose, monitoramento) {
   if (diasPassados <= 0 || !posologiaPorDose) return 0;
   const tipo = monitoramento?.tipo_posologia || 'diaria';
-  const periodosPausa = [
-    ...(Array.isArray(monitoramento?.pausas_historico) ? monitoramento.pausas_historico : []),
-    ...(monitoramento?.data_pausa_inicio ? [{ inicio: monitoramento.data_pausa_inicio, fim: null }] : [])
-  ];
+  const periodosPausa = periodosPausaDe(monitoramento);
 
   if (tipo === 'personalizada') {
     const datas = monitoramento?.posologia_datas_personalizadas || [];
@@ -107,3 +117,98 @@ export function contarComprimidosConsumidos(dataInicioObj, diasPassados, posolog
   return doses * posologiaPorDose;
 }
 
+const LIMITE_DIAS_SIMULACAO = 3650; // mesma trava de segurança do backend (10 anos)
+
+// Em que data a caixa acaba — espelho de calcularDataFimCaixa em
+// backend/src/utils/calcularPosologia.js (mesmo atalho no diário sem pausa e
+// mesma simulação dia a dia nos outros padrões), pra prévia da tela bater com o
+// que o back grava ao aplicar a compra. Devolve null quando não dá pra calcular.
+export function calcularDataFimCaixaLocal(dataInicioObj, totalCapsulas, posologiaPorDose, monitoramento) {
+  const total = Number(totalCapsulas) || 0;
+  const dose = Number(posologiaPorDose) || 0;
+  if (!dataInicioObj || total <= 0 || dose <= 0) return null;
+  const tipo = monitoramento?.tipo_posologia || 'diaria';
+  const periodosPausa = periodosPausaDe(monitoramento);
+
+  if (tipo === 'personalizada') {
+    const datas = (monitoramento?.posologia_datas_personalizadas || [])
+      .map(parseDataLocal)
+      .filter(d => d >= dataInicioObj && !estaDentroDePausaLocal(d, periodosPausa))
+      .sort((a, b) => a - b);
+    let restante = total;
+    for (const d of datas) {
+      restante -= dose;
+      if (restante <= 0) return d;
+    }
+    return datas.length > 0 ? datas[datas.length - 1] : null;
+  }
+
+  if (tipo === 'diaria' && periodosPausa.length === 0) {
+    const fim = new Date(dataInicioObj);
+    fim.setDate(fim.getDate() + Math.floor(total / dose));
+    return fim;
+  }
+
+  let restante = total;
+  for (let offset = 0; offset < LIMITE_DIAS_SIMULACAO; offset++) {
+    const dia = new Date(dataInicioObj);
+    dia.setDate(dia.getDate() + offset);
+    if (estaDentroDePausaLocal(dia, periodosPausa)) continue;
+    if (ehDiaDeTomaLocal(offset, tipo, monitoramento)) {
+      restante -= dose;
+      if (restante <= 0) return dia;
+    }
+  }
+  return null;
+}
+
+// 👇 NOVO: primeiro dia de dose que o estoque de hoje NÃO cobre — base do aviso
+// "dias sem medicação" ao aplicar uma compra nova. Antes a conta era
+// hoje + estoque ÷ dose, como se o paciente tomasse todo dia (em "9 a cada 7
+// dias" o estoque parecia acabar em poucos dias). No diário dá o mesmo
+// resultado de antes. Em cíclica/intervalo mantém a FASE do ciclo a partir da
+// âncora (início da caixa), igual a calcularDataFimPorRestante no backend.
+// @param ancoraObj - Date do início da caixa atual (data_administracao/entrega)
+// @param restanteHoje - comprimidos que o paciente tem hoje
+// @returns Date, ou null quando não dá pra saber (ex.: personalizada sem datas suficientes)
+export function calcularPrimeiroDiaSemCobertura(ancoraObj, restanteHoje, posologiaPorDose, monitoramento, hoje = new Date()) {
+  const dose = Number(posologiaPorDose) || 0;
+  if (dose <= 0) return null;
+  const tipo = monitoramento?.tipo_posologia || 'diaria';
+  const periodosPausa = periodosPausaDe(monitoramento);
+  const dia = new Date(hoje);
+  dia.setHours(0, 0, 0, 0);
+
+  let inicio = dia;
+  let disponivel = Math.max(0, Number(restanteHoje) || 0);
+  if (ancoraObj && ancoraObj > dia) {
+    inicio = ancoraObj; // a caixa ainda não começou: conta a partir do início dela
+  } else if (ancoraObj && (tipo === 'ciclica' || tipo === 'intervalo')) {
+    const diasPassados = Math.floor((dia - ancoraObj) / (1000 * 60 * 60 * 24));
+    disponivel += contarComprimidosConsumidos(ancoraObj, diasPassados, dose, monitoramento);
+    inicio = ancoraObj;
+  }
+
+  if (tipo === 'personalizada') {
+    const datas = (monitoramento?.posologia_datas_personalizadas || [])
+      .map(parseDataLocal)
+      .filter(d => d >= inicio && !estaDentroDePausaLocal(d, periodosPausa))
+      .sort((a, b) => a - b);
+    for (const d of datas) {
+      if (disponivel < dose) return d;
+      disponivel -= dose;
+    }
+    return null;
+  }
+
+  for (let offset = 0; offset < LIMITE_DIAS_SIMULACAO; offset++) {
+    const d = new Date(inicio);
+    d.setDate(d.getDate() + offset);
+    if (estaDentroDePausaLocal(d, periodosPausa)) continue;
+    if (ehDiaDeTomaLocal(offset, tipo, monitoramento)) {
+      if (disponivel < dose) return d;
+      disponivel -= dose;
+    }
+  }
+  return null;
+}

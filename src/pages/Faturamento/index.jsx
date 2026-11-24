@@ -227,7 +227,7 @@ export default function ListaFaturamento() {
           <h2>{formatCurrency(resumo.total_comissao)}</h2>
         </S.SummaryCard>
 
-        <S.SummaryCard cor="#faad14" isNumero>
+        <S.SummaryCard cor="#faad14" $isNumero>
           <p>Qtd. Atendimentos</p>
           <h2>{resumo.qtd_atendimentos}</h2>
         </S.SummaryCard>

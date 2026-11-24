@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 import VersaoTermoModal from './VersaoTermoModal';
 import {
     Container,
@@ -15,7 +16,20 @@ import {
     VersaoAtivaBox
 } from './styles';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://10.1.0.219:3002';
+// O PDF agora vem de uma rota autenticada: baixa com o token e abre numa nova aba.
+// A janela é aberta antes do download para o navegador não bloquear o pop-up.
+async function abrirPdfTermo(pacienteId) {
+    const janela = window.open('', '_blank');
+    try {
+        const resposta = await api.get(`/termos/paciente/${pacienteId}/pdf`, { responseType: 'blob' });
+        const url = URL.createObjectURL(new Blob([resposta.data], { type: 'application/pdf' }));
+        if (janela) janela.location.href = url; else window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+        if (janela) janela.close();
+        toast.error('Não foi possível abrir o termo. Tente novamente.');
+    }
+}
 
 export default function TermosListagemAdmin() {
     const [pacientes, setPacientes] = useState([]);
@@ -113,7 +127,7 @@ export default function TermosListagemAdmin() {
                                             <Button
                                                 variant="primary"
                                                 style={{ padding: '8px 16px', fontSize: '14px', margin: '0 auto' }}
-                                                onClick={() => window.open(`${API_BASE_URL}/termos/paciente/${paciente.id}/preview-pdf`, '_blank')}
+                                                onClick={() => abrirPdfTermo(paciente.id)}
                                             >
                                                 Visualizar / Baixar
                                             </Button>

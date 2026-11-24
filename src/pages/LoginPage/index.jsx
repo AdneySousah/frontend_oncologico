@@ -1,4 +1,18 @@
 import React, { useState, useContext, useEffect } from "react";
+
+// "Lembrar meu usuário" guarda SÓ o usuário. A senha nunca vai para o navegador
+// (antes ficava em texto puro no localStorage); quem quiser salvar a senha usa o
+// gerenciador de senhas do próprio navegador (campos com autoComplete abaixo).
+const CHAVE_USUARIO = "oncologico:savedEmail";
+const CHAVE_SENHA_ANTIGA = "oncologico:savedPassword";
+
+function lerUsuarioSalvo() {
+  try {
+    return localStorage.getItem(CHAVE_USUARIO) || "";
+  } catch {
+    return "";
+  }
+}
 import * as S from "./styles";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
@@ -9,22 +23,20 @@ export default function LoginPage() {
   const { Login } = useContext(AuthContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
   
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(lerUsuarioSalvo);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => lerUsuarioSalvo() !== "");
 
+  // Apaga a senha que versões anteriores do sistema deixaram salva neste navegador.
   useEffect(() => {
-    const savedEmail = localStorage.getItem("oncologico:savedEmail");
-    const savedPassword = localStorage.getItem("oncologico:savedPassword");
-    
-    if (savedEmail && savedPassword) {
-      setEmail(savedEmail);
-      setPassword(savedPassword);
-      setRememberMe(true);
+    try {
+      localStorage.removeItem(CHAVE_SENHA_ANTIGA);
+    } catch {
+      // navegador sem acesso ao localStorage: nada a limpar
     }
   }, []);
 
@@ -36,16 +48,24 @@ export default function LoginPage() {
     try {
       await Login(email, password);
       
-      if (rememberMe) {
-        localStorage.setItem("oncologico:savedEmail", email);
-        localStorage.setItem("oncologico:savedPassword", password);
-      } else {
-        localStorage.removeItem("oncologico:savedEmail");
-        localStorage.removeItem("oncologico:savedPassword");
+      try {
+        if (rememberMe) {
+          localStorage.setItem(CHAVE_USUARIO, email.trim());
+        } else {
+          localStorage.removeItem(CHAVE_USUARIO);
+        }
+        localStorage.removeItem(CHAVE_SENHA_ANTIGA);
+      } catch {
+        // sem localStorage: só não lembra o usuário
       }
       
     } catch (error) {
-      setErrorMessage("Usuário e/ou senha incorretos.");
+      // 403 = usuário desativado pelo administrador; o resto é usuário/senha errados
+      setErrorMessage(
+        error?.response?.status === 403
+          ? (error.response.data?.error || "Usuário inativo. Fale com o administrador do sistema.")
+          : "Usuário e/ou senha incorretos."
+      );
     } finally {
       setLoading(false);
     }
@@ -76,7 +96,10 @@ export default function LoginPage() {
             </S.InputIcon>
             <S.Input 
               id="email"
+              name="username"
               type="text" // Alterado de type="email" para "text" para aceitar CPF ou username
+              autoComplete="username"
+              aria-label="Usuário"
               placeholder="Usuario utilizado no sistema de compras" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -92,14 +115,21 @@ export default function LoginPage() {
             </S.InputIcon>
             <S.Input 
               id="password"
-              type={showPassword ? "text" : "password"} 
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              aria-label="Senha"
               placeholder="Senha" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
             
-            <S.PasswordToggle type="button" onClick={() => setShowPassword(!showPassword)}>
+            <S.PasswordToggle
+              type="button"
+              aria-label={showPassword ? "Esconder senha" : "Mostrar senha"}
+              onClick={() => setShowPassword(!showPassword)}
+            >
               {showPassword ? (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -113,7 +143,7 @@ export default function LoginPage() {
             </S.PasswordToggle>
           </S.InputGroup>
 
-          {/* Somente a opção de Lembrar Senha permaneceu */}
+          {/* Lembra só o usuário; a senha fica a cargo do gerenciador de senhas do navegador */}
           <S.OptionsRow style={{ justifyContent: 'flex-start' }}>
             <S.RememberContainer>
               <input 
@@ -122,7 +152,7 @@ export default function LoginPage() {
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
               />
-              <label htmlFor="remember">Lembrar credenciais</label>
+              <label htmlFor="remember">Lembrar meu usuário</label>
             </S.RememberContainer>
           </S.OptionsRow>
 

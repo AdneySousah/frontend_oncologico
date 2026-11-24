@@ -57,5 +57,7 @@ export const adminOptions = [
   { id: "auditoria", label: "Auditoria", icon: LuLogs, path: "/auditoria", modulo: "audit-logs" },
    { id: "faturamento", label: "Faturamento", icon: LuDollarSign, path: "/faturamento", modulo: "faturamento" },
    { id: "termo", label: "Termos Assinados", icon: LuFileSearch, path: "/termo", modulo: "termo" },
-   { id: "base_conhecimento", label: "Base de Conhecimento", icon: LuBookOpen, path: "/base-conhecimento", modulo: "base_conhecimento" },
 ];
+
+// Visível para todos os usuários (sem módulo de permissão).
+export const manualOption = { id: "manual", label: "Manual do Sistema", icon: LuBookOpen, path: "/manual" };

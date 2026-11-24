@@ -1,7 +1,10 @@
 import styled from 'styled-components';
+import { overlaySeguro } from '../../themes/modal';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 20px;
+  padding: 4px 0;
+  ${media.md} { padding: 20px; }
 `;
 
 export const Header = styled.div`
@@ -77,6 +80,7 @@ export const ModalOverlay = styled.div`
   display: flex; align-items: center; justify-content: center;
   z-index: 999;
   padding: 20px;
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`

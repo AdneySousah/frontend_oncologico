@@ -77,7 +77,7 @@ export default function NpsModal({ monitoramento, onClose, onBackground, initial
           try {
             await navigator.clipboard.writeText(res.data.link);
             toast.success("Link copiado para a área de transferência!");
-          } catch (clipErr) {
+          } catch {
             toast.warning(`Link gerado, mas não foi possível copiar automaticamente. Link: ${res.data.link}`);
           }
         } else {

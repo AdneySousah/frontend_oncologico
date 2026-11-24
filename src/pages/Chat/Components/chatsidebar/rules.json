@@ -17,6 +17,6 @@
   {
     "id": 4,
     "title": "Atenção: Custo de Desbloqueio",
-    "description": "Para reabrir um chat bloqueado, o sistema precisa enviar um Template automático (ex: Link do Termo). Cada clique no botão de 'Desbloquear' gera uma cobrança no saldo da CIC FARMA. Use com consciência e apenas quando precisar fazer um contato ativo!"
+    "description": "Para reabrir um chat bloqueado, o sistema precisa enviar um Template automático (Link do Termo ou pesquisa NPS). Cada clique em 'Reabrir com Termo' ou 'Reabrir com NPS' gera uma cobrança no saldo da CIC FARMA. Use com consciência e apenas quando precisar fazer um contato ativo!"
   }
 ]

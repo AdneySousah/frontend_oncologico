@@ -1,10 +1,13 @@
 import styled from 'styled-components';
+import { overlaySeguro } from '../../themes/modal';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
   width: 100%;
   min-height: 100vh;
   background-color: ${props => props.theme.colors.background};
-  padding: 20px; /* Reduzido de 40px 20px */
+  padding: 4px 0;
+  ${media.md} { padding: 20px; }
   transition: background-color 0.3s ease;
 `;
 
@@ -28,8 +31,11 @@ export const Title = styled.h2`
   color: ${props => props.theme.colors.text};
   display: flex;
   align-items: center;
-  margin: 0; 
-  font-size: 1.6rem;
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.25;
+  gap: 8px;
+  ${media.md} { font-size: 1.6rem; }
 `;
 
 /* Novo Wrapper para conter qualquer vazamento da tabela */
@@ -79,16 +85,63 @@ export const Table = styled.table`
     padding: 0;
     border-bottom: none;
   }
+
+  /* CELULAR: cada paciente vira um cartão (cabeçalho escondido, rótulo em cada campo) */
+  @media (max-width: 767px) {
+    &.tabela-cards {
+      min-width: 0;
+      display: block;
+    }
+    &.tabela-cards thead { display: none; }
+    &.tabela-cards tbody { display: block; }
+
+    &.tabela-cards .summary-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+      padding: 14px 44px 14px 12px;
+      border-bottom: 1px solid ${props => props.theme.colors.border};
+    }
+    &.tabela-cards .summary-row > td {
+      display: block;
+      padding: 0;
+      border: none;
+      min-width: 0;
+      font-size: 13px;
+    }
+    &.tabela-cards .summary-row > td.celula-paciente { grid-column: 1 / -1; }
+    &.tabela-cards .summary-row > td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: ${props => props.theme.colors.textLight};
+    }
+    &.tabela-cards .summary-row > td.celula-seta {
+      position: absolute;
+      top: 12px;
+      right: 10px;
+    }
+    &.tabela-cards .details-row,
+    &.tabela-cards .details-row > td {
+      display: block;
+    }
+  }
 `;
 
 export const SubTableWrapper = styled.div`
-  padding: 20px 30px; /* Reduzido de 30px 40px */
+  padding: 12px 8px;
+  overflow-x: auto;
+  ${media.md} { padding: 20px 30px; }
   background-color: rgba(0, 0, 0, 0.015);
   border-left: 4px solid ${props => props.theme.colors.primary};
   box-shadow: inset 0 3px 6px rgba(0,0,0,0.02);
 `;
 
 export const SubTable = styled.table`
+  min-width: 600px;
   width: 100%;
   border-collapse: separate; 
   border-spacing: 0;
@@ -211,12 +264,15 @@ export const InfoButton = styled.button`
 export const ModalOverlay = styled.div`
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 999;
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`
   background: ${props => props.theme.colors.surface}; 
   color: ${props => props.theme.colors.text};
-  padding: 30px; border-radius: 12px; max-width: 550px; width: 90%;
+  padding: 20px 16px; border-radius: 12px; max-width: 550px; width: 100%;
+  max-height: calc(100dvh - 24px); overflow-y: auto;
+  ${media.md} { padding: 30px; width: 90%; }
   border: 1px solid ${props => props.theme.colors.border};
   h3 { margin-bottom: 15px; border-bottom: 1px solid ${props => props.theme.colors.border}; padding-bottom: 10px; }
 `;
@@ -388,3 +444,34 @@ export const TruncatedText = styled.span`
 `;
 
 
+
+// Seletor de ordenação que só aparece no celular (no formato cartão o cabeçalho some)
+// Aviso de que a ordenação vale só para a página atual (F21)
+export const NotaOrdenacao = styled.p`
+  margin: 12px 0 4px;
+  font-size: 0.8rem;
+  color: ${props => props.theme.colors.textLight};
+`;
+
+export const MobileSort = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 0.85rem;
+  color: ${props => props.theme.colors.textLight};
+
+  select {
+    flex: 1;
+    min-height: 40px;
+    padding: 0 10px;
+    border-radius: ${props => props.theme.radius?.sm || '6px'};
+    border: 1px solid ${props => props.theme.colors.border};
+    background: ${props => props.theme.colors.surface};
+    color: ${props => props.theme.colors.text};
+  }
+
+  ${media.md} {
+    display: none;
+  }
+`;

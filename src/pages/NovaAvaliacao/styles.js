@@ -1,10 +1,13 @@
 import styled, { keyframes, css } from 'styled-components';
+import { overlaySeguro } from '../../themes/modal';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
   width: 100%;
   min-height: 100vh;
   background-color: ${props => props.theme.colors.background};
-  padding: 40px 20px; 
+  padding: 4px 0;
+  ${media.md} { padding: 40px 20px; }
   transition: background-color 0.3s ease;
 `;
 
@@ -193,19 +196,19 @@ export const CategoryTitle = styled.h3`
 `;
 
 export const QuestionCard = styled.div`
-  background: ${props => props.isOrientacao ? (props.theme.colors.infoBg || '#f0f9fa') : props.theme.colors.inputBg};
+  background: ${props => props.$isOrientacao ? (props.theme.colors.infoBg || '#f0f9fa') : props.theme.colors.inputBg};
   border: 1px solid ${props => props.theme.colors.border};
   padding: 25px;
   border-radius: 8px;
   margin-bottom: 25px;
   transition: border-color 0.2s;
 
-  ${props => props.isOrientacao && css`
+  ${props => props.$isOrientacao && css`
     border-left: 5px solid #17a2b8;
   `}
 
   &:hover {
-    border-color: ${props => !props.isOrientacao && props.theme.colors.primary};
+    border-color: ${props => !props.$isOrientacao && props.theme.colors.primary};
   }
 
   h4 {
@@ -354,6 +357,7 @@ export const ModalOverlay = styled.div`
   background: rgba(0,0,0,0.85);
   display: flex; align-items: center; justify-content: center;
   z-index: 999;
+  ${overlaySeguro}
 `;
 
 export const ModalContent = styled.div`
@@ -366,20 +370,6 @@ export const ModalContent = styled.div`
   width: 90%;
   border: 1px solid ${props => props.theme.colors.border};
 `;
-
-/* const strokeAnimation = keyframes`
-  100% { stroke-dashoffset: 0; }
-`;
-
-export const SuccessCheck = styled.svg`
-  width: 80px; height: 80px; display: block; stroke-width: 4; stroke: #2ecc71; 
-  margin: 0 auto 20px auto; fill: none;
-
-  .check-path {
-    stroke-dasharray: 48; stroke-dashoffset: 48;
-    animation: ${strokeAnimation} 0.5s ease forwards;
-  }
-`; */
 
 export const FloatingScore = styled.div`
   position: fixed;

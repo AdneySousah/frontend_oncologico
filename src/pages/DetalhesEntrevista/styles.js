@@ -1,7 +1,9 @@
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 20px; /* Reduzido de 30px para ganhar tela no desktop */
+  padding: 4px 0;
+  ${media.md} { padding: 20px; }
   background-color: ${({ theme }) => theme.colors.background || '#000000'};
   min-height: 100vh;
 `;
@@ -16,10 +18,10 @@ export const Header = styled.div`
 
   .title-section {
     flex: 1;
-    min-width: 300px;
+    min-width: min(300px, 100%);
   }
 
-  h1 { color: ${({ theme }) => theme.colors.text}; font-size: 1.8rem; margin-bottom: 4px; }
+  h1 { color: ${({ theme }) => theme.colors.text}; font-size: 1.35rem; line-height: 1.25; margin-bottom: 4px; ${media.md} { font-size: 1.8rem; } }
   p { color: ${({ theme }) => theme.colors.textLight}; font-size: 0.95rem; opacity: 0.8; margin: 0; }
 `;
 
@@ -85,6 +87,40 @@ export const Table = styled.table`
 
   tr:hover {
     background-color: ${({ theme }) => theme.colors.inputBg}CC; 
+  }
+  /* CELULAR: cada paciente vira um cartão (cabeçalho escondido, rótulo em cada campo) */
+  @media (max-width: 767px) {
+    &.tabela-cards { min-width: 0; display: block; }
+    &.tabela-cards thead { display: none; }
+    &.tabela-cards tbody { display: block; }
+    &.tabela-cards tbody tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+      padding: 14px 12px;
+      border-bottom: 1px solid ({ theme }) => theme.colors.border;
+    }
+    &.tabela-cards tbody td {
+      display: block;
+      padding: 0;
+      border: none;
+      min-width: 0;
+    }
+    &.tabela-cards tbody td[colspan] { grid-column: 1 / -1; }
+    &.tabela-cards td.celula-id { grid-column: 1 / -1; font-size: 0.8rem; opacity: 0.7; }
+    &.tabela-cards td.celula-paciente,
+    &.tabela-cards td.celula-largura,
+    &.tabela-cards td.celula-acoes { grid-column: 1 / -1; }
+    &.tabela-cards td.celula-id + td.celula-paciente { margin-top: -8px; }
+    &.tabela-cards td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: ({ theme }) => theme.colors.textLight;
+    }
+    &.tabela-cards td.celula-acoes .action-buttons { justify-content: flex-start; flex-wrap: wrap; }
   }
 `;
 

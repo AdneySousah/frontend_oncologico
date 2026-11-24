@@ -79,8 +79,7 @@ const NpsChart = ({ chartData = [], reportData = [] }) => {
     );
   };
 
-  const handleExport = () => {
-    console.log(reportData);
+  const handleExport = () => {
     const columns = [
       { header: 'ID Paciente', key: 'paciente_id', width: 15 },
       { header: 'Nota', key: 'nota', width: 15 },

@@ -1,8 +1,8 @@
 import React from 'react';
-import { LuSearch, LuCalendar } from "react-icons/lu";
+import { LuSearch } from "react-icons/lu";
 import { SearchInputContainer, SearchInput } from '../styles'; // Reaproveita seus estilos
 
-export default function FiltrosTelemonitoramento({ searchTerm, setSearchTerm, filterMonth, setFilterMonth }) {
+export default function FiltrosTelemonitoramento({ searchTerm, setSearchTerm }) {
   return (
     <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
       

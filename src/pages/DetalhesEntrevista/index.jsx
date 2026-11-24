@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTheme } from 'styled-components';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import * as S from './styles';
@@ -9,6 +10,23 @@ import PausarTratamentoModal from './components/PausarTratamentoModal';
 import FilterBar from './components/FilterBar';
 import Pagination from './components/Pagination';
 import { LuArrowUpDown, LuEye, LuRefreshCw, LuCirclePause, LuCirclePlay, LuX } from "react-icons/lu";
+
+// Status do termo como o backend trata: nulo (ou valor fora da lista) = "Nao Enviado"
+// (default da coluna e mesma regra do DashboardController). Contador, filtro e
+// linha usam esta função para os números baterem.
+const STATUS_TERMO_VALIDOS = ['Aceito', 'Recusado', 'Pendente', 'Nao Enviado', 'Cancelado'];
+const statusTermoDe = (paciente) =>
+  STATUS_TERMO_VALIDOS.includes(paciente?.status_termo) ? paciente.status_termo : 'Nao Enviado';
+
+// Lê a lista de "2º plano" do storage sem quebrar se estiver corrompida.
+function lerEmSegundoPlano() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem('oncologico:emSegundoPlano') || '[]');
+    return Array.isArray(salvo) ? salvo : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function ListaEntrevistas() {
   const [pacientesNavegacao, setPacientesNavegacao] = useState([]);
@@ -36,7 +54,9 @@ export default function ListaEntrevistas() {
   const [syncingPacienteId, setSyncingPacienteId] = useState(null);
 
   // Array de IDs em Segundo Plano
-  const [emSegundoPlanoIds, setEmSegundoPlanoIds] = useState([]);
+  // Inicializador preguiçoso: lê o storage já no primeiro render. Antes lia num
+  // effect e gravava em outro — no StrictMode o "[]" inicial sobrescrevia a lista.
+  const [emSegundoPlanoIds, setEmSegundoPlanoIds] = useState(lerEmSegundoPlano);
   const [filters, setFilters] = useState({
     buscaGeral: '',
     cuidador: '',
@@ -49,6 +69,7 @@ export default function ListaEntrevistas() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const navigate = useNavigate();
+  const theme = useTheme();
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('highlight');
 
@@ -59,11 +80,6 @@ export default function ListaEntrevistas() {
 
   const nomeOperadoraUsuario = usuarioLogado?.user?.operadora || usuarioLogado?.operadora?.nome;
   const isMaster = nomeOperadoraUsuario === 'CICFARMA';
-
-  useEffect(() => {
-    const saved = localStorage.getItem('oncologico:emSegundoPlano');
-    if (saved) setEmSegundoPlanoIds(JSON.parse(saved));
-  }, []);
 
   useEffect(() => {
     localStorage.setItem('oncologico:emSegundoPlano', JSON.stringify(emSegundoPlanoIds));
@@ -233,7 +249,7 @@ export default function ListaEntrevistas() {
   };
 
   const handleAcaoPaciente = async (paciente) => {
-    const statusTermo = paciente.status_termo || 'Pendente';
+    const statusTermo = statusTermoDe(paciente);
     const isEmSegundoPlano = emSegundoPlanoIds.includes(paciente.id);
 
     const pacienteAtualizado = await sincronizarPacienteIndividual(paciente.id);
@@ -318,9 +334,7 @@ export default function ListaEntrevistas() {
     const counts = { Aceito: 0, Recusado: 0, Pendente: 0, 'Nao Enviado': 0, Cancelado: 0, Todos: baseData.length, SegundoPlano: 0 };
 
     baseData.forEach(p => {
-      const status = p.status_termo || 'Nao Enviado';
-      if (counts[status] !== undefined) counts[status]++;
-      else counts['Nao Enviado']++;
+      counts[statusTermoDe(p)]++;
 
       if (emSegundoPlanoIds.includes(p.id)) counts.SegundoPlano++;
     });
@@ -335,7 +349,7 @@ export default function ListaEntrevistas() {
     if (filters.statusTermo === 'SegundoPlano') {
       result = result.filter(p => emSegundoPlanoIds.includes(p.id));
     } else if (filters.statusTermo && filters.statusTermo !== 'Todos') {
-      result = result.filter(p => (p.status_termo || 'Pendente') === filters.statusTermo);
+      result = result.filter(p => statusTermoDe(p) === filters.statusTermo);
     }
     // CORREÇÃO APLICADA AQUI: Busca agora junta nome e sobrenome antes de comparar
     if (filters.buscaGeral) {
@@ -449,6 +463,11 @@ export default function ListaEntrevistas() {
           <span className="count">{termoCounts.Recusado}</span>
           <span className="label">Recusados</span>
         </S.CounterCircle>
+        {/* M5: termo cancelado tinha contagem mas não tinha círculo/filtro */}
+        <S.CounterCircle color={theme.colors.textLight} active={filters.statusTermo === 'Cancelado'} onClick={() => changeStatusFilter('Cancelado')}>
+          <span className="count">{termoCounts.Cancelado}</span>
+          <span className="label">Cancelados</span>
+        </S.CounterCircle>
         <S.CounterCircle color="#1890ff" active={filters.statusTermo === 'Todos'} onClick={() => changeStatusFilter('Todos')}>
           <span className="count">{termoCounts.Todos}</span>
           <span className="label">Todos</span>
@@ -500,7 +519,7 @@ export default function ListaEntrevistas() {
       ) : (
         <>
       <S.TableWrapper>
-        <S.Table>
+        <S.Table className="tabela-cards">
           <thead>
             <tr>
               <th>ID</th>
@@ -518,7 +537,7 @@ export default function ListaEntrevistas() {
           </thead>
           <tbody>
             {paginatedPacientes.map(paciente => {
-              const statusTermo = paciente.status_termo || 'Pendente';
+              const statusTermo = statusTermoDe(paciente);
               const isHighlighted = highlightId === String(paciente.id);
               const nomeOperadora = paciente.operadoras?.nome || '-';
               const nomeMedicamento = paciente.medicamento?.nome || 'Não informado';
@@ -528,16 +547,16 @@ export default function ListaEntrevistas() {
 
               return (
                 <tr key={paciente.id} id={`row-${paciente.id}`} style={isHighlighted ? { backgroundColor: 'rgba(250, 173, 20, 0.2)', transition: 'background-color 2s' } : {}}>
-                  <td>#{paciente.id}</td>
-                  <td>
+                  <td className="celula-id">#{paciente.id}</td>
+                  <td className="celula-paciente">
                     <div style={{ lineHeight: '1.4' }}>
                       <strong>{paciente.nome} {paciente.sobrenome}</strong><br />
                       <small style={{ opacity: 0.6 }}>CPF: {paciente.cpf}</small>
                     </div>
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{paciente.celular || paciente.telefone || '-'}</td>
+                  <td data-label="Contato" style={{ whiteSpace: 'nowrap' }}>{paciente.celular || paciente.telefone || '-'}</td>
                   {/* CUIDADOR CONSOLIDADO */}
-                  <td>
+                  <td data-label="Cuidador">
                     {paciente.possui_cuidador ? (
                       <div style={{ lineHeight: '1.4' }}>
                         <strong>{paciente.nome_cuidador || 'Não informado'}</strong><br />
@@ -550,8 +569,8 @@ export default function ListaEntrevistas() {
                     )}
                   </td>
 
-                  <td>{nomeOperadora}</td>
-                  <td>
+                  <td data-label="Operadora">{nomeOperadora}</td>
+                  <td data-label="Medicamento / custo">
                     <div style={{ lineHeight: '1.4' }}>
                       <span title={nomeMedicamento} style={{ maxWidth: '150px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <strong>{nomeMedicamento}</strong>
@@ -562,7 +581,7 @@ export default function ListaEntrevistas() {
                     </div>
                   </td>
                   {/* TERMO E AVALIAÇÃO CONSOLIDADOS */}
-                  <td>
+                  <td className="celula-largura" data-label="Termo / avaliação">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                       {paciente.tratamento_pausado && (
                         <S.StatusBadge bg="rgba(142, 68, 173, 0.15)" color="#8e44ad" title={paciente.motivo_pausa_tratamento || 'Sem motivo informado'}>
@@ -585,7 +604,7 @@ export default function ListaEntrevistas() {
                       </S.StatusBadge>
                     </div>
                   </td>
-                  <td>
+                  <td className="celula-acoes">
                     <div className="action-buttons">
                       <S.ActionButton
                         mode="create"

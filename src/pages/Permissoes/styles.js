@@ -1,7 +1,9 @@
 import styled from 'styled-components';
+import { media } from '../../themes/theme';
 
 export const Container = styled.div`
-  padding: 2rem;
+  padding: 4px 0;
+  ${media.md} { padding: 2rem; }
   background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
   min-height: 100vh;
 `;

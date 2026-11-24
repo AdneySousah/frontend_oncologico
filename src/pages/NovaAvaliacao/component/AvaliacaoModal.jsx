@@ -12,7 +12,6 @@ export default function AvaliacaoModal({
   pacienteData,
   pacienteId,
   evaluationId,
-  pendingTemplatesCount,
   requireMedicationSetup
 }) {
   const [modalStep, setModalStep] = useState('success');
@@ -65,7 +64,7 @@ export default function AvaliacaoModal({
     try {
       const response = await api.get(`/pacientes/${pacienteId}/medicamentos-ativos`);
       setMedicamentosAtivos(response.data.medicamentos || []);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao buscar medicamentos ativos do paciente.');
       // Fallback defensivo: segue com o medicamento único já disponível,
       // pra não travar o fluxo caso o endpoint novo falhe.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LuMessageCircle } from 'react-icons/lu';
+import { LuMessageCircle, LuArrowLeft } from 'react-icons/lu';
 import ChatSidebar from './Components/chatsidebar';
 import * as S from './styles';
 import ChatWindow from './Components/chatwindow';
@@ -18,7 +18,12 @@ export default function ChatModule() {
             />
 
             {/* ÁREA DE MENSAGENS (A Direita) */}
-            <S.ChatWindowArea>
+            <S.ChatWindowArea $hasActive={!!activeChatId}>
+                {activeChatId && (
+                    <S.BackToList type="button" onClick={() => setActiveChatId(null)}>
+                        <LuArrowLeft size={18} aria-hidden="true" /> Conversas
+                    </S.BackToList>
+                )}
                 {activeChatId ? (
                     <ChatWindow chatId={activeChatId} /> // SUBSTITUA A DIV DE TESTE POR ISSO!
                 ) : (

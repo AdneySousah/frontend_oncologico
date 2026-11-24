@@ -1,4 +1,5 @@
 import styled, { keyframes } from 'styled-components';
+import { media } from '../../themes/theme';
 
 // Animação suave de entrada
 const fadeIn = keyframes`
@@ -7,7 +8,8 @@ const fadeIn = keyframes`
 `;
 
 export const Container = styled.div`
-  padding: 2rem;
+  padding: 4px 0;
+  ${media.md} { padding: 2rem; }
   background-color: ${({ theme }) => theme.colors.background || theme.colors.inputBg || '#f4f6f8'};
   min-height: 100vh;
 `;
@@ -43,11 +45,11 @@ export const TemplateCard = styled.div`
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
   margin-bottom: 1rem;
   /* Se não tiver a cor 'secondary' no tema, usa a 'primary' */
-  border-left: 5px solid ${({ isActive, theme }) => isActive ? (theme.colors.secondary || theme.colors.primary) : theme.colors.border};
+  border-left: 5px solid ${({ $isActive, theme }) => $isActive ? (theme.colors.secondary || theme.colors.primary) : theme.colors.border};
   transition: all 0.3s ease;
   
   // Se estiver expandido, pode ter uma sombra maior
-  ${props => props.isExpanded && `
+  ${props => props.$isExpanded && `
     box-shadow: 0 8px 20px rgba(0,0,0,0.15);
     border-left-width: 8px;
   `}
@@ -81,9 +83,9 @@ export const StatusBadge = styled.span`
   font-weight: bold;
   
   /* Usando transparência para funcionar bem no Claro/Escuro */
-  background-color: ${({ isActive }) => isActive ? 'rgba(0, 122, 94, 0.1)' : 'rgba(207, 19, 34, 0.1)'};
-  color: ${({ isActive, theme }) => isActive ? (theme.colors.success || '#007a5e') : (theme.colors.error || '#cf1322')};
-  border: 1px solid ${({ isActive }) => isActive ? 'rgba(0, 122, 94, 0.3)' : 'rgba(207, 19, 34, 0.3)'};
+  background-color: ${({ $isActive }) => $isActive ? 'rgba(0, 122, 94, 0.1)' : 'rgba(207, 19, 34, 0.1)'};
+  color: ${({ $isActive, theme }) => $isActive ? (theme.colors.success || '#007a5e') : (theme.colors.error || '#cf1322')};
+  border: 1px solid ${({ $isActive }) => $isActive ? 'rgba(0, 122, 94, 0.3)' : 'rgba(207, 19, 34, 0.3)'};
 `;
 
 export const Actions = styled.div`

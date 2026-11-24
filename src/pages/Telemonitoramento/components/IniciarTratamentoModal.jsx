@@ -241,7 +241,12 @@ export default function IniciarTratamentoModal({ isOpen, onClose, paciente, cand
                   />
                   <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '10px' }}>
                     <FormGroup style={{ flex: '1 1 140px' }}>
-                      <label>Comprimidos ao dia</label>
+                      {/* M7: fora do padrão diário o número vale para cada dia de dose */}
+                      <label>
+                        {(dados.padraoPosologia?.tipo_posologia || 'diaria') === 'diaria'
+                          ? 'Comprimidos ao dia'
+                          : 'Comprimidos por dose (em cada dia que toma)'}
+                      </label>
                       <Input
                         type="number" min="1"
                         value={dados.posologia || ''}

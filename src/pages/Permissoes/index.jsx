@@ -32,7 +32,7 @@ export default function PerfisPage() {
     try {
       const response = await api.get('/perfis');
       setPerfis(response.data);
-    } catch (err) {
+    } catch {
       toast.error("Erro ao carregar lista de perfis.");
     } finally {
       setLoading(false);

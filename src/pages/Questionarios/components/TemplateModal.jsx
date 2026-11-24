@@ -164,7 +164,7 @@ const TemplateModal = ({ isOpen, onClose, onSuccess, templateToEdit }) => {
             {questions.map((q, qIndex) => (
               <QuestionCard 
                 key={qIndex} 
-                isOrientacao={q.tipo === 'orientacao'}
+                $isOrientacao={q.tipo === 'orientacao'}
               >
                 <QuestionHeader>
                   <QuestionNumber>{qIndex + 1}</QuestionNumber>

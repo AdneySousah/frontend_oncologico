@@ -45,7 +45,12 @@ export default function TelaAceiteTermo() {
                     }
                 }
             } catch (error) {
-                console.error("Erro ao buscar dados do paciente:", error);
+                // 404 = link inválido, cancelado ou antigo demais: mostra "Link Indisponível"
+                if (error.response?.status === 404) {
+                    setStatusTermo('Cancelado');
+                } else {
+                    console.error("Erro ao buscar dados do paciente:", error);
+                }
             } finally {
                 setLoading(false);
             }
@@ -78,8 +83,17 @@ export default function TelaAceiteTermo() {
             
             setShowConfirmReject(false);
         } catch (error) {
-            console.error(error);
-            alert('Erro ao registrar sua resposta. Por favor, tente novamente.');
+            // 409 = o termo já foi respondido ou cancelado: mostra a situação atual
+            if (error.response?.status === 409 && error.response.data?.status_termo) {
+                setStatusTermo(error.response.data.status_termo);
+                if (error.response.data.termo_data_aceite) setDataAceite(error.response.data.termo_data_aceite);
+                setShowConfirmReject(false);
+            } else if (error.response?.status === 404) {
+                setStatusTermo('Cancelado');
+            } else {
+                console.error(error);
+                alert('Erro ao registrar sua resposta. Por favor, tente novamente.');
+            }
         } finally {
             setLoading(false);
         }
@@ -149,7 +163,7 @@ export default function TelaAceiteTermo() {
     // 👇 NOVO: link cancelado/invalidado pelo atendente (ex: enviado pro
     // número errado) — não mostra o formulário nem os estados de
     // aceito/recusado, só avisa que esse link específico não vale mais.
-    if (statusTermo === 'Cancelado') {
+    if (statusTermo === 'Cancelado' || statusTermo === 'Nao Enviado') {
         return (
             <Container>
                 <Card>
@@ -167,7 +181,7 @@ export default function TelaAceiteTermo() {
     if (showConfirmReject) {
         return (
             <Container>
-                <Card isAlert>
+                <Card $isAlert>
                     <Title variant="alert">Tem certeza que não quer aceitar o termo?</Title>
                     <Text variant="alert">
                         O acompanhamento é fundamental para monitorarmos a trajetória do seu tratamento e garantir uma melhor assistência à sua saúde.

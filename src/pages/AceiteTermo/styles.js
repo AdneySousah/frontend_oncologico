@@ -13,10 +13,10 @@ export const Container = styled.div`
 export const Card = styled.div`
   max-width: 600px;
   width: 100%;
-  padding: ${({ isAlert }) => (isAlert ? '30px 20px' : '40px 20px')};
+  padding: ${({ $isAlert }) => ($isAlert ? '30px 20px' : '40px 20px')};
   text-align: center;
-  background-color: ${({ theme, isAlert }) => isAlert ? '#f8d7da' : (theme.colors?.surface || '#ffffff')};
-  border: 1px solid ${({ theme, isAlert }) => isAlert ? '#f5c6cb' : (theme.colors?.border || '#ccc')};
+  background-color: ${({ theme, $isAlert }) => $isAlert ? '#f8d7da' : (theme.colors?.surface || '#ffffff')};
+  border: 1px solid ${({ theme, $isAlert }) => $isAlert ? '#f5c6cb' : (theme.colors?.border || '#ccc')};
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 `;

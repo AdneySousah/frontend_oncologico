@@ -6,7 +6,7 @@ import {
   LuChevronDown, LuTable2, LuBell, LuSettings, LuSmartphone, LuStethoscope
 } from "react-icons/lu";
 
-import { atendimentoOptions, registerOptions, adminOptions } from "./menu";
+import { atendimentoOptions, registerOptions, adminOptions, manualOption } from "./menu";
 import { AuthContext } from "../../hooks/AuthConfig";
 import { ThemeContext } from "../../hooks/ThemeConfig";
 import api from "../../services/api";
@@ -102,6 +102,8 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
   // nesta sessão do navegador — pra não notificar o mesmo de novo a cada
   // checagem de 5 minutos, só dispara um NOVO por ciclo.
   const pausasJaNotificadasRef = useRef(new Set());
+  // 👇 F36: toasts de pausa abertos — fecham quando o usuário muda de tela
+  const toastsPausaAbertosRef = useRef(new Set());
 
   const loadAlerts = async (userDataOverride = null) => {
     const requestId = ++loadAlertsRequestIdRef.current;
@@ -220,13 +222,16 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
       const proximaParaNotificar = pausasVencendoOrdenadas.find(p => !pausasJaNotificadasRef.current.has(p.id));
       if (proximaParaNotificar) {
         pausasJaNotificadasRef.current.add(proximaParaNotificar.id);
+        toastsPausaAbertosRef.current.add(`pausa_${proximaParaNotificar.id}`);
         const rota = `/telemonitoramento?ver_pausados=true&pausado_id=${proximaParaNotificar.id}`;
         const textoPrazo = proximaParaNotificar.diffDays <= 0 ? 'já venceu' : `termina em ${proximaParaNotificar.diffDays} dia(s)`;
         toast.info(
           `⏸ Pausa de ${proximaParaNotificar.nomePaciente} (${proximaParaNotificar.medicamentoNome}) ${textoPrazo}. Clique para retomar.`,
           {
-            autoClose: false,
-            closeOnClick: false,
+            // 👇 F36: fecha sozinho em 15 s e ao ser clicado (no celular cobria o topo)
+            toastId: `pausa_${proximaParaNotificar.id}`,
+            autoClose: 15000,
+            closeOnClick: true,
             onClick: () => navigate(rota),
             style: { cursor: 'pointer' }
           }
@@ -285,16 +290,22 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     loadAlerts(parsedUser?.user);
     loadNpsHealth();
 
-    const alertInterval = setInterval(() => loadAlerts(), 300000);
-    const healthInterval = setInterval(() => loadNpsHealth(), 600000);
+    // 👇 F34: com a aba oculta não consulta (a busca de pendências é pesada);
+    // ao voltar para a aba, atualiza uma vez.
+    const alertInterval = setInterval(() => { if (!document.hidden) loadAlerts(); }, 300000);
+    const healthInterval = setInterval(() => { if (!document.hidden) loadNpsHealth(); }, 600000);
 
-    const handleUpdateAlerts = () => loadAlerts();
+    const handleUpdateAlerts = () => { if (!document.hidden) loadAlerts(); };
     window.addEventListener('updateAlerts', handleUpdateAlerts);
+
+    const handleVisibilidade = () => { if (!document.hidden) loadAlerts(); };
+    document.addEventListener('visibilitychange', handleVisibilidade);
 
     return () => {
       clearInterval(alertInterval);
       clearInterval(healthInterval);
       window.removeEventListener('updateAlerts', handleUpdateAlerts);
+      document.removeEventListener('visibilitychange', handleVisibilidade);
     };
   }, []);
 
@@ -304,6 +315,11 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     }
     // Toda vez que as permissões ou perfil atualizarem, ele busca os alertas novamente
   }, [userProfileData, userStorage]);
+
+  useEffect(() => {
+    toastsPausaAbertosRef.current.forEach(id => toast.dismiss(id));
+    toastsPausaAbertosRef.current.clear();
+  }, [location.pathname]);
 
   useEffect(() => {
     if (collapsed) {
@@ -337,16 +353,16 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
     <>
       <S.MobileOverlay $isOpen={isMobileMenuOpen} onClick={closeMobileMenu} />
 
-      <S.Container isCollapsed={collapsed} $isOpen={isMobileMenuOpen}>
+      <S.Container $isCollapsed={collapsed} $isOpen={isMobileMenuOpen}>
         <S.ToggleButton onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <LuChevronRight size={18} /> : <LuChevronLeft size={18} />}
         </S.ToggleButton>
 
-        <S.LogoArea isCollapsed={collapsed}>
+        <S.LogoArea $isCollapsed={collapsed}>
           <img src={currentLogo} alt="Logo Onco Navegação" />
         </S.LogoArea>
 
-        <S.Header isCollapsed={collapsed}>
+        <S.Header $isCollapsed={collapsed}>
           <S.AvatarContainer theme={theme}>
             {getInitials(userNameToShow)}
           </S.AvatarContainer>
@@ -360,7 +376,7 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
 
         <S.MenuList>
           {(temPermissaoDeAcesso('avaliacoes') || temPermissaoDeAcesso('telemonitoramento') || temPermissaoDeAcesso('pacientes')) && (
-            <S.MenuItem isCollapsed={collapsed} isActive={isAlertModalOpen} label={`Alertas (${alertCount})`}>
+            <S.MenuItem $isCollapsed={collapsed} $isActive={isAlertModalOpen} label={`Alertas (${alertCount})`}>
               <button
                 onClick={() => setIsAlertModalOpen(true)}
                 className="menu-link"
@@ -374,18 +390,18 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
             </S.MenuItem>
           )}
 
-          <S.Divider isCollapsed={collapsed} />
+          <S.Divider $isCollapsed={collapsed} />
 
           {menusAtendimentoVisiveis.length > 0 && (
-            <S.MenuItem isCollapsed={collapsed} label="Atendimento" isOpen={isAtendimentoOpen}>
+            <S.MenuItem $isCollapsed={collapsed} label="Atendimento" $isOpen={isAtendimentoOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsAtendimentoOpen(!isAtendimentoOpen); }}>
                 <LuStethoscope size={24} />
                 <span>Atendimento</span>
                 <LuChevronDown className="arrow-icon" size={18} />
               </button>
-              <S.SubMenuContent isOpen={isAtendimentoOpen} isCollapsed={collapsed}>
+              <S.SubMenuContent $isOpen={isAtendimentoOpen} $isCollapsed={collapsed}>
                 {menusAtendimentoVisiveis.map((item) => (
-                  <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
+                  <S.MenuItem key={item.id} $isCollapsed={collapsed} $isActive={location.pathname === item.path} label={item.label}>
                     <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }} style={{ padding: '10px 15px', fontSize: '0.85rem' }}>
                       <item.icon size={20} />
                       <span>{item.label}</span>
@@ -396,18 +412,18 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
             </S.MenuItem>
           )}
 
-          <S.Divider isCollapsed={collapsed} />
+          <S.Divider $isCollapsed={collapsed} />
 
           {menusCadastroVisiveis.length > 0 && (
-            <S.MenuItem isCollapsed={collapsed} label="Tabelas Cadastrais" isOpen={isRegisterOpen}>
+            <S.MenuItem $isCollapsed={collapsed} label="Tabelas Cadastrais" $isOpen={isRegisterOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsRegisterOpen(!isRegisterOpen); }}>
                 <LuTable2 size={24} />
                 <span>Tabelas Cadastrais</span>
                 <LuChevronDown className="arrow-icon" size={18} />
               </button>
-              <S.SubMenuContent isOpen={isRegisterOpen} isCollapsed={collapsed}>
+              <S.SubMenuContent $isOpen={isRegisterOpen} $isCollapsed={collapsed}>
                 {menusCadastroVisiveis.map((item) => (
-                  <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
+                  <S.MenuItem key={item.id} $isCollapsed={collapsed} $isActive={location.pathname === item.path} label={item.label}>
                     <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }} style={{ padding: '10px 15px', fontSize: '0.85rem' }}>
                       <item.icon size={20} />
                       <span>{item.label}</span>
@@ -419,15 +435,15 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
           )}
 
           {menusAdminVisiveis.length > 0 && (
-            <S.MenuItem isCollapsed={collapsed} label="Administrativo" isOpen={isAdminMenuOpen}>
+            <S.MenuItem $isCollapsed={collapsed} label="Administrativo" $isOpen={isAdminMenuOpen}>
               <button className="submenu-trigger" onClick={() => { if (collapsed) setCollapsed(false); setIsAdminMenuOpen(!isAdminMenuOpen); }}>
                 <LuSettings size={24} />
                 <span>Administrativo</span>
                 <LuChevronDown className="arrow-icon" size={18} />
               </button>
-              <S.SubMenuContent isOpen={isAdminMenuOpen} isCollapsed={collapsed}>
+              <S.SubMenuContent $isOpen={isAdminMenuOpen} $isCollapsed={collapsed}>
                 {menusAdminVisiveis.map((item) => (
-                  <S.MenuItem key={item.id} isCollapsed={collapsed} isActive={location.pathname === item.path} label={item.label}>
+                  <S.MenuItem key={item.id} $isCollapsed={collapsed} $isActive={location.pathname === item.path} label={item.label}>
                     <a href={item.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(item.path); }} style={{ padding: '10px 15px', fontSize: '0.85rem' }}>
                       <item.icon size={20} />
                       <span>{item.label}</span>
@@ -437,13 +453,22 @@ export default function Sidebar({ isMobileMenuOpen, closeMobileMenu }) {
               </S.SubMenuContent>
             </S.MenuItem>
           )}
+
+          <S.Divider $isCollapsed={collapsed} />
+
+          <S.MenuItem $isCollapsed={collapsed} $isActive={location.pathname === manualOption.path} label={manualOption.label}>
+            <a href={manualOption.path} className="menu-link" onClick={(e) => { e.preventDefault(); handleNavigation(manualOption.path); }}>
+              <manualOption.icon size={24} />
+              <span>{manualOption.label}</span>
+            </a>
+          </S.MenuItem>
         </S.MenuList>
 
-        <S.Footer isCollapsed={collapsed}>
+        <S.Footer $isCollapsed={collapsed}>
           {npsHealth && (
             <S.HealthStatus
-              isCollapsed={collapsed}
-              quality={npsHealth.qualidade}
+              $isCollapsed={collapsed}
+              $quality={npsHealth.qualidade}
               title={collapsed ? `WhatsApp: ${npsHealth.qualidade} | Saldo: ${npsHealth.saldo}` : ""}
             >
               <div className="status-dot" />

@@ -9,7 +9,6 @@ import {
   Table, 
   ActionButton,
   UserEmail,
-  AdminBadge,
   AdminMatrixBadge,
   OperadorasList,
   OperadoraBadge,
@@ -115,7 +114,7 @@ const UsersPage = () => {
               <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>Nenhum usuário encontrado.</td></tr>
             ) : (
               paginatedUsers.map((user) => (
-                <tr key={user.id} isActive={user.active}>
+                <tr key={user.id}>
                   <td>#{user.id}</td>
                   <td>
                     <strong>{user.name}</strong><br />
@@ -143,7 +142,7 @@ const UsersPage = () => {
                   </td>
 
                   <td>
-                    <StatusBadge isActive={user.active}>
+                    <StatusBadge $isActive={user.active}>
                       {user.active ? '● Ativo' : '○ Inativo'}
                     </StatusBadge>
                   </td>

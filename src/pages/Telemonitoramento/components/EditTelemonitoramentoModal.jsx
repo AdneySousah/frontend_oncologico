@@ -57,7 +57,7 @@ export default function EditTelemonitoramentoModal({ isOpen, onClose, monitorame
           setReacoesSelecionadas([]);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!isMounted) return;
         toast.error('Erro ao carregar os dados para edição.');
         onClose();

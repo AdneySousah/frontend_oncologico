@@ -4,7 +4,8 @@ import api from '../../../services/api';
 import Select from 'react-select';
 import { useTheme } from 'styled-components';
 import SeletorPosologia from '../../../components/SeletorPosologia';
-import { formatarPadraoPosologia, contarComprimidosConsumidos } from '../../../utils/posologiaHelpers';
+import { formatarPadraoPosologia, contarComprimidosConsumidos, calcularDataFimCaixaLocal } from '../../../utils/posologiaHelpers';
+import { calcularEstoqueProjetado } from '../../../utils/estoqueProjetado';
 import {
   ModalContent, FormGroup, Input, ButtonGroup, Button, InfoBox,
   ProjectedStockBox, SkeletonLoader, PosologiaChangeAlert, HighlightedSection
@@ -18,6 +19,10 @@ import {
 import ConfirmacaoRestante from './ConfirmacaoRestante';
 import { ESTADO_RESTANTE_VAZIO, validarRestante, montarCamposDescontinuacao, montarCamposRestantePausa } from '../../../utils/restanteHelpers';
 import { capitalizar } from '../../../utils/texto'; // 👈 padrão de exibição (Primeira Letra Maiúscula)
+import { hojeISO } from '../../../utils/datas'; // 👈 data LOCAL de hoje (F30)
+import AcumuloSobras from './AcumuloSobras'; // 👈 ACUMULAR SOBRAS
+import { sugerirSobraAnterior, sobraValida } from '../../../utils/sobraAnterior';
+import ResumoAcumulo from './ResumoAcumulo';
 
 // Componente de UMA etapa do wizard de "uso em conjunto": coleta os dados de
 // UM medicamento por vez (estoque, reação adversa, mudança de posologia, nova
@@ -41,7 +46,10 @@ export default function PassoRegistroMedicamento({
   // 👇 NOVO: callback pra abrir a correção de data — vem do orquestrador
   // (TelemonitoramentoModalConjunto), que é quem guarda esse estado.
   onCorrigirData,
-  corrigirDataDisabled = false
+  corrigirDataDisabled = false,
+  // 👇 NOVO: o pai está enviando os dados desta etapa — trava os botões sem
+  // desmontar o formulário (num erro do servidor nada do que foi digitado se perde)
+  enviando = false
 }) {
   const theme = useTheme();
 
@@ -90,6 +98,16 @@ export default function PassoRegistroMedicamento({
   const [restantePausa, setRestantePausa] = useState(ESTADO_RESTANTE_VAZIO);
   const [listaMotivosEncerramento, setListaMotivosEncerramento] = useState([]);
   const [motivoEncerramento, setMotivoEncerramento] = useState('');
+  // 👇 usado só quando o estoque projetado não pode ser calculado (sem data de
+  // início ou sem quantidade da caixa): aí o operador escolhe a adesão.
+  const [nivelAdesaoManual, setNivelAdesaoManual] = useState('COMPLETAMENTE');
+  // 👇 ACUMULAR SOBRAS: marcação do medicamento + sobra digitada (null = usa a sugestão)
+  const [acumulaSobras, setAcumulaSobras] = useState(!!monitoramento?.acumula_sobras);
+  const [acumuloPendente, setAcumuloPendente] = useState(false); // confirmação de "Acumular sobras" aberta
+  const [qtdSobraEditada, setQtdSobraEditada] = useState(null);
+  useEffect(() => {
+    setQtdSobraEditada(null); // outra compra selecionada: volta para a sugestão
+  }, [dadosNovaCompra?.evento_externo_id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -166,6 +184,7 @@ export default function PassoRegistroMedicamento({
   let dataReferenciaFormatada = '-';
   let dataFimCicloAtualFormatada = '-';
   let isAntesDoInicio = false;
+  let estoqueCalculavel = false;
 
   const qtdCaixas = Number(monitoramento?.qtd_caixas || 1);
   const qtdTotalCaixa = Number(
@@ -194,6 +213,12 @@ export default function PassoRegistroMedicamento({
   if (monitoramento?.data_calculada_fim_caixa) {
     const [ano, mes, dia] = monitoramento.data_calculada_fim_caixa.split('T')[0].split('-');
     dataFimCicloAtualFormatada = `${dia}/${mes}/${ano}`;
+  }
+  // 👇 CORREÇÃO (F9): o estoque projetado só era calculado quando havia
+  // data_calculada_fim_caixa — sem ela ficava 0 e tudo virava "baixa adesão".
+  // A conta só precisa da data de início e do total da caixa.
+  if (dataInicioObj && qtdTotalCaixa > 0) {
+    estoqueCalculavel = true;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
@@ -221,42 +246,56 @@ export default function PassoRegistroMedicamento({
     }
   }
 
+  // 👇 ACUMULAR SOBRAS: na reposição do mesmo medicamento, a sobra entra no total da caixa nova
+  const somaSobraAtiva = !!(acumulaSobras && aplicarNovaCompra && dadosNovaCompra && !dadosNovaCompra.mudou_medicamento);
+  const sugestaoSobra = somaSobraAtiva ? sugerirSobraAnterior({
+    monitoramentoAtual: monitoramento,
+    dataInicioNovaCaixa: dataRealInicioNovaCaixa
+  }) : '';
+  const valorCampoSobra = qtdSobraEditada ?? sugestaoSobra;
+  const sobraSomada = somaSobraAtiva ? sobraValida(valorCampoSobra) : 0;
+  // posologia usada pra converter a diferença (informado x projetado) em adesão
+  let posologiaAdesao = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
   if (aplicarNovaCompra && dadosNovaCompra && dataRealInicioNovaCaixa && modoNovoMedicamento !== 'CONJUNTO') {
     const posologiaNova = Number(posologiaNovaCaixa || posologia);
+    posologiaAdesao = posologiaNova;
     const [anoNovo, mesNovo, diaNovo] = dataRealInicioNovaCaixa.split('-');
     const dataInicioNovaObj = new Date(anoNovo, mesNovo - 1, diaNovo);
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
 
     dataReferenciaFormatada = `${diaNovo}/${mesNovo}/${anoNovo} (Início Novo Ciclo)`;
 
-    if (hoje < dataInicioNovaObj) {
-      idealRemaining = dadosNovaCompra.total_capsulas_novas;
-    } else {
-      const diasUsoNovaCaixa = Math.floor((hoje - dataInicioNovaObj) / (1000 * 60 * 60 * 24));
-      idealRemaining = dadosNovaCompra.total_capsulas_novas - (diasUsoNovaCaixa * posologiaNova);
-    }
-    if (idealRemaining < 0) idealRemaining = 0;
+    // 👇 CORREÇÃO (F8): antes era dias × posologia, como se a nova caixa fosse
+    // sempre diária ("9 a cada 7 dias" projetava 0 → baixa adesão). Agora usa o
+    // padrão escolhido para a nova caixa — mesma conta da lista e do modal.
+    const totalNovo = (Number(dadosNovaCompra.total_capsulas_novas) || 0) + sobraSomada; // 👈 ACUMULAR SOBRAS
+    estoqueCalculavel = totalNovo > 0;
+    idealRemaining = calcularEstoqueProjetado({
+      ...padraoNovaCaixa,
+      qtd_total_capsulas: totalNovo,
+      posologia_diaria: posologiaNova,
+      data_administracao: dataRealInicioNovaCaixa
+    }) ?? 0;
 
-    const diasRestantesTotais = posologiaNova > 0 ? Math.floor(idealRemaining / posologiaNova) : 0;
-    const fimNovaCaixaObj = new Date(hoje);
-    fimNovaCaixaObj.setDate(fimNovaCaixaObj.getDate() + diasRestantesTotais);
-    dataFimCicloAtualFormatada = `${String(fimNovaCaixaObj.getDate()).padStart(2, '0')}/${String(fimNovaCaixaObj.getMonth() + 1).padStart(2, '0')}/${fimNovaCaixaObj.getFullYear()}`;
+    // mesmo cálculo de fim de caixa que o backend grava no ciclo novo
+    const fimNovaCaixaObj = calcularDataFimCaixaLocal(dataInicioNovaObj, totalNovo, posologiaNova, padraoNovaCaixa);
+    dataFimCicloAtualFormatada = fimNovaCaixaObj
+      ? `${String(fimNovaCaixaObj.getDate()).padStart(2, '0')}/${String(fimNovaCaixaObj.getMonth() + 1).padStart(2, '0')}/${fimNovaCaixaObj.getFullYear()}`
+      : '-';
 
     margemMin = Math.max(0, idealRemaining - posologiaNova);
     margemMax = idealRemaining + posologiaNova;
   } else {
     idealRemaining = idealRemainingAntigo;
-    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
-    margemMin = Math.max(0, idealRemaining - posologiaVigente);
-    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaVigente);
+    margemMin = Math.max(0, idealRemaining - posologiaAdesao);
+    margemMax = Math.min(qtdTotalCaixa, idealRemaining + posologiaAdesao);
   }
 
   const calcularNivelAdesao = () => {
-    const posologiaVigente = (mudouPosologia && novaPosologia) ? Number(novaPosologia) : posologia;
+    // sem estoque projetado não há com o que comparar: vale a escolha do operador
+    if (!estoqueCalculavel) return nivelAdesaoManual;
     const qtdInformadaNum = Number(qtdInformada);
     const diferencaComprimidos = Math.abs(idealRemaining - qtdInformadaNum);
-    const diferencaEmDias = diferencaComprimidos / posologiaVigente;
+    const diferencaEmDias = diferencaComprimidos / (posologiaAdesao || 1);
     if (diferencaEmDias <= 2) return 'COMPLETAMENTE';
     if (diferencaEmDias <= 6) return 'PARCIALMENTE';
     return 'NAO_ADERE';
@@ -267,6 +306,11 @@ export default function PassoRegistroMedicamento({
   const pausaExclusiva = pausarMedicamento && !aplicarNovaCompra;
 
   const handleAvancar = () => {
+    if (acumuloPendente) {
+      toast.warn(`Confirme ou cancele "Acumular sobras" de ${monitoramento.medicamento?.nome} antes de continuar.`);
+      document.getElementById('acumulo-sobras')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (pausarMedicamento && descontinuarMedicamento) {
       toast.error(`Escolha entre pausar e descontinuar ${monitoramento.medicamento?.nome} — não os dois.`);
       return;
@@ -323,6 +367,11 @@ export default function PassoRegistroMedicamento({
       toast.error('Preencha a nova dosagem e a data em que ela começou.');
       return;
     }
+    // mesma validação do modal individual (F30)
+    if (mudouPosologia && dataMudancaPosologia > hojeISO()) {
+      toast.error(`A data da mudança de dosagem de ${monitoramento.medicamento?.nome} não pode ser no futuro.`);
+      return;
+    }
     if (mudouPosologia && padraoPosologiaNova.tipo_posologia === 'ciclica' && (!padraoPosologiaNova.posologia_ciclo_dias_toma || padraoPosologiaNova.posologia_ciclo_dias_pausa == null)) {
       toast.error(`Complete o padrão de ciclo (toma/pausa) da nova posologia de ${monitoramento.medicamento?.nome}.`);
       return;
@@ -353,6 +402,7 @@ export default function PassoRegistroMedicamento({
       dataRealInicioNovaCaixa,
       posologiaNovaCaixa,
       padraoNovaCaixa, // 👈 PADRÃO DA NOVA CAIXA
+      qtdSobraAnterior: somaSobraAtiva ? sobraSomada : null, // 👈 ACUMULAR SOBRAS
       modoNovoMedicamento,
       // 👇 LINHA DE TRATAMENTO: ciclo substituído (quando o medicamento novo substitui outro do grupo)
       substituiMonitoramentoId: modoNovoMedicamento === 'SUBSTITUICAO' ? (substituiMonitoramentoId || monitoramento.id) : null,
@@ -413,7 +463,7 @@ export default function PassoRegistroMedicamento({
           pausando={pausaExclusiva}
           estoqueHoje={qtdInformada !== '' && !aplicarNovaCompra ? Number(qtdInformada) : idealRemainingAntigo}
           dataInicioAtual={dataUsoReferencia}
-          isAntesDoInicio={isAntesDoInicio}
+          padraoAtual={monitoramento}
           modoNovoMedicamento={modoNovoMedicamento}
           onChangeModoNovoMedicamento={setModoNovoMedicamento}
           opcoesSubstituicao={monitoramentosDoGrupo.map(m => ({ monitoramento_id: m.id, nome: m.medicamento?.nome || `Medicamento ${m.id}` }))}
@@ -424,12 +474,17 @@ export default function PassoRegistroMedicamento({
           onChangeConfirmouConsumoAnteriores={handleConfirmarConsumoAnteriores}
           motivoNaoAplicar={motivoNaoAplicar}
           onChangeMotivoNaoAplicar={setMotivoNaoAplicar}
+          acumulaSobras={acumulaSobras}
+          qtdSobraAnterior={valorCampoSobra}
+          onChangeQtdSobraAnterior={setQtdSobraEditada}
+          dataSobraReferencia={dataRealInicioNovaCaixa}
         />
       )}
 
       <InfoBox>
         <p className="sub-text">
           Quantidade total inicial: {qtdTotalCaixaReal} comprimidos ({qtdCaixas} caixa{qtdCaixas > 1 ? 's' : ''})
+          {monitoramento?.qtd_sobra_anterior > 0 && ` + ${monitoramento.qtd_sobra_anterior} de sobra da caixa anterior = ${qtdTotalCaixa} comprimidos`}
           {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' ? '' : ` (Dose: ${posologia}/dia)`}
         </p>
         {monitoramento?.tipo_posologia && monitoramento.tipo_posologia !== 'diaria' && (
@@ -456,12 +511,23 @@ export default function PassoRegistroMedicamento({
           <p style={{ marginBottom: '10px', fontSize: '0.9em', borderBottom: '1px solid rgba(0,0,0,0.1)', paddingBottom: '6px' }}>
             <strong>Data prevista para o fim do ciclo:</strong> {dataFimCicloAtualFormatada}
           </p>
-          <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
-            Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
-          </p>
-          <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
-            (Margem aceitável calculada: {margemMin} a {margemMax})
-          </p>
+          {estoqueCalculavel ? (
+            <>
+              <p style={{ marginBottom: '5px', fontSize: '1.05em' }}>
+                Estoque Projetado para Hoje: <span className="destaque">~{idealRemaining} comprimidos</span>
+              </p>
+              {somaSobraAtiva && (
+                <ResumoAcumulo caixaNova={dadosNovaCompra.total_capsulas_novas} total={idealRemaining} />
+              )}
+              <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
+                (Margem aceitável calculada: {margemMin} a {margemMax})
+              </p>
+            </>
+          ) : (
+            <p style={{ marginBottom: '5px', fontSize: '0.95em' }}>
+              Estoque Projetado para Hoje: <strong>não calculado</strong> — falta a data de início ou a quantidade da caixa.
+            </p>
+          )}
           {mudouPosologia && !escondeCamposMedicamentoAtual && (
             <PosologiaChangeAlert>
               <strong>Matemática Reajustada:</strong>
@@ -470,6 +536,18 @@ export default function PassoRegistroMedicamento({
           )}
         </ProjectedStockBox>
       </InfoBox>
+
+      {/* 👇 ACUMULAR SOBRAS: marcação do medicamento (salva na hora, com histórico).
+          Aparece também com a compra marcada (é quando a sobra é somada). */}
+      {!descontinuarMedicamento && !(aplicarNovaCompra && dadosNovaCompra?.mudou_medicamento) && (
+        <AcumuloSobras
+          monitoramentoId={monitoramento.id}
+          ativo={acumulaSobras}
+          onChange={setAcumulaSobras}
+          onPendenteChange={setAcumuloPendente}
+          nomeMedicamento={capitalizar(monitoramento.medicamento?.nome || '')}
+        />
+      )}
 
       {!escondeCamposMedicamentoAtual && (
         <HighlightedSection>
@@ -503,7 +581,8 @@ export default function PassoRegistroMedicamento({
                 <label>A partir de que dia começou a tomar a nova dose?</label>
                 <Input
                   type="date"
-                  max={new Date().toISOString().split('T')[0]}
+                  max={hojeISO()}
+                  min={monitoramento?.data_administracao?.split('T')[0] || undefined}
                   value={dataMudancaPosologia}
                   onChange={(e) => setDataMudancaPosologia(e.target.value)}
                   required
@@ -588,9 +667,11 @@ export default function PassoRegistroMedicamento({
                 monitoramentoId={monitoramento.id}
                 base={(aplicarNovaCompra && dadosNovaCompra) ? {
                   data_inicio: dataRealInicioNovaCaixa || null,
-                  qtd_total: dadosNovaCompra.total_capsulas_novas,
+                  qtd_total: (Number(dadosNovaCompra.total_capsulas_novas) || 0) + sobraSomada, // 👈 ACUMULAR SOBRAS
                   posologia: Number(posologiaNovaCaixa) || monitoramento.posologia_diaria,
-                  tipo_posologia: 'diaria'
+                  // 👇 CORREÇÃO (F19): projeta no padrão da nova caixa, não 'diaria' fixo
+                  tipo_posologia: padraoNovaCaixa?.tipo_posologia || 'diaria',
+                  parametros: padraoDoCiclo(padraoNovaCaixa)
                 } : null}
                 valor={restantePausa}
                 onChange={setRestantePausa}
@@ -612,6 +693,7 @@ export default function PassoRegistroMedicamento({
                 <label>Retomar em (data prevista) *</label>
                 <Input
                   type="date"
+                  min={hojeISO()}
                   value={dataFimPrevistaPausa}
                   onChange={(e) => setDataFimPrevistaPausa(e.target.value)}
                 />
@@ -650,8 +732,16 @@ export default function PassoRegistroMedicamento({
           hora, como está indo cada um. */}
       {qtdInformada !== '' && (
         <FormGroup>
-          <label>O quanto ele adere a este medicamento? (Calculado automaticamente)</label>
-          <Input as="select" value={calcularNivelAdesao()} disabled>
+          <label>
+            O quanto ele adere a este medicamento?{' '}
+            {estoqueCalculavel ? '(Calculado automaticamente)' : '(sem estoque projetado — escolha conforme o relato do paciente)'}
+          </label>
+          <Input
+            as="select"
+            value={calcularNivelAdesao()}
+            disabled={estoqueCalculavel}
+            onChange={(e) => setNivelAdesaoManual(e.target.value)}
+          >
             <option value="COMPLETAMENTE">Alta adesão ao uso do medicamento</option>
             <option value="PARCIALMENTE">Média adesão ao uso do medicamento</option>
             <option value="NAO_ADERE">Baixa adesão ao uso do medicamento</option>
@@ -700,9 +790,9 @@ export default function PassoRegistroMedicamento({
       </>)}
 
       <ButtonGroup>
-        <Button type="button" variant="secondary" onClick={onCancelar}>Cancelar</Button>
-        <Button type="button" onClick={handleAvancar}>
-          {numeroEtapa < totalEtapas ? 'Avançar para o próximo medicamento' : 'Continuar'}
+        <Button type="button" variant="secondary" onClick={onCancelar} disabled={enviando}>Cancelar</Button>
+        <Button type="button" onClick={handleAvancar} disabled={enviando}>
+          {enviando ? 'Salvando...' : (numeroEtapa < totalEtapas ? 'Avançar para o próximo medicamento' : 'Continuar')}
         </Button>
       </ButtonGroup>
     </ModalContent>

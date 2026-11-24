@@ -14,7 +14,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
   const [destinoEnvio, setDestinoEnvio] = useState('paciente');
   const [telefoneManual, setTelefoneManual] = useState('');
   const [emailManual, setEmailManual] = useState('');
-  const [waitCountdown, setWaitCountdown] = useState(10);
+  const [, setWaitCountdown] = useState(10);
   const [showManualFallback, setShowManualFallback] = useState(false);
   const [loadingManual, setLoadingManual] = useState(false);
   
@@ -132,7 +132,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
           try {
             await navigator.clipboard.writeText(res.data.link);
             toast.success("Link copiado para a área de transferência!");
-          } catch (clipErr) {
+          } catch {
             toast.warning(`Link gerado, mas não foi possível copiar automaticamente. Link: ${res.data.link}`);
           }
         } else {
@@ -212,13 +212,13 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
   const handleManualResponse = async (aceita) => {
     setLoadingManual(true);
     try {
-      await api.post(`/termos/paciente/${paciente.id}`, { aceite: aceita });
+      await api.post(`/termos/paciente/${paciente.id}/resposta-operador`, { aceite: aceita });
       if (aceita) {
         setStep('accepted');
       } else {
         setStep('rejected');
       }
-    } catch (error) {
+    } catch {
       toast.error("Erro ao registrar a resposta manualmente.");
     } finally {
       setLoadingManual(false);
@@ -236,7 +236,7 @@ export default function TermoModal({ isOpen, onClose, paciente, onSuccess, onBac
     try {
       const response = await api.get(`/pacientes/${paciente.id}/medicamentos-ativos`);
       setMedicamentosAtivos(response.data.medicamentos || []);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao buscar medicamentos ativos do paciente.');
       setMedicamentosAtivos([paciente.medicamento]);
     } finally {
